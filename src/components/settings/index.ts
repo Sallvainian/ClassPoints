@@ -1,0 +1,1 @@
+export { ClassSettingsView } from './ClassSettingsView';
