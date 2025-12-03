@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Button, Modal } from '../ui';
-import { parseStudents } from '../../utils/studentParser';
+import { parseStudents, generateDisplayNames } from '../../utils/studentParser';
 
 interface ImportStudentsModalProps {
   isOpen: boolean;
@@ -20,7 +20,8 @@ export function ImportStudentsModal({ isOpen, onClose, onImport }: ImportStudent
     const result = parseStudents(text, name);
     setContent(text);
     setFilename(name || null);
-    setPreview(result.names);
+    // Convert raw names to display names (first name, with disambiguation for duplicates)
+    setPreview(generateDisplayNames(result.names));
     setErrors(result.errors);
   };
 

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
+import { supabase } from '../lib/supabase';
 import { useClassrooms } from '../hooks/useClassrooms';
 import { useStudents } from '../hooks/useStudents';
 import { useBehaviors } from '../hooks/useBehaviors';
@@ -8,6 +9,8 @@ import type {
   Student as DbStudent,
   Behavior as DbBehavior,
   PointTransaction as DbPointTransaction,
+  NewBehavior,
+  NewPointTransaction,
 } from '../types/database';
 
 // Types matching the original app interface (for backwards compatibility)
@@ -23,6 +26,7 @@ interface AppClassroom {
   students: AppStudent[];
   createdAt: number;
   updatedAt: number;
+  pointTotal?: number; // Pre-fetched total points for sidebar display
 }
 
 interface AppBehavior {
@@ -47,6 +51,12 @@ interface UndoableAction {
   behaviorName: string;
   points: number;
   timestamp: number;
+}
+
+interface ClassPoints {
+  total: number;
+  today: number;
+  thisWeek: number;
 }
 
 interface SupabaseAppContextValue {
@@ -78,11 +88,14 @@ interface SupabaseAppContextValue {
   addBehavior: (behavior: Omit<DbBehavior, 'id' | 'created_at'>) => Promise<DbBehavior | null>;
   updateBehavior: (id: string, updates: Partial<DbBehavior>) => Promise<void>;
   deleteBehavior: (id: string) => Promise<void>;
+  resetBehaviorsToDefault: () => Promise<void>;
 
   // Point operations
   awardPoints: (classroomId: string, studentId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction | null>;
+  awardClassPoints: (classroomId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
   undoTransaction: (transactionId: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
+  getClassPoints: (classroomId: string) => ClassPoints;
   getStudentTransactions: (studentId: string, limit?: number) => DbPointTransaction[];
   getClassroomTransactions: (classroomId: string, limit?: number) => DbPointTransaction[];
   getRecentUndoableAction: () => UndoableAction | null;
@@ -123,6 +136,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     addBehavior: addBehaviorHook,
     updateBehavior: updateBehaviorHook,
     deleteBehavior: deleteBehaviorHook,
+    refetch: refetchBehaviors,
   } = useBehaviors();
 
   const {
@@ -134,6 +148,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     getStudentPoints,
     getStudentTransactions,
     clearStudentPoints: clearStudentPointsHook,
+    refetch: refetchTransactions,
   } = useTransactions(activeClassroomId);
 
   // Combined loading/error state
@@ -166,7 +181,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   // ============================================
 
   const createClassroom = useCallback(
-    async (name: string): Promise<Classroom | null> => {
+    async (name: string): Promise<DbClassroom | null> => {
       const classroom = await createClassroomHook(name);
       if (classroom) {
         setActiveClassroomId(classroom.id);
@@ -177,7 +192,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   );
 
   const updateClassroom = useCallback(
-    async (id: string, updates: Partial<Classroom>): Promise<void> => {
+    async (id: string, updates: Partial<DbClassroom>): Promise<void> => {
       await updateClassroomHook(id, updates);
     },
     [updateClassroomHook]
@@ -202,21 +217,21 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   // ============================================
 
   const addStudent = useCallback(
-    async (classroomId: string, name: string): Promise<Student | null> => {
+    async (classroomId: string, name: string): Promise<DbStudent | null> => {
       return await addStudentHook(classroomId, name);
     },
     [addStudentHook]
   );
 
   const addStudents = useCallback(
-    async (classroomId: string, names: string[]): Promise<Student[]> => {
+    async (classroomId: string, names: string[]): Promise<DbStudent[]> => {
       return await addStudentsHook(classroomId, names);
     },
     [addStudentsHook]
   );
 
   const updateStudent = useCallback(
-    async (_classroomId: string, studentId: string, updates: Partial<Student>): Promise<void> => {
+    async (_classroomId: string, studentId: string, updates: Partial<DbStudent>): Promise<void> => {
       await updateStudentHook(studentId, updates);
     },
     [updateStudentHook]
@@ -234,14 +249,14 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   // ============================================
 
   const addBehavior = useCallback(
-    async (behavior: Omit<Behavior, 'id' | 'created_at'>): Promise<Behavior | null> => {
+    async (behavior: Omit<DbBehavior, 'id' | 'created_at'>): Promise<DbBehavior | null> => {
       return await addBehaviorHook(behavior);
     },
     [addBehaviorHook]
   );
 
   const updateBehavior = useCallback(
-    async (id: string, updates: Partial<Behavior>): Promise<void> => {
+    async (id: string, updates: Partial<DbBehavior>): Promise<void> => {
       await updateBehaviorHook(id, updates);
     },
     [updateBehaviorHook]
@@ -254,6 +269,52 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     [deleteBehaviorHook]
   );
 
+  // Default behavior templates (matching localStorage defaults)
+  const DEFAULT_BEHAVIORS: NewBehavior[] = [
+    // Positive behaviors
+    { name: 'On Task', points: 1, icon: '📚', category: 'positive', is_custom: false },
+    { name: 'Helping Others', points: 2, icon: '🤝', category: 'positive', is_custom: false },
+    { name: 'Great Effort', points: 2, icon: '💪', category: 'positive', is_custom: false },
+    { name: 'Participation', points: 1, icon: '✋', category: 'positive', is_custom: false },
+    { name: 'Excellent Work', points: 3, icon: '⭐', category: 'positive', is_custom: false },
+    { name: 'Being Kind', points: 2, icon: '❤️', category: 'positive', is_custom: false },
+    { name: 'Following Rules', points: 1, icon: '✅', category: 'positive', is_custom: false },
+    { name: 'Working Quietly', points: 1, icon: '🤫', category: 'positive', is_custom: false },
+    // Negative behaviors
+    { name: 'Off Task', points: -1, icon: '😴', category: 'negative', is_custom: false },
+    { name: 'Disruptive', points: -2, icon: '🔊', category: 'negative', is_custom: false },
+    { name: 'Unprepared', points: -1, icon: '📝', category: 'negative', is_custom: false },
+    { name: 'Unkind Words', points: -2, icon: '💬', category: 'negative', is_custom: false },
+    { name: 'Not Following Rules', points: -1, icon: '🚫', category: 'negative', is_custom: false },
+    { name: 'Late', points: -1, icon: '⏰', category: 'negative', is_custom: false },
+  ];
+
+  const resetBehaviorsToDefault = useCallback(async (): Promise<void> => {
+    // Delete all current behaviors for this user
+    const { error: deleteError } = await supabase
+      .from('behaviors')
+      .delete()
+      .not('id', 'is', null); // Delete all rows
+
+    if (deleteError) {
+      console.error('Error deleting behaviors:', deleteError);
+      return;
+    }
+
+    // Insert default behaviors
+    const { error: insertError } = await supabase
+      .from('behaviors')
+      .insert(DEFAULT_BEHAVIORS);
+
+    if (insertError) {
+      console.error('Error inserting default behaviors:', insertError);
+      return;
+    }
+
+    // Refetch behaviors to update state
+    refetchBehaviors();
+  }, [refetchBehaviors]);
+
   // ============================================
   // Point Operations
   // ============================================
@@ -264,12 +325,50 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       studentId: string,
       behaviorId: string,
       note?: string
-    ): Promise<PointTransaction | null> => {
+    ): Promise<DbPointTransaction | null> => {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior) return null;
       return await awardPointsHook(studentId, classroomId, behavior, note);
     },
     [behaviors, awardPointsHook]
+  );
+
+  const awardClassPoints = useCallback(
+    async (
+      classroomId: string,
+      behaviorId: string,
+      note?: string
+    ): Promise<DbPointTransaction[]> => {
+      const behavior = behaviors.find((b) => b.id === behaviorId);
+      if (!behavior || students.length === 0) return [];
+
+      // Create transactions for all students in the classroom
+      const newTransactions: NewPointTransaction[] = students.map((student) => ({
+        student_id: student.id,
+        classroom_id: classroomId,
+        behavior_id: behavior.id,
+        behavior_name: behavior.name,
+        behavior_icon: behavior.icon,
+        points: behavior.points,
+        note: note || null,
+      }));
+
+      const { data, error: insertError } = await supabase
+        .from('point_transactions')
+        .insert(newTransactions)
+        .select();
+
+      if (insertError) {
+        console.error('Error awarding class points:', insertError);
+        return [];
+      }
+
+      // Refetch transactions to update state
+      refetchTransactions();
+
+      return data || [];
+    },
+    [behaviors, students, refetchTransactions]
   );
 
   const undoTransaction = useCallback(
@@ -280,9 +379,34 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   );
 
   const getClassroomTransactions = useCallback(
-    (classroomId: string, limit?: number): PointTransaction[] => {
+    (classroomId: string, limit?: number): DbPointTransaction[] => {
       const filtered = transactions.filter((t) => t.classroom_id === classroomId);
       return limit ? filtered.slice(0, limit) : filtered;
+    },
+    [transactions]
+  );
+
+  // Get aggregated class points (sum of all student points in classroom)
+  const getClassPoints = useCallback(
+    (classroomId: string): ClassPoints => {
+      const classTransactions = transactions.filter((t) => t.classroom_id === classroomId);
+
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const day = now.getDay();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      const total = classTransactions.reduce((sum, t) => sum + t.points, 0);
+      const today = classTransactions
+        .filter((t) => new Date(t.created_at) >= startOfToday)
+        .reduce((sum, t) => sum + t.points, 0);
+      const thisWeek = classTransactions
+        .filter((t) => new Date(t.created_at) >= startOfWeek)
+        .reduce((sum, t) => sum + t.points, 0);
+
+      return { total, today, thisWeek };
     },
     [transactions]
   );
@@ -324,14 +448,24 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   // ============================================
 
   // Map classrooms to app format
+  // Always use student_count for the students array length (used by sidebar)
+  // This avoids race conditions when switching between classrooms
   const mappedClassrooms: AppClassroom[] = useMemo(() => {
-    return classrooms.map((c) => ({
-      id: c.id,
-      name: c.name,
-      students: [], // Students are loaded separately per active classroom
-      createdAt: new Date(c.created_at).getTime(),
-      updatedAt: new Date(c.updated_at).getTime(),
-    }));
+    return classrooms.map((c) => {
+      // Create placeholder array matching student_count for consistent display
+      const placeholderStudents: AppStudent[] = Array.from(
+        { length: c.student_count },
+        (_, i) => ({ id: `placeholder-${i}`, name: '' })
+      );
+      return {
+        id: c.id,
+        name: c.name,
+        students: placeholderStudents,
+        createdAt: new Date(c.created_at).getTime(),
+        updatedAt: new Date(c.updated_at).getTime(),
+        pointTotal: c.point_total,
+      };
+    });
   }, [classrooms]);
 
   // Map behaviors to app format
@@ -389,11 +523,14 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     addBehavior,
     updateBehavior,
     deleteBehavior,
+    resetBehaviorsToDefault,
 
     // Point operations
     awardPoints,
+    awardClassPoints,
     undoTransaction,
     getStudentPoints,
+    getClassPoints,
     getStudentTransactions,
     getClassroomTransactions,
     getRecentUndoableAction,

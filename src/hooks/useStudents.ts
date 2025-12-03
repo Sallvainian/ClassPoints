@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Student, NewStudent } from '../types/database';
+import { useRealtimeSubscription } from './useRealtimeSubscription';
+import { getRandomAvatarColor } from '../utils';
+import type { Student, NewStudent, UpdateStudent } from '../types/database';
 
 interface UseStudentsReturn {
   students: Student[];
@@ -48,12 +50,34 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
     fetchStudents();
   }, [fetchStudents]);
 
+  // Real-time subscription for student changes in this classroom
+  useRealtimeSubscription<Student>({
+    table: 'students',
+    filter: classroomId ? `classroom_id=eq.${classroomId}` : undefined,
+    enabled: !!classroomId,
+    onInsert: (student) => {
+      setStudents((prev) => {
+        // Avoid duplicates if we already added optimistically
+        if (prev.some((s) => s.id === student.id)) return prev;
+        return [...prev, student].sort((a, b) => a.name.localeCompare(b.name));
+      });
+    },
+    onUpdate: (student) => {
+      setStudents((prev) =>
+        prev.map((s) => (s.id === student.id ? student : s)).sort((a, b) => a.name.localeCompare(b.name))
+      );
+    },
+    onDelete: ({ id }) => {
+      setStudents((prev) => prev.filter((s) => s.id !== id));
+    },
+  });
+
   const addStudent = useCallback(
     async (classroomId: string, name: string, avatarColor?: string): Promise<Student | null> => {
       const newStudent: NewStudent = {
         classroom_id: classroomId,
         name,
-        avatar_color: avatarColor || null,
+        avatar_color: avatarColor || getRandomAvatarColor(),
       };
 
       const { data, error: insertError } = await supabase
@@ -78,7 +102,7 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
       const newStudents: NewStudent[] = names.map((name) => ({
         classroom_id: classroomId,
         name,
-        avatar_color: null,
+        avatar_color: getRandomAvatarColor(),
       }));
 
       const { data, error: insertError } = await supabase
@@ -101,7 +125,7 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
   );
 
   const updateStudent = useCallback(
-    async (id: string, updates: Partial<Student>): Promise<Student | null> => {
+    async (id: string, updates: UpdateStudent): Promise<Student | null> => {
       const { data, error: updateError } = await supabase
         .from('students')
         .update(updates)

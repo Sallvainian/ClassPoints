@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtimeSubscription } from './useRealtimeSubscription';
 import type { PointTransaction, NewPointTransaction, Behavior } from '../types/database';
 
 interface StudentPoints {
@@ -76,6 +77,28 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
+
+  // Real-time subscription for transaction changes in this classroom
+  useRealtimeSubscription<PointTransaction>({
+    table: 'point_transactions',
+    filter: classroomId ? `classroom_id=eq.${classroomId}` : undefined,
+    enabled: !!classroomId,
+    onInsert: (transaction) => {
+      setTransactions((prev) => {
+        // Avoid duplicates if we already added optimistically
+        if (prev.some((t) => t.id === transaction.id)) return prev;
+        return [transaction, ...prev]; // Newest first
+      });
+    },
+    onUpdate: (transaction) => {
+      setTransactions((prev) =>
+        prev.map((t) => (t.id === transaction.id ? transaction : t))
+      );
+    },
+    onDelete: ({ id }) => {
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
+    },
+  });
 
   const awardPoints = useCallback(
     async (

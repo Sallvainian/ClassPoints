@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { Student, Behavior } from '../../types';
 import { useApp } from '../../contexts/AppContext';
+import { getAvatarColorForName } from '../../utils';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
 
 interface AwardPointsModalProps {
@@ -17,6 +18,8 @@ export function AwardPointsModal({
   classroomId,
 }: AwardPointsModalProps) {
   const { behaviors, awardPoints, getStudentPoints } = useApp();
+  const [isAwarding, setIsAwarding] = useState(false);
+  const [awardError, setAwardError] = useState<string | null>(null);
 
   // Handle escape key
   useEffect(() => {
@@ -35,14 +38,32 @@ export function AwardPointsModal({
     };
   }, [isOpen, onClose]);
 
+  // Reset error when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setAwardError(null);
+      setIsAwarding(false);
+    }
+  }, [isOpen]);
+
+  const handleBehaviorSelect = useCallback(async (behavior: Behavior) => {
+    if (!student || isAwarding) return;
+
+    setIsAwarding(true);
+    setAwardError(null);
+
+    try {
+      await awardPoints(classroomId, student.id, behavior.id);
+      onClose();
+    } catch (err) {
+      setAwardError(err instanceof Error ? err.message : 'Failed to award points');
+      setIsAwarding(false);
+    }
+  }, [classroomId, student, isAwarding, awardPoints, onClose]);
+
   if (!isOpen || !student) return null;
 
   const points = getStudentPoints(student.id);
-
-  const handleBehaviorSelect = (behavior: Behavior) => {
-    awardPoints(classroomId, student.id, behavior.id);
-    onClose();
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -61,7 +82,7 @@ export function AwardPointsModal({
         aria-labelledby="award-modal-title"
       >
         {/* Header with Student Info */}
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6">
+        <div className="bg-linear-to-r from-blue-500 to-blue-600 text-white p-6">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 text-white/80 hover:text-white text-2xl"
@@ -74,7 +95,7 @@ export function AwardPointsModal({
             {/* Avatar */}
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg"
-              style={{ backgroundColor: student.avatarColor || '#94a3b8' }}
+              style={{ backgroundColor: student.avatarColor || getAvatarColorForName(student.name) }}
             >
               {student.name.charAt(0).toUpperCase()}
             </div>
@@ -92,10 +113,25 @@ export function AwardPointsModal({
 
         {/* Behavior Picker */}
         <div className="p-6 overflow-y-auto max-h-[60vh]">
-          <p className="text-sm text-gray-600 mb-4 text-center">
-            Select a behavior to award points
-          </p>
-          <BehaviorPicker behaviors={behaviors} onSelect={handleBehaviorSelect} />
+          {awardError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+              {awardError}
+            </div>
+          )}
+
+          {isAwarding ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-3" />
+              <p className="text-gray-600">Awarding points...</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 mb-4 text-center">
+                Select a behavior to award points
+              </p>
+              <BehaviorPicker behaviors={behaviors} onSelect={handleBehaviorSelect} />
+            </>
+          )}
         </div>
       </div>
     </div>

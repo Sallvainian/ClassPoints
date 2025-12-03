@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../types/database';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -9,3 +9,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+
+// Expose Supabase client globally for migration scripts (browser console)
+declare global {
+  interface Window {
+    __SUPABASE_CLIENT__?: SupabaseClient<Database>;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.__SUPABASE_CLIENT__ = supabase;
+}

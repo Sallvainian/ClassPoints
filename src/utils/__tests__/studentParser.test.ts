@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseJSON, parseCSV, parseStudents } from '../studentParser';
+import { parseJSON, parseCSV, parseStudents, generateDisplayNames } from '../studentParser';
 
 describe('studentParser', () => {
   describe('parseJSON', () => {
@@ -70,6 +70,20 @@ describe('studentParser', () => {
       expect(result.names).toEqual(['Smith, John', 'Doe, Jane']);
     });
 
+    it('detects "LastName, FirstName" format and keeps whole line', () => {
+      const result = parseCSV('Anaduaka, Chukwubueze\nBrown, John III\nBird, Brandon');
+      expect(result.names).toEqual(['Anaduaka, Chukwubueze', 'Brown, John III', 'Bird, Brandon']);
+    });
+
+    it('handles complex "LastName, FirstName" names with multiple words', () => {
+      const result = parseCSV('De La Cruz, Carolayn\nHechavarria Matos, Katheryn Alexa\nLagos Morales, Ansel Monserath');
+      expect(result.names).toEqual([
+        'De La Cruz, Carolayn',
+        'Hechavarria Matos, Katheryn Alexa',
+        'Lagos Morales, Ansel Monserath'
+      ]);
+    });
+
     it('trims whitespace', () => {
       const result = parseCSV('  John  \n  Jane  ');
       expect(result.names).toEqual(['John', 'Jane']);
@@ -105,6 +119,107 @@ describe('studentParser', () => {
     it('uses filename extension for CSV', () => {
       const result = parseStudents('John', 'students.csv');
       expect(result.names).toEqual(['John']);
+    });
+  });
+
+  describe('generateDisplayNames', () => {
+    it('extracts first name from "LastName FirstName" format', () => {
+      const result = generateDisplayNames(['Smith John', 'Doe Jane']);
+      expect(result).toEqual(['John', 'Jane']);
+    });
+
+    it('extracts first name from comma-separated format', () => {
+      const result = generateDisplayNames(['Smith, John', 'Doe, Jane']);
+      expect(result).toEqual(['John', 'Jane']);
+    });
+
+    it('handles single names', () => {
+      const result = generateDisplayNames(['John', 'Jane']);
+      expect(result).toEqual(['John', 'Jane']);
+    });
+
+    it('adds last initial for duplicate first names', () => {
+      const result = generateDisplayNames(['Smith John', 'Doe John', 'Wilson Jane']);
+      expect(result).toEqual(['John S.', 'John D.', 'Jane']);
+    });
+
+    it('uses full last name when initials also collide', () => {
+      const result = generateDisplayNames(['Smith John', 'Stevens John', 'Doe Jane']);
+      expect(result).toEqual(['John Smith', 'John Stevens', 'Jane']);
+    });
+
+    it('handles mixed collision scenarios', () => {
+      // Two Johns with same initial, one John with different initial
+      const result = generateDisplayNames([
+        'Smith John',
+        'Stevens John',
+        'Davis John',
+        'Wilson Jane'
+      ]);
+      expect(result).toEqual(['John Smith', 'John Stevens', 'John D.', 'Jane']);
+    });
+
+    it('is case insensitive for first name matching', () => {
+      const result = generateDisplayNames(['Smith JOHN', 'Doe john']);
+      expect(result).toEqual(['JOHN S.', 'john D.']);
+    });
+
+    it('extracts only first name, dropping middle names', () => {
+      const result = generateDisplayNames(['Smith Mary Jane', 'Doe Bob']);
+      expect(result).toEqual(['Mary', 'Bob']);
+    });
+
+    it('preserves suffixes like Jr, III', () => {
+      const result = generateDisplayNames(['Brown John III', 'Rodgers Brent Jr']);
+      expect(result).toEqual(['John III', 'Brent Jr']);
+    });
+
+    it('handles empty last names gracefully', () => {
+      const result = generateDisplayNames(['John', 'Smith John']);
+      expect(result).toEqual(['John', 'John S.']);
+    });
+
+    it('handles full classroom roster in "LastName, FirstName" format', () => {
+      const roster = [
+        'Anaduaka, Chukwubueze',
+        'Brown, John III',
+        'Bird, Brandon',
+        'De La Cruz, Carolayn',
+        'Garcia, Keyle',
+        'Hechavarria Matos, Katheryn Alexa',
+        'Howard, Morgan Amirah',
+        'Lagos Morales, Ansel Monserath',
+        'Lampley, Taraji',
+        'Ortiz, Isabella',
+        'Pineda Samaniego, Hally Maya',
+        'Reyes Martinez, Bexaida Maidely',
+        'Rincon Acta, Jade Sarai',
+        'Rodgers, Brent Te\'nir Jr',
+        'Thalerand, Anne Marly',
+        'Velasquez, Josue',
+        'Yuvi Sanchez, Vicky Belen'
+      ];
+      const result = generateDisplayNames(roster);
+      // Only first names (middle names dropped, suffixes kept)
+      expect(result).toEqual([
+        'Chukwubueze',
+        'John III',
+        'Brandon',
+        'Carolayn',
+        'Keyle',
+        'Katheryn',      // Alexa (middle) dropped
+        'Morgan',        // Amirah (middle) dropped
+        'Ansel',         // Monserath (middle) dropped
+        'Taraji',
+        'Isabella',
+        'Hally',         // Maya (middle) dropped
+        'Bexaida',       // Maidely (middle) dropped
+        'Jade',          // Sarai (middle) dropped
+        'Brent Jr',      // Te'nir (middle) dropped, Jr suffix kept
+        'Anne',          // Marly (middle) dropped
+        'Josue',
+        'Vicky'          // Belen (middle) dropped
+      ]);
     });
   });
 });

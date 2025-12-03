@@ -43,6 +43,7 @@ export interface Classroom {
   students: Student[];
   createdAt: number;
   updatedAt: number;
+  pointTotal?: number; // Pre-fetched total points for sidebar display
 }
 
 // Application state
