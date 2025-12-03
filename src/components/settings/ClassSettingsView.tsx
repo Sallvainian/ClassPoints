@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
+import { getAvatarColorForName } from '../../utils';
 import { Button, Input, Modal } from '../ui';
 import { ImportStudentsModal } from '../classes/ImportStudentsModal';
 
@@ -185,7 +186,7 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
                       <div className="flex items-center gap-3">
                         <div
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
-                          style={{ backgroundColor: student.avatarColor || '#94a3b8' }}
+                          style={{ backgroundColor: student.avatarColor || getAvatarColorForName(student.name) }}
                         >
                           {student.name.charAt(0).toUpperCase()}
                         </div>

@@ -59,3 +59,13 @@ export const AVATAR_COLORS = [
 export function getRandomAvatarColor(): string {
   return AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 }
+
+// Get a deterministic avatar color based on name (for consistent fallback)
+export function getAvatarColorForName(name: string): string {
+  // Simple hash function to get consistent color for same name
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}

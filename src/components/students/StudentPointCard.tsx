@@ -1,4 +1,5 @@
 import type { Student, StudentPoints } from '../../types';
+import { getAvatarColorForName } from '../../utils';
 
 interface StudentPointCardProps {
   student: Student;
@@ -8,7 +9,7 @@ interface StudentPointCardProps {
 
 export function StudentPointCard({ student, points, onClick }: StudentPointCardProps) {
   const pointsColor = points.total >= 0 ? 'text-emerald-600' : 'text-red-600';
-  const bgColor = student.avatarColor || '#94a3b8';
+  const bgColor = student.avatarColor || getAvatarColorForName(student.name);
 
   return (
     <button

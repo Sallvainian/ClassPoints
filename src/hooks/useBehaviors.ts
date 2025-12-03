@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Behavior, NewBehavior, BehaviorCategory } from '../types/database';
+import { useRealtimeSubscription } from './useRealtimeSubscription';
+import type { Behavior, NewBehavior, UpdateBehavior } from '../types/database';
 
 interface UseBehaviorsReturn {
   behaviors: Behavior[];
@@ -43,6 +44,24 @@ export function useBehaviors(): UseBehaviorsReturn {
     fetchBehaviors();
   }, [fetchBehaviors]);
 
+  // Real-time subscription for behavior changes
+  useRealtimeSubscription<Behavior>({
+    table: 'behaviors',
+    onInsert: (behavior) => {
+      setBehaviors((prev) => {
+        // Avoid duplicates if we already added optimistically
+        if (prev.some((b) => b.id === behavior.id)) return prev;
+        return [...prev, behavior];
+      });
+    },
+    onUpdate: (behavior) => {
+      setBehaviors((prev) => prev.map((b) => (b.id === behavior.id ? behavior : b)));
+    },
+    onDelete: ({ id }) => {
+      setBehaviors((prev) => prev.filter((b) => b.id !== id));
+    },
+  });
+
   const addBehavior = useCallback(
     async (behavior: Omit<NewBehavior, 'id' | 'created_at'>): Promise<Behavior | null> => {
       const { data, error: insertError } = await supabase
@@ -63,7 +82,7 @@ export function useBehaviors(): UseBehaviorsReturn {
   );
 
   const updateBehavior = useCallback(
-    async (id: string, updates: Partial<Behavior>): Promise<Behavior | null> => {
+    async (id: string, updates: UpdateBehavior): Promise<Behavior | null> => {
       const { data, error: updateError } = await supabase
         .from('behaviors')
         .update(updates)
