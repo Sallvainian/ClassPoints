@@ -47,10 +47,14 @@ interface StudentPoints {
 
 interface UndoableAction {
   transactionId: string;
+  transactionIds?: string[]; // Multiple IDs for batch undo (class-wide awards)
+  batchId?: string; // Batch identifier for grouped transactions
   studentName: string;
   behaviorName: string;
   points: number;
   timestamp: number;
+  isBatch?: boolean; // True if this is a class-wide award
+  studentCount?: number; // Number of students affected in batch
 }
 
 interface ClassPoints {
@@ -94,6 +98,7 @@ interface SupabaseAppContextValue {
   awardPoints: (classroomId: string, studentId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction | null>;
   awardClassPoints: (classroomId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
   undoTransaction: (transactionId: string) => Promise<void>;
+  undoBatchTransaction: (batchId: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
   getClassPoints: (classroomId: string) => ClassPoints;
   getStudentTransactions: (studentId: string, limit?: number) => DbPointTransaction[];
@@ -342,7 +347,10 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior || students.length === 0) return [];
 
-      // Create transactions for all students in the classroom
+      // Generate a batch_id to group these transactions for undo
+      const batchId = crypto.randomUUID();
+
+      // Create transactions for all students in the classroom with shared batch_id
       const newTransactions: NewPointTransaction[] = students.map((student) => ({
         student_id: student.id,
         classroom_id: classroomId,
@@ -351,6 +359,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
         behavior_icon: behavior.icon,
         points: behavior.points,
         note: note || null,
+        batch_id: batchId,
       }));
 
       const { data, error: insertError } = await supabase
@@ -376,6 +385,25 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       await undoTransactionHook(transactionId);
     },
     [undoTransactionHook]
+  );
+
+  const undoBatchTransaction = useCallback(
+    async (batchId: string): Promise<void> => {
+      // Delete all transactions with this batch_id
+      const { error: deleteError } = await supabase
+        .from('point_transactions')
+        .delete()
+        .eq('batch_id', batchId);
+
+      if (deleteError) {
+        console.error('Error undoing batch transaction:', deleteError);
+        throw deleteError;
+      }
+
+      // Refetch transactions to update state
+      refetchTransactions();
+    },
+    [refetchTransactions]
   );
 
   const getClassroomTransactions = useCallback(
@@ -423,7 +451,27 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     // Check if within undo window
     if (now - recentTimestamp > UNDO_WINDOW_MS) return null;
 
-    // Find student name
+    // Check if this is part of a batch (class-wide award)
+    if (recent.batch_id) {
+      // Find all transactions with the same batch_id
+      const batchTransactions = transactions.filter((t) => t.batch_id === recent.batch_id);
+      const transactionIds = batchTransactions.map((t) => t.id);
+      const totalPoints = batchTransactions.reduce((sum, t) => sum + t.points, 0);
+
+      return {
+        transactionId: recent.id, // Primary ID for compatibility
+        transactionIds, // All IDs in the batch
+        batchId: recent.batch_id,
+        studentName: 'Entire Class',
+        behaviorName: recent.behavior_name,
+        points: totalPoints,
+        timestamp: recentTimestamp,
+        isBatch: true,
+        studentCount: batchTransactions.length,
+      };
+    }
+
+    // Single student transaction
     const student = students.find((s) => s.id === recent.student_id);
     const studentName = student?.name || 'Unknown';
 
@@ -433,6 +481,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       behaviorName: recent.behavior_name,
       points: recent.points,
       timestamp: recentTimestamp,
+      isBatch: false,
     };
   }, [transactions, students]);
 
@@ -529,6 +578,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     awardPoints,
     awardClassPoints,
     undoTransaction,
+    undoBatchTransaction,
     getStudentPoints,
     getClassPoints,
     getStudentTransactions,

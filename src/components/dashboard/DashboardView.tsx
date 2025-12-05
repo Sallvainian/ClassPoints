@@ -20,6 +20,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     getClassPoints,
     getRecentUndoableAction,
     undoTransaction,
+    undoBatchTransaction,
     loading,
     error,
   } = useApp();
@@ -63,12 +64,17 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
   const handleUndo = useCallback(async (transactionId: string) => {
     try {
-      await undoTransaction(transactionId);
+      // Check if this is a batch undo (class-wide award)
+      if (undoableAction?.isBatch && undoableAction.batchId) {
+        await undoBatchTransaction(undoableAction.batchId);
+      } else {
+        await undoTransaction(transactionId);
+      }
       setUndoableAction(null);
     } catch (err) {
       console.error('Failed to undo transaction:', err);
     }
-  }, [undoTransaction]);
+  }, [undoTransaction, undoBatchTransaction, undoableAction]);
 
   // Get transactions - must be called before any early returns to maintain hooks order
   const dbTransactions = activeClassroom

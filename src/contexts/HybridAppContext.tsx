@@ -101,6 +101,7 @@ interface HybridAppContextValue {
   awardPoints: (classroomId: string, studentId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction | null>;
   awardClassPoints: (classroomId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
   undoTransaction: (transactionId: string) => Promise<void>;
+  undoBatchTransaction: (batchId: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
   getClassPoints: (classroomId: string) => StudentPoints;
   getStudentTransactions: (studentId: string, limit?: number) => DbPointTransaction[];
@@ -162,6 +163,7 @@ function HybridAppProviderInner({ children }: { children: ReactNode }) {
     awardPoints: supabaseApp.awardPoints,
     awardClassPoints: supabaseApp.awardClassPoints,
     undoTransaction: supabaseApp.undoTransaction,
+    undoBatchTransaction: supabaseApp.undoBatchTransaction,
     getStudentPoints: supabaseApp.getStudentPoints,
     getClassPoints: supabaseApp.getClassPoints,
     getStudentTransactions: supabaseApp.getStudentTransactions,
