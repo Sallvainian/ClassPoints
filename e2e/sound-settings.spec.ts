@@ -1,71 +1,64 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/auth.fixture';
 
-// Test credentials should be provided via environment variables
-const TEST_EMAIL = process.env.TEST_EMAIL || 'test@example.com';
-const TEST_PASSWORD = process.env.TEST_PASSWORD || 'testpassword123';
+/**
+ * Sound Settings E2E Tests
+ * Following Playwright best practices:
+ * - Uses auth fixture instead of duplicate login code
+ * - Role-based selectors over CSS selectors
+ * - Explicit waits over networkidle
+ * - Proper assertions for state verification
+ */
 
 test.describe('Sound Settings', () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to the app
-    await page.goto('/');
-
-    // If we're on the login page, authenticate
-    const loginButton = page.getByRole('button', { name: /sign in/i });
-    if (await loginButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await page.getByPlaceholder('you@example.com').fill(TEST_EMAIL);
-      await page.getByPlaceholder('Enter your password').fill(TEST_PASSWORD);
-      await loginButton.click();
-
-      // Wait for dashboard to load
-      await expect(
-        page.getByText(/Welcome to ClassPoints|classrooms/i)
-      ).toBeVisible({ timeout: 10000 });
-    }
-  });
-
-  test('sound settings button is visible in dashboard header', async ({
-    page,
-  }) => {
-    // Select a classroom if available
+  // Helper to select first classroom and wait for dashboard
+  async function selectClassroom(page: import('@playwright/test').Page) {
     const classroomButtons = page.locator('aside button').filter({
       has: page.locator('span.truncate'),
     });
 
-    if ((await classroomButtons.count()) > 0) {
-      await classroomButtons.first().click();
-      await page.waitForLoadState('networkidle');
-
-      // Look for sound settings button (speaker icon)
-      const soundButton = page.getByRole('button', {
-        name: /sound settings/i,
-      });
-      await expect(soundButton).toBeVisible();
-    }
-  });
-
-  test('sound settings modal opens and displays controls', async ({ page }) => {
-    // Select a classroom
-    const classroomButtons = page.locator('aside button').filter({
-      has: page.locator('span.truncate'),
-    });
-
-    if ((await classroomButtons.count()) === 0) {
-      test.skip(true, 'No classrooms available');
-      return;
+    const count = await classroomButtons.count();
+    if (count === 0) {
+      return false;
     }
 
     await classroomButtons.first().click();
-    await page.waitForLoadState('networkidle');
+    // Wait for classroom content to load (student grid or empty state)
+    await expect(
+      page.getByText(/students|no students|add your first/i)
+    ).toBeVisible({ timeout: 10000 });
+    return true;
+  }
 
-    // Open sound settings modal
+  // Helper to open sound settings modal
+  async function openSoundSettings(page: import('@playwright/test').Page) {
     const soundButton = page.getByRole('button', { name: /sound settings/i });
     await soundButton.click();
 
-    // Verify modal opened
     const modal = page.locator('[role="dialog"]');
     await expect(modal).toBeVisible();
+    return modal;
+  }
 
-    // Verify key elements are present
+  test('sound settings button is visible in dashboard header', async ({
+    authenticatedPage: page,
+  }) => {
+    const hasClassroom = await selectClassroom(page);
+    test.skip(!hasClassroom, 'No classrooms available');
+
+    // Look for sound settings button (speaker icon)
+    const soundButton = page.getByRole('button', { name: /sound settings/i });
+    await expect(soundButton).toBeVisible();
+  });
+
+  test('sound settings modal opens and displays controls', async ({
+    authenticatedPage: page,
+  }) => {
+    const hasClassroom = await selectClassroom(page);
+    test.skip(!hasClassroom, 'No classrooms available');
+
+    const modal = await openSoundSettings(page);
+
+    // Verify key elements are present using text content
     await expect(modal.getByText('Sound Settings')).toBeVisible();
     await expect(modal.getByText('Sound Effects')).toBeVisible();
     await expect(modal.getByText(/volume/i)).toBeVisible();
@@ -73,25 +66,11 @@ test.describe('Sound Settings', () => {
     await expect(modal.getByText(/negative behavior sound/i)).toBeVisible();
   });
 
-  test('sound toggle switch works', async ({ page }) => {
-    const classroomButtons = page.locator('aside button').filter({
-      has: page.locator('span.truncate'),
-    });
+  test('sound toggle switch works', async ({ authenticatedPage: page }) => {
+    const hasClassroom = await selectClassroom(page);
+    test.skip(!hasClassroom, 'No classrooms available');
 
-    if ((await classroomButtons.count()) === 0) {
-      test.skip(true, 'No classrooms available');
-      return;
-    }
-
-    await classroomButtons.first().click();
-    await page.waitForLoadState('networkidle');
-
-    // Open sound settings
-    const soundButton = page.getByRole('button', { name: /sound settings/i });
-    await soundButton.click();
-
-    const modal = page.locator('[role="dialog"]');
-    await expect(modal).toBeVisible();
+    const modal = await openSoundSettings(page);
 
     // Find the toggle switch
     const toggle = modal.getByRole('switch');
@@ -108,31 +87,15 @@ test.describe('Sound Settings', () => {
     expect(newState).not.toBe(initialState);
   });
 
-  test('volume slider adjusts value', async ({ page }) => {
-    const classroomButtons = page.locator('aside button').filter({
-      has: page.locator('span.truncate'),
-    });
+  test('volume slider adjusts value', async ({ authenticatedPage: page }) => {
+    const hasClassroom = await selectClassroom(page);
+    test.skip(!hasClassroom, 'No classrooms available');
 
-    if ((await classroomButtons.count()) === 0) {
-      test.skip(true, 'No classrooms available');
-      return;
-    }
-
-    await classroomButtons.first().click();
-    await page.waitForLoadState('networkidle');
-
-    // Open sound settings
-    await page.getByRole('button', { name: /sound settings/i }).click();
-
-    const modal = page.locator('[role="dialog"]');
-    await expect(modal).toBeVisible();
+    const modal = await openSoundSettings(page);
 
     // Find volume slider
     const slider = modal.locator('input[type="range"]');
     await expect(slider).toBeVisible();
-
-    // Get initial value
-    const initialValue = await slider.inputValue();
 
     // Set to different value
     await slider.fill('50');
@@ -141,24 +104,13 @@ test.describe('Sound Settings', () => {
     await expect(modal.getByText(/50%/)).toBeVisible();
   });
 
-  test('sound dropdown allows selection change', async ({ page }) => {
-    const classroomButtons = page.locator('aside button').filter({
-      has: page.locator('span.truncate'),
-    });
+  test('sound dropdown allows selection change', async ({
+    authenticatedPage: page,
+  }) => {
+    const hasClassroom = await selectClassroom(page);
+    test.skip(!hasClassroom, 'No classrooms available');
 
-    if ((await classroomButtons.count()) === 0) {
-      test.skip(true, 'No classrooms available');
-      return;
-    }
-
-    await classroomButtons.first().click();
-    await page.waitForLoadState('networkidle');
-
-    // Open sound settings
-    await page.getByRole('button', { name: /sound settings/i }).click();
-
-    const modal = page.locator('[role="dialog"]');
-    await expect(modal).toBeVisible();
+    const modal = await openSoundSettings(page);
 
     // Find positive sound dropdown (first select)
     const positiveSelect = modal.locator('select').first();
@@ -170,27 +122,14 @@ test.describe('Sound Settings', () => {
   });
 
   test('preview buttons are present for each sound category', async ({
-    page,
+    authenticatedPage: page,
   }) => {
-    const classroomButtons = page.locator('aside button').filter({
-      has: page.locator('span.truncate'),
-    });
+    const hasClassroom = await selectClassroom(page);
+    test.skip(!hasClassroom, 'No classrooms available');
 
-    if ((await classroomButtons.count()) === 0) {
-      test.skip(true, 'No classrooms available');
-      return;
-    }
+    const modal = await openSoundSettings(page);
 
-    await classroomButtons.first().click();
-    await page.waitForLoadState('networkidle');
-
-    // Open sound settings
-    await page.getByRole('button', { name: /sound settings/i }).click();
-
-    const modal = page.locator('[role="dialog"]');
-    await expect(modal).toBeVisible();
-
-    // Find preview buttons (they have play emoji)
+    // Find preview buttons (they have play emoji or title)
     const previewButtons = modal.getByTitle(/preview sound/i);
     const count = await previewButtons.count();
 
@@ -199,25 +138,12 @@ test.describe('Sound Settings', () => {
   });
 
   test('advanced section expands to show custom URL inputs', async ({
-    page,
+    authenticatedPage: page,
   }) => {
-    const classroomButtons = page.locator('aside button').filter({
-      has: page.locator('span.truncate'),
-    });
+    const hasClassroom = await selectClassroom(page);
+    test.skip(!hasClassroom, 'No classrooms available');
 
-    if ((await classroomButtons.count()) === 0) {
-      test.skip(true, 'No classrooms available');
-      return;
-    }
-
-    await classroomButtons.first().click();
-    await page.waitForLoadState('networkidle');
-
-    // Open sound settings
-    await page.getByRole('button', { name: /sound settings/i }).click();
-
-    const modal = page.locator('[role="dialog"]');
-    await expect(modal).toBeVisible();
+    const modal = await openSoundSettings(page);
 
     // Find and click advanced section toggle
     const advancedToggle = modal.getByText(/advanced.*custom/i);
@@ -230,24 +156,11 @@ test.describe('Sound Settings', () => {
     ).toBeVisible();
   });
 
-  test('modal closes on escape key', async ({ page }) => {
-    const classroomButtons = page.locator('aside button').filter({
-      has: page.locator('span.truncate'),
-    });
+  test('modal closes on escape key', async ({ authenticatedPage: page }) => {
+    const hasClassroom = await selectClassroom(page);
+    test.skip(!hasClassroom, 'No classrooms available');
 
-    if ((await classroomButtons.count()) === 0) {
-      test.skip(true, 'No classrooms available');
-      return;
-    }
-
-    await classroomButtons.first().click();
-    await page.waitForLoadState('networkidle');
-
-    // Open sound settings
-    await page.getByRole('button', { name: /sound settings/i }).click();
-
-    const modal = page.locator('[role="dialog"]');
-    await expect(modal).toBeVisible();
+    const modal = await openSoundSettings(page);
 
     // Press escape
     await page.keyboard.press('Escape');
@@ -256,55 +169,33 @@ test.describe('Sound Settings', () => {
     await expect(modal).not.toBeVisible();
   });
 
-  test('modal closes when clicking backdrop', async ({ page }) => {
-    const classroomButtons = page.locator('aside button').filter({
-      has: page.locator('span.truncate'),
-    });
+  test('modal closes when clicking backdrop', async ({
+    authenticatedPage: page,
+  }) => {
+    const hasClassroom = await selectClassroom(page);
+    test.skip(!hasClassroom, 'No classrooms available');
 
-    if ((await classroomButtons.count()) === 0) {
-      test.skip(true, 'No classrooms available');
-      return;
+    const modal = await openSoundSettings(page);
+
+    // Click outside the modal dialog content
+    // Use page.mouse to click at viewport edge which should be the backdrop
+    const viewportSize = page.viewportSize();
+    if (viewportSize) {
+      await page.mouse.click(10, 10);
     }
-
-    await classroomButtons.first().click();
-    await page.waitForLoadState('networkidle');
-
-    // Open sound settings
-    await page.getByRole('button', { name: /sound settings/i }).click();
-
-    const modal = page.locator('[role="dialog"]');
-    await expect(modal).toBeVisible();
-
-    // Click backdrop (the dark overlay behind modal)
-    await page.locator('.bg-black\\/50').click({ position: { x: 10, y: 10 } });
 
     // Verify modal closed
     await expect(modal).not.toBeVisible();
   });
 
   test('sound button shows correct icon based on enabled state', async ({
-    page,
+    authenticatedPage: page,
   }) => {
-    const classroomButtons = page.locator('aside button').filter({
-      has: page.locator('span.truncate'),
-    });
+    const hasClassroom = await selectClassroom(page);
+    test.skip(!hasClassroom, 'No classrooms available');
 
-    if ((await classroomButtons.count()) === 0) {
-      test.skip(true, 'No classrooms available');
-      return;
-    }
-
-    await classroomButtons.first().click();
-    await page.waitForLoadState('networkidle');
-
-    // Get initial icon (should be speaker on)
     const soundButton = page.getByRole('button', { name: /sound settings/i });
-    const initialText = await soundButton.textContent();
-
-    // Open settings and disable
-    await soundButton.click();
-    const modal = page.locator('[role="dialog"]');
-    await expect(modal).toBeVisible();
+    const modal = await openSoundSettings(page);
 
     const toggle = modal.getByRole('switch');
     await toggle.click();
@@ -313,11 +204,7 @@ test.describe('Sound Settings', () => {
     await page.keyboard.press('Escape');
     await expect(modal).not.toBeVisible();
 
-    // Check icon changed
-    const newText = await soundButton.textContent();
-
-    // Icons should be different (one is speaker, one is muted)
-    // Both contain emoji so we just verify the button still exists
+    // Verify the button is still visible (icon may have changed)
     await expect(soundButton).toBeVisible();
   });
 });
