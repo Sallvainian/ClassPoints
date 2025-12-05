@@ -26,3 +26,6 @@ dist-ssr
 # .env.local is encrypted and SAFE to commit
 # .env.keys contains private keys - NEVER commit
 .env.keys
+
+# Claude Code TTS audio files
+.claude/audio/
