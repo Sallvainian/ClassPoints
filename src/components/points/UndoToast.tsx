@@ -61,13 +61,16 @@ export function UndoToast({ action, onUndo, duration = 5000 }: UndoToastProps) {
         {/* Content */}
         <div className="p-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">{isPositive ? '✨' : '😔'}</span>
+            <span className="text-2xl">{action.isBatch ? '🏫' : isPositive ? '✨' : '😔'}</span>
             <div>
               <p className="text-sm font-medium">
                 {action.studentName}
+                {action.isBatch && action.studentCount && (
+                  <span className="text-gray-400 font-normal"> ({action.studentCount} students)</span>
+                )}
               </p>
               <p className="text-xs text-gray-400">
-                {action.behaviorName} ({action.points > 0 ? '+' : ''}{action.points})
+                {action.behaviorName} ({action.points > 0 ? '+' : ''}{action.points}{action.isBatch ? ' total' : ''})
               </p>
             </div>
           </div>

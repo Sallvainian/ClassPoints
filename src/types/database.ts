@@ -73,6 +73,7 @@ export interface Database {
       };
       point_transactions: {
         Row: {
+          batch_id: string | null;
           behavior_icon: string;
           behavior_id: string | null;
           behavior_name: string;
@@ -84,6 +85,7 @@ export interface Database {
           student_id: string;
         };
         Insert: {
+          batch_id?: string | null;
           behavior_icon: string;
           behavior_id?: string | null;
           behavior_name: string;
@@ -95,6 +97,7 @@ export interface Database {
           student_id: string;
         };
         Update: {
+          batch_id?: string | null;
           behavior_icon?: string;
           behavior_id?: string | null;
           behavior_name?: string;
