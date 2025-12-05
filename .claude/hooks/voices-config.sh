@@ -61,6 +61,7 @@ get_voice_id() {
     "Drill Sergeant") echo "vfaqCOvlrKi4Zp7C2IAm" ;;
     "Grandpa Spuds Oxley") echo "NOpBlnGInO9m6vDvFkFC" ;;
     "Grandpa Werthers") echo "MKlLqCItoCkvdhrxgtLv" ;;
+    "Jarvis") echo "wDsJlOXPqcvIUKdLXjDs" ;;
     "Jessica Anne Bogart") echo "flHkNRp1BlvT73UL6gyz" ;;
     "Juniper") echo "aMSt68OGf4xUZAnLpTU8" ;;
     "Lutz Laugh") echo "9yzdeviXkFddZ4Oz8Mok" ;;
@@ -94,6 +95,7 @@ list_elevenlabs_voices() {
   echo "Drill Sergeant"
   echo "Grandpa Spuds Oxley"
   echo "Grandpa Werthers"
+  echo "Jarvis"
   echo "Jessica Anne Bogart"
   echo "Juniper"
   echo "Lutz Laugh"
