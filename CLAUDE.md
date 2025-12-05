@@ -120,6 +120,7 @@ ALTER TABLE table_name REPLICA IDENTITY FULL;
 
 ```bash
 npm run dev          # Start dev server (localhost:5173)
+npm run dev:host     # Start dev server exposed to network
 npm run build        # Production build
 npm run lint         # ESLint check
 npm run test         # Vitest unit tests
@@ -138,7 +139,8 @@ npm run test:e2e     # Playwright E2E tests
 
 ### Running locally
 ```bash
-dotenvx run -- npm run dev
+npm run dev        # dotenvx is built into npm scripts
+npm run dev:host   # expose to network
 ```
 
 ### Required variables (in `.env.local`):
