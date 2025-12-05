@@ -10,7 +10,6 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-*.local
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +21,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files (dotenvx)
+# .env.local is encrypted and SAFE to commit
+# .env.keys contains private keys - NEVER commit
+.env.keys
