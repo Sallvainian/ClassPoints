@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import type { Behavior, StudentPoints } from '../../types';
 import { useApp } from '../../contexts/AppContext';
+import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
 
 interface ClassAwardModalProps {
@@ -21,6 +22,7 @@ export function ClassAwardModal({
   classPoints,
 }: ClassAwardModalProps) {
   const { behaviors, awardClassPoints } = useApp();
+  const { playPositive, playNegative } = useSoundEffects();
 
   // Handle escape key
   useEffect(() => {
@@ -39,12 +41,18 @@ export function ClassAwardModal({
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
-  const handleBehaviorSelect = (behavior: Behavior) => {
-    awardClassPoints(classroomId, behavior.id);
+  const handleBehaviorSelect = useCallback(async (behavior: Behavior) => {
+    await awardClassPoints(classroomId, behavior.id);
+    // Play sound based on behavior category (before closing for celebration moment)
+    if (behavior.category === 'positive') {
+      playPositive();
+    } else {
+      playNegative();
+    }
     onClose();
-  };
+  }, [classroomId, awardClassPoints, playPositive, playNegative, onClose]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

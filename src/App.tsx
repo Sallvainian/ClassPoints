@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
+import { SoundProvider } from './contexts/SoundContext';
 import { HybridAppProvider } from './contexts/HybridAppContext';
 import { AuthGuard } from './components/auth/AuthGuard';
 import { SyncStatus } from './components/common/SyncStatus';
@@ -50,9 +51,11 @@ export default function App() {
   return (
     <AuthProvider>
       <AuthGuard>
-        <HybridAppProvider>
-          <AppContent />
-        </HybridAppProvider>
+        <SoundProvider>
+          <HybridAppProvider>
+            <AppContent />
+          </HybridAppProvider>
+        </SoundProvider>
       </AuthGuard>
     </AuthProvider>
   );
