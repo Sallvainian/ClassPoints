@@ -128,11 +128,27 @@ npm run test:e2e     # Playwright E2E tests
 
 ## Environment Variables
 
-Required in `.env.local`:
+**Using dotenvx for encrypted secrets.**
+
+| File | Purpose | Git |
+|------|---------|-----|
+| `.env.local` | Encrypted env vars | ✅ Committed |
+| `.env.keys` | Private decryption keys | ❌ Never commit |
+| `.env.example` | Template for reference | ✅ Committed |
+
+### Running locally
+```bash
+dotenvx run -- npm run dev
+```
+
+### Required variables (in `.env.local`):
 ```
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
 ```
+
+### CI/CD Setup
+Set `DOTENV_PRIVATE_KEY_LOCAL` as a secret in your CI environment.
 
 ## Testing
 
