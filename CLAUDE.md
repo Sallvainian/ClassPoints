@@ -154,9 +154,37 @@ Set `DOTENV_PRIVATE_KEY_LOCAL` as a secret in your CI environment.
 
 ## Testing
 
+**IMPORTANT: When creating tests, use the testing-suite skill commands:**
+
+### Test Creation Guidelines
+```bash
+# For E2E tests - ALWAYS use:
+/testing-suite:e2e-setup --playwright
+
+# For unit test generation:
+/testing-suite:generate-tests [file-path]
+
+# For test coverage analysis:
+/testing-suite:test-coverage
+```
+
+### Test Locations
 - **Unit tests:** `src/test/` with Vitest
 - **E2E tests:** `e2e/` with Playwright
+- **E2E fixtures:** `e2e/fixtures/` - Shared authentication and setup
+- **Page objects:** `e2e/page-objects/` - Encapsulated page interactions
+
+### E2E Best Practices (Playwright)
+- Use auth fixtures instead of duplicating login code
+- Use page objects for complex component interactions
+- NEVER use `waitForLoadState('networkidle')` - it's flaky
+- Use `expect().toBeVisible()` with explicit timeouts instead
+- Use role-based selectors: `getByRole('button', { name: /submit/i })`
+- Avoid fragile CSS selectors like `.bg-black\/50`
+
+### Test Environment
 - E2E tests require `TEST_EMAIL` and `TEST_PASSWORD` env vars
+- Unit tests mock Supabase and AuthContext
 
 ## Gotchas
 

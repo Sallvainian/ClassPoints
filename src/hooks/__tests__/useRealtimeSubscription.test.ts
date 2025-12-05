@@ -2,14 +2,33 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useRealtimeSubscription } from '../useRealtimeSubscription';
 
+// Type for the mock handler
+type MockHandler = (payload: {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  new: Record<string, unknown> | null;
+  old: Record<string, unknown> | null;
+}) => void;
+
+// Extend globalThis for test access
+declare global {
+  // eslint-disable-next-line no-var
+  var __mockOnHandler: MockHandler | null;
+}
+
 // Mock supabase - handler is stored in globalThis for test access
 vi.mock('../../lib/supabase', () => {
   const channel = {
-    on: vi.fn((_event: any, _config: any, handler: any) => {
-      // Store handler for test access
-      (globalThis as any).__mockOnHandler = handler;
-      return channel;
-    }),
+    on: vi.fn(
+      (
+        _event: string,
+        _config: Record<string, unknown>,
+        handler: MockHandler
+      ) => {
+        // Store handler for test access
+        globalThis.__mockOnHandler = handler;
+        return channel;
+      }
+    ),
     subscribe: vi.fn((callback?: (status: string) => void) => {
       if (callback) setTimeout(() => callback('SUBSCRIBED'), 0);
       return channel;
@@ -27,7 +46,7 @@ vi.mock('../../lib/supabase', () => {
 describe('useRealtimeSubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (globalThis as any).__mockOnHandler = null;
+    globalThis.__mockOnHandler = null;
   });
 
   afterEach(() => {
@@ -46,10 +65,10 @@ describe('useRealtimeSubscription', () => {
 
     // Wait for handler to be registered
     await waitFor(() => {
-      expect((globalThis as any).__mockOnHandler).not.toBeNull();
+      expect(globalThis.__mockOnHandler).not.toBeNull();
     });
 
-    const handler = (globalThis as any).__mockOnHandler;
+    const handler = globalThis.__mockOnHandler!;
 
     // Simulate an INSERT event
     act(() => {
@@ -74,10 +93,10 @@ describe('useRealtimeSubscription', () => {
     );
 
     await waitFor(() => {
-      expect((globalThis as any).__mockOnHandler).not.toBeNull();
+      expect(globalThis.__mockOnHandler).not.toBeNull();
     });
 
-    const handler = (globalThis as any).__mockOnHandler;
+    const handler = globalThis.__mockOnHandler!;
 
     // Simulate a DELETE event
     act(() => {
@@ -110,10 +129,10 @@ describe('useRealtimeSubscription', () => {
     );
 
     await waitFor(() => {
-      expect((globalThis as any).__mockOnHandler).not.toBeNull();
+      expect(globalThis.__mockOnHandler).not.toBeNull();
     });
 
-    const handler = (globalThis as any).__mockOnHandler;
+    const handler = globalThis.__mockOnHandler!;
 
     // Update the callback
     rerender({
