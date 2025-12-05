@@ -20,7 +20,7 @@ interface UseRealtimeSubscriptionOptions<T, D = { id: string }> {
  * Based on official Supabase documentation patterns
  * Uses refs for callbacks to avoid stale closures
  */
-export function useRealtimeSubscription<T extends Record<string, any>, D = { id: string }>({
+export function useRealtimeSubscription<T extends Record<string, unknown>, D = { id: string }>({
   table,
   schema = 'public',
   event = '*',
@@ -71,25 +71,25 @@ export function useRealtimeSubscription<T extends Record<string, any>, D = { id:
       filterConfig.filter = filter;
     }
 
-    channel
-      .on(
-        'postgres_changes' as any,
-        filterConfig as any,
-        (payload: RealtimePostgresChangesPayload<T>) => {
-          switch (payload.eventType) {
-            case 'INSERT':
-              onInsertRef.current?.(payload.new as T);
-              break;
-            case 'UPDATE':
-              onUpdateRef.current?.(payload.new as T);
-              break;
-            case 'DELETE':
-              onDeleteRef.current?.(payload.old as D);
-              break;
-          }
+    // Supabase's .on() method requires type casting due to strict typing
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (channel as unknown as { on: (event: string, config: typeof filterConfig, callback: (payload: RealtimePostgresChangesPayload<T>) => void) => typeof channel }).on(
+      'postgres_changes',
+      filterConfig,
+      (payload: RealtimePostgresChangesPayload<T>) => {
+        switch (payload.eventType) {
+          case 'INSERT':
+            onInsertRef.current?.(payload.new as T);
+            break;
+          case 'UPDATE':
+            onUpdateRef.current?.(payload.new as T);
+            break;
+          case 'DELETE':
+            onDeleteRef.current?.(payload.old as D);
+            break;
         }
-      )
-      .subscribe();
+      }
+    ).subscribe();
 
     return () => {
       if (channelRef.current) {
@@ -102,11 +102,17 @@ export function useRealtimeSubscription<T extends Record<string, any>, D = { id:
 
 type MultiTableSubscription = {
   table: string;
-  onInsert?: (payload: any) => void;
-  onUpdate?: (payload: any) => void;
+  onInsert?: (payload: Record<string, unknown>) => void;
+  onUpdate?: (payload: Record<string, unknown>) => void;
   onDelete?: (payload: { id: string }) => void;
   filter?: string;
 };
+
+interface RealtimePayload {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  new: Record<string, unknown>;
+  old: Record<string, unknown>;
+}
 
 /**
  * Hook to subscribe to multiple tables at once
@@ -154,21 +160,27 @@ export function useMultiTableRealtimeSubscription(
         filterConfig.filter = filter;
       }
 
-      (channel as any).on('postgres_changes', filterConfig, (payload: any) => {
-        // Use refs to get fresh callbacks
-        const currentSub = subscriptionsRef.current[index];
-        switch (payload.eventType) {
-          case 'INSERT':
-            currentSub?.onInsert?.(payload.new);
-            break;
-          case 'UPDATE':
-            currentSub?.onUpdate?.(payload.new);
-            break;
-          case 'DELETE':
-            currentSub?.onDelete?.(payload.old as { id: string });
-            break;
+      // Supabase's .on() method requires type casting due to strict typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (channel as unknown as { on: (event: string, config: typeof filterConfig, callback: (payload: RealtimePayload) => void) => typeof channel }).on(
+        'postgres_changes',
+        filterConfig,
+        (payload: RealtimePayload) => {
+          // Use refs to get fresh callbacks
+          const currentSub = subscriptionsRef.current[index];
+          switch (payload.eventType) {
+            case 'INSERT':
+              currentSub?.onInsert?.(payload.new);
+              break;
+            case 'UPDATE':
+              currentSub?.onUpdate?.(payload.new);
+              break;
+            case 'DELETE':
+              currentSub?.onDelete?.(payload.old as { id: string });
+              break;
+          }
         }
-      });
+      );
     });
 
     channel.subscribe((status) => {

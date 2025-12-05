@@ -195,7 +195,7 @@ export function parseJSON(content: string): ParseResult {
         errors.push(`Row ${index + 1}: Invalid item type`);
       }
     });
-  } catch (e) {
+  } catch {
     return { names: [], errors: ['Invalid JSON format'] };
   }
 

@@ -5,6 +5,13 @@
  * instant playback. Settings sync across devices via Supabase.
  */
 
+// Extend Window interface for Safari's prefixed AudioContext
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+  }
+}
+
 import {
   createContext,
   useContext,
@@ -71,8 +78,11 @@ export function SoundProvider({ children }: { children: ReactNode }) {
     if (audioContextRef.current) return;
 
     try {
-      audioContextRef.current = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        throw new Error('AudioContext not supported');
+      }
+      audioContextRef.current = new AudioContextClass();
 
       // Synthesize all sounds
       const ctx = audioContextRef.current;
