@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { Student, Behavior } from '../../types';
 import { useApp } from '../../contexts/AppContext';
+import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { getAvatarColorForName } from '../../utils';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
 
@@ -18,6 +19,7 @@ export function AwardPointsModal({
   classroomId,
 }: AwardPointsModalProps) {
   const { behaviors, awardPoints, getStudentPoints } = useApp();
+  const { playPositive, playNegative } = useSoundEffects();
   const [isAwarding, setIsAwarding] = useState(false);
   const [awardError, setAwardError] = useState<string | null>(null);
 
@@ -54,12 +56,18 @@ export function AwardPointsModal({
 
     try {
       await awardPoints(classroomId, student.id, behavior.id);
+      // Play sound based on behavior category (before closing for celebration moment)
+      if (behavior.category === 'positive') {
+        playPositive();
+      } else {
+        playNegative();
+      }
       onClose();
     } catch (err) {
       setAwardError(err instanceof Error ? err.message : 'Failed to award points');
       setIsAwarding(false);
     }
-  }, [classroomId, student, isAwarding, awardPoints, onClose]);
+  }, [classroomId, student, isAwarding, awardPoints, playPositive, playNegative, onClose]);
 
   if (!isOpen || !student) return null;
 
