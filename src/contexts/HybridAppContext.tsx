@@ -26,10 +26,14 @@ interface StudentPoints {
 
 interface UndoableAction {
   transactionId: string;
+  transactionIds?: string[]; // Multiple IDs for batch undo (class-wide awards)
+  batchId?: string; // Batch identifier for grouped transactions
   studentName: string;
   behaviorName: string;
   points: number;
   timestamp: number;
+  isBatch?: boolean; // True if this is a class-wide award
+  studentCount?: number; // Number of students affected in batch
 }
 
 interface SyncStatus {

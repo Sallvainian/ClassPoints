@@ -164,6 +164,45 @@ export interface Database {
           }
         ];
       };
+      user_sound_settings: {
+        Row: {
+          id: string;
+          user_id: string;
+          enabled: boolean;
+          volume: number;
+          positive_sound: string;
+          negative_sound: string;
+          custom_positive_url: string | null;
+          custom_negative_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          enabled?: boolean;
+          volume?: number;
+          positive_sound?: string;
+          negative_sound?: string;
+          custom_positive_url?: string | null;
+          custom_negative_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          enabled?: boolean;
+          volume?: number;
+          positive_sound?: string;
+          negative_sound?: string;
+          custom_positive_url?: string | null;
+          custom_negative_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -197,3 +236,8 @@ export type UpdateClassroom = Database['public']['Tables']['classrooms']['Update
 export type UpdateStudent = Database['public']['Tables']['students']['Update'];
 export type UpdateBehavior = Database['public']['Tables']['behaviors']['Update'];
 export type UpdatePointTransaction = Database['public']['Tables']['point_transactions']['Update'];
+
+// Sound settings types
+export type UserSoundSettings = Database['public']['Tables']['user_sound_settings']['Row'];
+export type NewUserSoundSettings = Database['public']['Tables']['user_sound_settings']['Insert'];
+export type UpdateUserSoundSettings = Database['public']['Tables']['user_sound_settings']['Update'];

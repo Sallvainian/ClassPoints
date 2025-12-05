@@ -7,6 +7,7 @@ import { ClassAwardModal } from '../points/ClassAwardModal';
 import { ClassPointsBox } from '../points/ClassPointsBox';
 import { UndoToast } from '../points/UndoToast';
 import { TodaySummary } from '../points/TodaySummary';
+import { SoundSettingsModal } from '../settings/SoundSettingsModal';
 import { Button } from '../ui/Button';
 
 interface DashboardViewProps {
@@ -155,6 +156,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
           >
             {showActivity ? 'Hide' : 'Show'} Activity
           </Button>
+          <SoundSettingsModal />
           <Button variant="ghost" size="sm" onClick={onOpenSettings}>
             ⚙️ Settings
           </Button>
