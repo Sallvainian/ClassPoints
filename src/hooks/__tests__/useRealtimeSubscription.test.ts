@@ -11,7 +11,6 @@ type MockHandler = (payload: {
 
 // Extend globalThis for test access
 declare global {
-  // eslint-disable-next-line no-var
   var __mockOnHandler: MockHandler | null;
 }
 

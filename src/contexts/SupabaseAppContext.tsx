@@ -13,6 +13,26 @@ import type {
   NewPointTransaction,
 } from '../types/database';
 
+// Default behavior templates (module-level constant for stability)
+const DEFAULT_BEHAVIORS: NewBehavior[] = [
+  // Positive behaviors
+  { name: 'On Task', points: 1, icon: '📚', category: 'positive', is_custom: false },
+  { name: 'Helping Others', points: 2, icon: '🤝', category: 'positive', is_custom: false },
+  { name: 'Great Effort', points: 2, icon: '💪', category: 'positive', is_custom: false },
+  { name: 'Participation', points: 1, icon: '✋', category: 'positive', is_custom: false },
+  { name: 'Excellent Work', points: 3, icon: '⭐', category: 'positive', is_custom: false },
+  { name: 'Being Kind', points: 2, icon: '❤️', category: 'positive', is_custom: false },
+  { name: 'Following Rules', points: 1, icon: '✅', category: 'positive', is_custom: false },
+  { name: 'Working Quietly', points: 1, icon: '🤫', category: 'positive', is_custom: false },
+  // Negative behaviors
+  { name: 'Off Task', points: -1, icon: '😴', category: 'negative', is_custom: false },
+  { name: 'Disruptive', points: -2, icon: '🔊', category: 'negative', is_custom: false },
+  { name: 'Unprepared', points: -1, icon: '📝', category: 'negative', is_custom: false },
+  { name: 'Unkind Words', points: -2, icon: '💬', category: 'negative', is_custom: false },
+  { name: 'Not Following Rules', points: -1, icon: '🚫', category: 'negative', is_custom: false },
+  { name: 'Late', points: -1, icon: '⏰', category: 'negative', is_custom: false },
+];
+
 // Types matching the original app interface (for backwards compatibility)
 interface AppStudent {
   id: string;
@@ -100,7 +120,7 @@ interface SupabaseAppContextValue {
   undoTransaction: (transactionId: string) => Promise<void>;
   undoBatchTransaction: (batchId: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
-  getClassPoints: (classroomId: string) => ClassPoints;
+  getClassPoints: (classroomId: string, studentIds?: string[]) => ClassPoints;
   getStudentTransactions: (studentId: string, limit?: number) => DbPointTransaction[];
   getClassroomTransactions: (classroomId: string, limit?: number) => DbPointTransaction[];
   getRecentUndoableAction: () => UndoableAction | null;
@@ -274,26 +294,6 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     [deleteBehaviorHook]
   );
 
-  // Default behavior templates (matching localStorage defaults)
-  const DEFAULT_BEHAVIORS: NewBehavior[] = [
-    // Positive behaviors
-    { name: 'On Task', points: 1, icon: '📚', category: 'positive', is_custom: false },
-    { name: 'Helping Others', points: 2, icon: '🤝', category: 'positive', is_custom: false },
-    { name: 'Great Effort', points: 2, icon: '💪', category: 'positive', is_custom: false },
-    { name: 'Participation', points: 1, icon: '✋', category: 'positive', is_custom: false },
-    { name: 'Excellent Work', points: 3, icon: '⭐', category: 'positive', is_custom: false },
-    { name: 'Being Kind', points: 2, icon: '❤️', category: 'positive', is_custom: false },
-    { name: 'Following Rules', points: 1, icon: '✅', category: 'positive', is_custom: false },
-    { name: 'Working Quietly', points: 1, icon: '🤫', category: 'positive', is_custom: false },
-    // Negative behaviors
-    { name: 'Off Task', points: -1, icon: '😴', category: 'negative', is_custom: false },
-    { name: 'Disruptive', points: -2, icon: '🔊', category: 'negative', is_custom: false },
-    { name: 'Unprepared', points: -1, icon: '📝', category: 'negative', is_custom: false },
-    { name: 'Unkind Words', points: -2, icon: '💬', category: 'negative', is_custom: false },
-    { name: 'Not Following Rules', points: -1, icon: '🚫', category: 'negative', is_custom: false },
-    { name: 'Late', points: -1, icon: '⏰', category: 'negative', is_custom: false },
-  ];
-
   const resetBehaviorsToDefault = useCallback(async (): Promise<void> => {
     // Delete all current behaviors for this user
     const { error: deleteError } = await supabase
@@ -415,8 +415,24 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   );
 
   // Get aggregated class points (sum of all student points in classroom)
+  // When studentIds provided: guarantees total = sum of individual student totals
   const getClassPoints = useCallback(
-    (classroomId: string): ClassPoints => {
+    (classroomId: string, studentIds?: string[]): ClassPoints => {
+      // If studentIds provided, sum from student points (guarantees consistency with displayed cards)
+      if (studentIds && studentIds.length > 0) {
+        let total = 0;
+        let today = 0;
+        let thisWeek = 0;
+        for (const studentId of studentIds) {
+          const pts = getStudentPoints(studentId);
+          total += pts.total;
+          today += pts.today;
+          thisWeek += pts.thisWeek;
+        }
+        return { total, today, thisWeek };
+      }
+
+      // Fallback: original behavior (used by sidebar for inactive classrooms)
       const classTransactions = transactions.filter((t) => t.classroom_id === classroomId);
 
       const now = new Date();
@@ -436,7 +452,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       return { total, today, thisWeek };
     },
-    [transactions]
+    [transactions, getStudentPoints]
   );
 
   const getRecentUndoableAction = useCallback((): UndoableAction | null => {
@@ -500,22 +516,33 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   // Always use student_count for the students array length (used by sidebar)
   // This avoids race conditions when switching between classrooms
   const mappedClassrooms: AppClassroom[] = useMemo(() => {
+    // Calculate actual point total from transactions for the active classroom
+    // This ensures sidebar matches ClassPointsBox/StudentCards (single source of truth)
+    const activeClassroomTotal = activeClassroomId
+      ? transactions.reduce((sum, t) => sum + t.points, 0)
+      : 0;
+
     return classrooms.map((c) => {
       // Create placeholder array matching student_count for consistent display
       const placeholderStudents: AppStudent[] = Array.from(
         { length: c.student_count },
         (_, i) => ({ id: `placeholder-${i}`, name: '' })
       );
+
+      // For active classroom: use calculated total from transactions (source of truth)
+      // For inactive classrooms: use stored point_total from useClassrooms
+      const pointTotal = c.id === activeClassroomId ? activeClassroomTotal : c.point_total;
+
       return {
         id: c.id,
         name: c.name,
         students: placeholderStudents,
         createdAt: new Date(c.created_at).getTime(),
         updatedAt: new Date(c.updated_at).getTime(),
-        pointTotal: c.point_total,
+        pointTotal,
       };
     });
-  }, [classrooms]);
+  }, [classrooms, activeClassroomId, transactions]);
 
   // Map behaviors to app format
   const mappedBehaviors: AppBehavior[] = useMemo(() => {

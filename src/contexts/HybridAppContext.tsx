@@ -107,7 +107,7 @@ interface HybridAppContextValue {
   undoTransaction: (transactionId: string) => Promise<void>;
   undoBatchTransaction: (batchId: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
-  getClassPoints: (classroomId: string) => StudentPoints;
+  getClassPoints: (classroomId: string, studentIds?: string[]) => StudentPoints;
   getStudentTransactions: (studentId: string, limit?: number) => DbPointTransaction[];
   getClassroomTransactions: (classroomId: string, limit?: number) => DbPointTransaction[];
   getRecentUndoableAction: () => UndoableAction | null;

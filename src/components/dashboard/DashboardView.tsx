@@ -77,14 +77,11 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     }
   }, [undoTransaction, undoBatchTransaction, undoableAction]);
 
-  // Get transactions - must be called before any early returns to maintain hooks order
-  const dbTransactions = activeClassroom
-    ? getClassroomTransactions(activeClassroom.id, 20)
-    : [];
-
   // Map database transactions to app format for TodaySummary
   // This useMemo must be called unconditionally (before early returns)
   const transactions: PointTransaction[] = useMemo(() => {
+    if (!activeClassroom) return [];
+    const dbTransactions = getClassroomTransactions(activeClassroom.id, 20);
     return dbTransactions.map(t => ({
       id: t.id,
       studentId: t.student_id,
@@ -96,7 +93,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       timestamp: new Date(t.created_at).getTime(),
       note: t.note || undefined,
     }));
-  }, [dbTransactions]);
+  }, [activeClassroom, getClassroomTransactions]);
 
   // Loading state
   if (loading) {
@@ -171,7 +168,10 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
           {activeClassroom.students.length > 0 && (
             <div className="p-4 pb-0">
               <ClassPointsBox
-                classPoints={getClassPoints(activeClassroom.id)}
+                classPoints={getClassPoints(
+                  activeClassroom.id,
+                  activeClassroom.students.map((s) => s.id)
+                )}
                 studentCount={activeClassroom.students.length}
                 onClick={() => setIsClassAwardModalOpen(true)}
               />
@@ -212,7 +212,10 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
         classroomId={activeClassroom.id}
         classroomName={activeClassroom.name}
         studentCount={activeClassroom.students.length}
-        classPoints={getClassPoints(activeClassroom.id)}
+        classPoints={getClassPoints(
+          activeClassroom.id,
+          activeClassroom.students.map((s) => s.id)
+        )}
       />
 
       {/* Undo Toast */}
