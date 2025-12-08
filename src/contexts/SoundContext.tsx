@@ -29,6 +29,7 @@ import {
   SOUND_DEFINITIONS,
   DEFAULT_POSITIVE_SOUND,
   DEFAULT_NEGATIVE_SOUND,
+  ALL_SOUND_IDS,
   synthesizeSound,
 } from '../assets/sounds';
 
@@ -104,7 +105,9 @@ export function SoundProvider({ children }: { children: ReactNode }) {
       initializeAudio();
       // Resume suspended context if needed
       if (audioContextRef.current?.state === 'suspended') {
-        audioContextRef.current.resume();
+        audioContextRef.current.resume().catch((err) => {
+          console.warn('Failed to resume audio context:', err);
+        });
       }
     };
 
@@ -168,6 +171,7 @@ export function SoundProvider({ children }: { children: ReactNode }) {
     async (updates: Partial<SoundSettings>) => {
       if (!user) return;
 
+      setError(null); // Clear previous errors
       const newSettings = { ...settings, ...updates };
       setSettings(newSettings);
 
@@ -211,13 +215,22 @@ export function useSoundContext() {
   return context;
 }
 
-// Map database row to frontend settings
+// Type guard for validating SoundId from database
+function isValidSoundId(value: string): value is SoundId {
+  return ALL_SOUND_IDS.includes(value as SoundId);
+}
+
+// Map database row to frontend settings with validation
 function mapDbToSettings(data: UserSoundSettings): SoundSettings {
   return {
     enabled: data.enabled,
     volume: data.volume,
-    positiveSound: data.positive_sound as SoundId,
-    negativeSound: data.negative_sound as SoundId,
+    positiveSound: isValidSoundId(data.positive_sound)
+      ? data.positive_sound
+      : DEFAULT_POSITIVE_SOUND,
+    negativeSound: isValidSoundId(data.negative_sound)
+      ? data.negative_sound
+      : DEFAULT_NEGATIVE_SOUND,
     customPositiveUrl: data.custom_positive_url,
     customNegativeUrl: data.custom_negative_url,
   };

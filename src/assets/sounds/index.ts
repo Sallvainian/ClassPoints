@@ -8,15 +8,28 @@
  * Negative sounds: Gentle, descending tones for behavior correction
  */
 
-export type SoundId =
-  | 'chime'
-  | 'bell'
-  | 'sparkle'
-  | 'soft-buzz'
-  | 'low-tone'
-  | 'gentle-womp';
+// Category-aware sound ID types for type-safe validation
+export type PositiveSoundId = 'chime' | 'bell' | 'sparkle';
+export type NegativeSoundId = 'soft-buzz' | 'low-tone' | 'gentle-womp';
+export type SoundId = PositiveSoundId | NegativeSoundId;
 
 export type SoundCategory = 'positive' | 'negative';
+
+// Runtime validation arrays (must match type definitions)
+export const POSITIVE_SOUND_IDS: readonly PositiveSoundId[] = [
+  'chime',
+  'bell',
+  'sparkle',
+] as const;
+export const NEGATIVE_SOUND_IDS: readonly NegativeSoundId[] = [
+  'soft-buzz',
+  'low-tone',
+  'gentle-womp',
+] as const;
+export const ALL_SOUND_IDS: readonly SoundId[] = [
+  ...POSITIVE_SOUND_IDS,
+  ...NEGATIVE_SOUND_IDS,
+] as const;
 
 export interface SoundDefinition {
   id: SoundId;

@@ -48,9 +48,9 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
     if (!url.trim()) {
       // Clear custom URL
       if (type === 'positive') {
-        updateSettings({ customPositiveUrl: null });
+        await updateSettings({ customPositiveUrl: null });
       } else {
-        updateSettings({ customNegativeUrl: null });
+        await updateSettings({ customNegativeUrl: null });
       }
       setUrlError(null);
       return;
@@ -68,9 +68,9 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
     }
 
     if (type === 'positive') {
-      updateSettings({ customPositiveUrl: url });
+      await updateSettings({ customPositiveUrl: url });
     } else {
-      updateSettings({ customNegativeUrl: url });
+      await updateSettings({ customNegativeUrl: url });
     }
 
     setIsSavingUrl(false);
@@ -88,7 +88,7 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Sound Settings</h2>
+        <h2 id="sound-settings-title" className="text-lg font-semibold text-gray-900">Sound Settings</h2>
         {onClose && (
           <button
             onClick={onClose}
