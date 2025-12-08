@@ -66,6 +66,9 @@ export function useSoundEffects(
         const buffer = await loadAudioFromUrl(audioContext, url);
         if (buffer) {
           customBuffersRef.current.set(url, buffer);
+        } else {
+          // Log failure - custom sound will fall back to built-in
+          console.error(`Failed to load custom sound: ${url}`);
         }
       }
 
@@ -83,12 +86,14 @@ export function useSoundEffects(
   // Play a sound buffer
   const playBuffer = useCallback(
     (buffer: AudioBuffer) => {
-      if (!audioContext) return;
+      if (!audioContext || !buffer) return;
 
       try {
         // Resume context if suspended (autoplay policy)
         if (audioContext.state === 'suspended') {
-          audioContext.resume();
+          audioContext.resume().catch((err) => {
+            console.warn('Failed to resume audio context:', err);
+          });
         }
 
         // Create gain node for volume control
@@ -102,8 +107,17 @@ export function useSoundEffects(
         source.connect(gainNode);
         source.start(0);
       } catch (err) {
-        // Gracefully handle autoplay restrictions (AC9)
-        console.warn('Sound playback failed:', err);
+        // Distinguish between autoplay restrictions and real errors
+        const isAutoplayRestriction =
+          err instanceof DOMException && err.name === 'NotAllowedError';
+
+        if (isAutoplayRestriction) {
+          // Browser autoplay policy - will work after user interaction
+          console.warn('Sound blocked by autoplay policy - will work after user interaction');
+        } else {
+          // Real playback error
+          console.error('Sound playback failed:', err);
+        }
       }
     },
     [audioContext, settings.volume]

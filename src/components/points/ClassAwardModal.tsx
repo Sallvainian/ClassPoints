@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import type { Behavior, StudentPoints } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
@@ -23,6 +23,8 @@ export function ClassAwardModal({
 }: ClassAwardModalProps) {
   const { behaviors, awardClassPoints } = useApp();
   const { playPositive, playNegative } = useSoundEffects();
+  const [isAwarding, setIsAwarding] = useState(false);
+  const [awardError, setAwardError] = useState<string | null>(null);
 
   // Handle escape key
   useEffect(() => {
@@ -42,15 +44,29 @@ export function ClassAwardModal({
   }, [isOpen, onClose]);
 
   const handleBehaviorSelect = useCallback(async (behavior: Behavior) => {
-    await awardClassPoints(classroomId, behavior.id);
-    // Play sound based on behavior category (before closing for celebration moment)
-    if (behavior.category === 'positive') {
-      playPositive();
-    } else {
-      playNegative();
+    if (isAwarding) return;
+
+    setIsAwarding(true);
+    setAwardError(null);
+
+    try {
+      const result = await awardClassPoints(classroomId, behavior.id);
+      if (!result || result.length === 0) {
+        throw new Error('Failed to award points');
+      }
+      // Only play sound on success
+      if (behavior.category === 'positive') {
+        playPositive();
+      } else {
+        playNegative();
+      }
+      onClose();
+    } catch (err) {
+      console.error('Failed to award class points:', err);
+      setAwardError(err instanceof Error ? err.message : 'Failed to award points');
+      setIsAwarding(false);
     }
-    onClose();
-  }, [classroomId, awardClassPoints, playPositive, playNegative, onClose]);
+  }, [classroomId, isAwarding, awardClassPoints, playPositive, playNegative, onClose]);
 
   if (!isOpen) return null;
 
@@ -107,12 +123,28 @@ export function ClassAwardModal({
           </p>
         </div>
 
+        {/* Error Display */}
+        {awardError && (
+          <div className="bg-red-50 border-b border-red-100 px-6 py-3">
+            <p className="text-sm text-red-700 text-center">{awardError}</p>
+          </div>
+        )}
+
         {/* Behavior Picker */}
         <div className="p-6 overflow-y-auto max-h-[60vh]">
-          <p className="text-sm text-gray-600 mb-4 text-center">
-            Select a behavior to award to the whole class
-          </p>
-          <BehaviorPicker behaviors={behaviors} onSelect={handleBehaviorSelect} />
+          {isAwarding ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mb-3" />
+              <p className="text-gray-500">Awarding points...</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 mb-4 text-center">
+                Select a behavior to award to the whole class
+              </p>
+              <BehaviorPicker behaviors={behaviors} onSelect={handleBehaviorSelect} />
+            </>
+          )}
         </div>
       </div>
     </div>
