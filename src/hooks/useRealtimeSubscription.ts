@@ -72,7 +72,6 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
     }
 
     // Supabase's .on() method requires type casting due to strict typing
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (channel as unknown as { on: (event: string, config: typeof filterConfig, callback: (payload: RealtimePostgresChangesPayload<T>) => void) => typeof channel }).on(
       'postgres_changes',
       filterConfig,
@@ -136,7 +135,8 @@ export function useMultiTableRealtimeSubscription(
     .join('|');
 
   useEffect(() => {
-    if (!enabled || subscriptions.length === 0) return;
+    const currentSubscriptions = subscriptionsRef.current;
+    if (!enabled || currentSubscriptions.length === 0) return;
 
     if (channelRef.current) return;
 
@@ -144,7 +144,7 @@ export function useMultiTableRealtimeSubscription(
     channelRef.current = channel;
 
     // Add listeners for each table - use refs for callbacks
-    subscriptions.forEach(({ table, filter }, index) => {
+    currentSubscriptions.forEach(({ table, filter }, index) => {
       const filterConfig: {
         event: '*';
         schema: string;
@@ -161,7 +161,6 @@ export function useMultiTableRealtimeSubscription(
       }
 
       // Supabase's .on() method requires type casting due to strict typing
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (channel as unknown as { on: (event: string, config: typeof filterConfig, callback: (payload: RealtimePayload) => void) => typeof channel }).on(
         'postgres_changes',
         filterConfig,
