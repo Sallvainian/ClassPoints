@@ -1,14 +1,18 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Student, PointTransaction } from '../../types';
+import type { CardSize } from '../../hooks/useDisplaySettings';
 import { useApp } from '../../contexts/AppContext';
+import { useDisplaySettings } from '../../hooks/useDisplaySettings';
 import { StudentGrid } from '../students/StudentGrid';
 import { AwardPointsModal } from '../points/AwardPointsModal';
 import { ClassAwardModal } from '../points/ClassAwardModal';
+import { MultiAwardModal } from '../points/MultiAwardModal';
 import { ClassPointsBox } from '../points/ClassPointsBox';
 import { UndoToast } from '../points/UndoToast';
 import { TodaySummary } from '../points/TodaySummary';
 import { SoundSettingsModal } from '../settings/SoundSettingsModal';
 import { Button } from '../ui/Button';
+import { BottomToolbar } from './BottomToolbar';
 
 interface DashboardViewProps {
   onOpenSettings: () => void;
@@ -26,11 +30,20 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     error,
   } = useApp();
 
+  // Display settings
+  const { settings, setCardSize, toggleShowPointTotals } = useDisplaySettings();
+
+  // Modal states
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isAwardModalOpen, setIsAwardModalOpen] = useState(false);
   const [isClassAwardModalOpen, setIsClassAwardModalOpen] = useState(false);
+  const [isMultiAwardModalOpen, setIsMultiAwardModalOpen] = useState(false);
   const [undoableAction, setUndoableAction] = useState(getRecentUndoableAction());
   const [showActivity, setShowActivity] = useState(false);
+
+  // Selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
   // Refresh undoable action periodically
   useEffect(() => {
@@ -41,10 +54,51 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     return () => clearInterval(interval);
   }, [getRecentUndoableAction]);
 
+  // Get selected students as array for MultiAwardModal
+  const selectedStudents = useMemo(() => {
+    if (!activeClassroom) return [];
+    return activeClassroom.students.filter((s) => selectedStudentIds.has(s.id));
+  }, [activeClassroom, selectedStudentIds]);
+
   const handleStudentClick = (student: Student) => {
     setSelectedStudent(student);
     setIsAwardModalOpen(true);
   };
+
+  const handleStudentSelect = useCallback((studentId: string) => {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) {
+        next.delete(studentId);
+      } else {
+        next.add(studentId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleEnterSelectionMode = () => {
+    setSelectionMode(true);
+    setSelectedStudentIds(new Set());
+  };
+
+  const handleExitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedStudentIds(new Set());
+  };
+
+  const handleSelectAll = () => {
+    if (!activeClassroom) return;
+    setSelectedStudentIds(new Set(activeClassroom.students.map((s) => s.id)));
+  };
+
+  const handleRandomStudent = useCallback(() => {
+    if (!activeClassroom || activeClassroom.students.length === 0) return;
+    const randomIndex = Math.floor(Math.random() * activeClassroom.students.length);
+    const randomStudent = activeClassroom.students[randomIndex];
+    setSelectedStudent(randomStudent);
+    setIsAwardModalOpen(true);
+  }, [activeClassroom]);
 
   const handleCloseModal = () => {
     setIsAwardModalOpen(false);
@@ -57,6 +111,16 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
   const handleCloseClassModal = () => {
     setIsClassAwardModalOpen(false);
+    // Refresh undoable action after awarding
+    setTimeout(() => {
+      setUndoableAction(getRecentUndoableAction());
+    }, 100);
+  };
+
+  const handleCloseMultiModal = () => {
+    setIsMultiAwardModalOpen(false);
+    // Exit selection mode after successful award
+    handleExitSelectionMode();
     // Refresh undoable action after awarding
     setTimeout(() => {
       setUndoableAction(getRecentUndoableAction());
@@ -137,26 +201,78 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">{activeClassroom.name}</h1>
-          <p className="text-sm text-gray-500">
-            {activeClassroom.students.length} student{activeClassroom.students.length !== 1 ? 's' : ''}
-          </p>
+      <div className="bg-white border-b px-4 py-3">
+        {/* Top row: Classroom name and core actions */}
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">{activeClassroom.name}</h1>
+            <p className="text-sm text-gray-500">
+              {activeClassroom.students.length} student{activeClassroom.students.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <SoundSettingsModal />
+            <Button variant="ghost" size="sm" onClick={onOpenSettings}>
+              ⚙️ Settings
+            </Button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant={showActivity ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setShowActivity(!showActivity)}
-          >
-            {showActivity ? 'Hide' : 'Show'} Activity
-          </Button>
-          <SoundSettingsModal />
-          <Button variant="ghost" size="sm" onClick={onOpenSettings}>
-            ⚙️ Settings
-          </Button>
+        {/* Bottom row: Display controls and selection */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          {/* Left side: Display controls */}
+          <div className="flex items-center gap-3">
+            {/* Card size toggle */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+              {(['small', 'medium', 'large'] as CardSize[]).map((size) => (
+                <button
+                  key={size}
+                  onClick={() => setCardSize(size)}
+                  className={`
+                    px-2 py-1 text-xs font-medium rounded-md transition-colors
+                    ${settings.cardSize === size
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                    }
+                  `}
+                  title={`${size.charAt(0).toUpperCase() + size.slice(1)} cards`}
+                >
+                  {size.charAt(0).toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            {/* Point totals toggle */}
+            <button
+              onClick={toggleShowPointTotals}
+              className={`
+                px-2 py-1 text-xs font-medium rounded-lg transition-colors
+                ${settings.showPointTotals
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-gray-100 text-gray-600 hover:text-gray-900'
+                }
+              `}
+              title="Show positive/negative point totals"
+            >
+              +/-
+            </button>
+
+            {/* Activity toggle */}
+            <button
+              onClick={() => setShowActivity(!showActivity)}
+              className={`
+                px-2 py-1 text-xs font-medium rounded-lg transition-colors
+                ${showActivity
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600 hover:text-gray-900'
+                }
+              `}
+            >
+              Activity
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -181,6 +297,11 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
           <StudentGrid
             students={activeClassroom.students}
             onStudentClick={handleStudentClick}
+            size={settings.cardSize}
+            showPointTotals={settings.showPointTotals}
+            selectedStudentIds={selectedStudentIds}
+            // Only pass onStudentSelect when in selection mode - this enables selection behavior
+            onStudentSelect={selectionMode ? handleStudentSelect : undefined}
           />
         </div>
 
@@ -197,7 +318,20 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
         )}
       </div>
 
-      {/* Award Points Modal */}
+      {/* Bottom Toolbar */}
+      <BottomToolbar
+        selectionMode={selectionMode}
+        selectedCount={selectedStudentIds.size}
+        totalStudents={activeClassroom.students.length}
+        onEnterSelectionMode={handleEnterSelectionMode}
+        onExitSelectionMode={handleExitSelectionMode}
+        onSelectAll={handleSelectAll}
+        onAwardPoints={() => setIsMultiAwardModalOpen(true)}
+        onRandomStudent={handleRandomStudent}
+        hasStudents={activeClassroom.students.length > 0}
+      />
+
+      {/* Award Points Modal (single student) */}
       <AwardPointsModal
         isOpen={isAwardModalOpen}
         onClose={handleCloseModal}
@@ -216,6 +350,14 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
           activeClassroom.id,
           activeClassroom.students.map((s) => s.id)
         )}
+      />
+
+      {/* Multi Award Modal (selected students) */}
+      <MultiAwardModal
+        isOpen={isMultiAwardModalOpen}
+        onClose={handleCloseMultiModal}
+        selectedStudents={selectedStudents}
+        classroomId={activeClassroom.id}
       />
 
       {/* Undo Toast */}

@@ -1,13 +1,39 @@
 import { useMemo } from 'react';
 import type { Student } from '../../types';
+import type { CardSize } from '../../hooks/useDisplaySettings';
 import { StudentPointCard } from './StudentPointCard';
 
 interface StudentGridProps {
   students: Student[];
+  /** Called when a student card is clicked (normal mode). Receives the student object. */
   onStudentClick: (student: Student) => void;
+  size?: CardSize;
+  showPointTotals?: boolean;
+  selectedStudentIds?: Set<string>;
+  /** If provided, enables selection mode. Handler receives studentId. */
+  onStudentSelect?: (studentId: string) => void;
 }
 
-export function StudentGrid({ students, onStudentClick }: StudentGridProps) {
+const GRID_COLUMNS = {
+  small: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10',
+  medium: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
+  large: 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+};
+
+const GAP_SIZES = {
+  small: 'gap-2',
+  medium: 'gap-4',
+  large: 'gap-6',
+};
+
+export function StudentGrid({
+  students,
+  onStudentClick,
+  size = 'medium',
+  showPointTotals = false,
+  selectedStudentIds = new Set(),
+  onStudentSelect,
+}: StudentGridProps) {
   // Sort students alphabetically
   const sortedStudents = useMemo(() => {
     return [...students].sort((a, b) =>
@@ -26,12 +52,19 @@ export function StudentGrid({ students, onStudentClick }: StudentGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
+    <div className={`grid ${GRID_COLUMNS[size]} ${GAP_SIZES[size]} p-4`}>
       {sortedStudents.map((student) => (
         <StudentPointCard
           key={student.id}
           student={student}
-          onClick={() => onStudentClick(student)}
+          // Pass handler reference directly - no closure needed
+          // StudentPointCard will call onClickStudent(student) internally
+          onClickStudent={onStudentClick}
+          size={size}
+          showPointTotals={showPointTotals}
+          isSelected={selectedStudentIds.has(student.id)}
+          // Pass handler reference directly - StudentPointCard calls onSelect(student.id)
+          onSelect={onStudentSelect}
         />
       ))}
     </div>
