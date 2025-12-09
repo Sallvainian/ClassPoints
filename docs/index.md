@@ -2,7 +2,7 @@
 
 > A classroom behavior management application for tracking student points and behaviors.
 
-**Generated:** December 5, 2025
+**Generated:** December 9, 2025
 **Project Type:** Web Application (React + Supabase)
 **Scan Level:** Exhaustive
 
@@ -13,6 +13,7 @@
 | Document | Description |
 |----------|-------------|
 | [Architecture](./architecture.md) | System architecture and design patterns |
+| [Patterns & Rules](./patterns-and-rules.md) | **Comprehensive patterns and coding rules reference** |
 | [Data Models](./data-models.md) | Database schema and TypeScript types |
 | [Tech Stack](./tech-stack.md) | Technologies, dependencies, and configuration |
 | [Source Tree](./source-tree.md) | File structure and component hierarchy |
@@ -76,15 +77,15 @@ UI Components → React Context → Custom Hooks → Supabase Client → Postgre
 ```
 ClassPoints/
 ├── src/
-│   ├── components/    # React UI components (24)
-│   ├── contexts/      # React Context providers (4)
-│   ├── hooks/         # Custom React hooks (7)
+│   ├── components/    # React UI components (27)
+│   ├── contexts/      # React Context providers (5)
+│   ├── hooks/         # Custom React hooks (8)
 │   ├── services/      # Business services (1)
 │   ├── lib/           # External configs
 │   ├── types/         # TypeScript definitions
 │   └── utils/         # Utility functions
 ├── supabase/
-│   └── migrations/    # Database schema
+│   └── migrations/    # Database schema (7 migrations)
 ├── e2e/               # Playwright E2E tests
 └── docs/              # This documentation
 ```
@@ -142,6 +143,7 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ### Architecture & Design
 - [Architecture Overview](./architecture.md) - System design, patterns, and data flow
+- [Patterns & Rules](./patterns-and-rules.md) - **Authoritative guide for code patterns and conventions**
 - [Data Models](./data-models.md) - Database schema, types, and relationships
 
 ### Technical Reference
@@ -179,13 +181,13 @@ Row Level Security ensures data isolation:
 
 | Feature Area | Components |
 |--------------|------------|
-| **Auth** | AuthGuard, AuthPage, LoginForm, SignupForm |
+| **Auth** | AuthGuard, AuthPage, LoginForm, SignupForm, ForgotPasswordForm |
 | **Dashboard** | DashboardView, ClassPointsBox, TodaySummary |
 | **Students** | StudentGrid, StudentPointCard |
 | **Points** | AwardPointsModal, ClassAwardModal, UndoToast |
-| **Settings** | ClassSettingsView, ImportStudentsModal |
+| **Settings** | ClassSettingsView, ImportStudentsModal, SoundSettings, SoundSettingsModal |
 | **Behaviors** | BehaviorPicker, BehaviorButton |
-| **Layout** | Layout, Sidebar, Modal, Button, Input |
+| **Layout** | Layout, Sidebar, SyncStatus, Modal, Button, Input |
 
 ---
 
@@ -193,12 +195,12 @@ Row Level Security ensures data isolation:
 
 | Category | Count |
 |----------|-------|
-| React Components | 24 |
-| React Contexts | 4 |
-| Custom Hooks | 7 |
-| Utility Modules | 5 |
-| Database Migrations | 1 |
-| E2E Tests | 1 |
+| React Components | 27 |
+| React Contexts | 5 |
+| Custom Hooks | 8 |
+| Utility Modules | 6 |
+| Database Migrations | 7 |
+| E2E Tests | 2 |
 
 ---
 

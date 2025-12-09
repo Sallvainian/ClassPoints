@@ -46,7 +46,9 @@ ClassPoints/
 │   │   │   └── UndoToast.tsx
 │   │   │
 │   │   ├── settings/             # Settings views
-│   │   │   └── ClassSettingsView.tsx
+│   │   │   ├── ClassSettingsView.tsx
+│   │   │   ├── SoundSettings.tsx
+│   │   │   └── SoundSettingsModal.tsx
 │   │   │
 │   │   ├── students/             # Student display
 │   │   │   ├── StudentGrid.tsx
@@ -57,18 +59,20 @@ ClassPoints/
 │   │       ├── Input.tsx
 │   │       └── Modal.tsx
 │   │
-│   ├── contexts/                 # React Context providers (4 contexts)
+│   ├── contexts/                 # React Context providers (5 contexts)
 │   │   ├── AppContext.tsx        # Main app context facade
 │   │   ├── AuthContext.tsx       # Supabase authentication
 │   │   ├── HybridAppContext.tsx  # Online/offline hybrid state
+│   │   ├── SoundContext.tsx      # Sound effects settings
 │   │   └── SupabaseAppContext.tsx # Full Supabase data layer
 │   │
-│   ├── hooks/                    # Custom React hooks (7 hooks)
+│   ├── hooks/                    # Custom React hooks (8 hooks)
 │   │   ├── index.ts              # Hook exports
 │   │   ├── useBehaviors.ts       # Behavior CRUD operations
 │   │   ├── useClassrooms.ts      # Classroom management
 │   │   ├── usePersistedState.ts  # localStorage persistence
 │   │   ├── useRealtimeSubscription.ts # Supabase realtime
+│   │   ├── useSoundEffects.ts    # Sound effect playback
 │   │   ├── useStudents.ts        # Student operations
 │   │   └── useTransactions.ts    # Point transaction ops
 │   │
@@ -87,17 +91,29 @@ ClassPoints/
 │   │   ├── defaults.ts           # Default behaviors, avatar colors
 │   │   ├── migrations.ts         # State migration utilities
 │   │   ├── migrateToSupabase.ts  # localStorage to Supabase migration
-│   │   └── studentParser.ts      # Student name parsing (CSV/JSON)
+│   │   ├── studentParser.ts      # Student name parsing (CSV/JSON)
+│   │   └── validateAudioUrl.ts   # Custom audio URL validation
 │   │
 │   └── test/                     # Unit tests
 │       └── ...
 │
 ├── supabase/                     # Database configuration
-│   └── migrations/
-│       └── 001_initial_schema.sql # Database schema + RLS policies
+│   └── migrations/               # 7 migration files
+│       ├── 001_initial_schema.sql     # Base schema + temporary RLS
+│       ├── 002_add_user_auth.sql      # User auth + proper RLS
+│       ├── 003_sync_default_behaviors.sql
+│       ├── 004_enable_realtime.sql    # Enable realtime on tables
+│       ├── 005_replica_identity_full.sql # Full row data for DELETE events
+│       ├── 006_add_batch_id.sql       # Batch transactions for class-wide awards
+│       └── 007_add_sound_settings.sql # User sound preferences
 │
 ├── e2e/                          # End-to-end tests
-│   └── undo-points.spec.ts       # Playwright E2E tests
+│   ├── fixtures/
+│   │   └── auth.fixture.ts       # Auth test fixtures
+│   ├── page-objects/
+│   │   └── SoundSettingsPage.ts  # POM for sound settings
+│   ├── undo-points.spec.ts       # Undo functionality E2E
+│   └── sound-settings.spec.ts    # Sound settings E2E
 │
 ├── docs/                         # Generated documentation
 │   ├── project-scan-report.json
@@ -132,38 +148,43 @@ ClassPoints/
 
 ```
 <App>
-├── <AuthProvider>           # Authentication context
-│   └── <AuthGuard>          # Route protection
-│       └── <HybridAppProvider>  # Hybrid online/offline state
-│           └── <AppContent>
-│               └── <Layout>
-│                   ├── <Sidebar>            # Navigation
-│                   ├── <DashboardView>      # Main content
-│                   │   ├── <ClassPointsBox>
-│                   │   ├── <StudentGrid>
-│                   │   │   └── <StudentPointCard>
-│                   │   └── <TodaySummary>
-│                   ├── <AwardPointsModal>
-│                   │   └── <BehaviorPicker>
-│                   │       └── <BehaviorButton>
-│                   ├── <ClassAwardModal>
-│                   ├── <UndoToast>
-│                   └── <ClassSettingsView>
-│                       └── <ImportStudentsModal>
+├── <AuthProvider>               # Authentication context
+│   └── <AuthGuard>              # Route protection
+│       └── <SoundProvider>      # Sound effects context
+│           └── <HybridAppProvider>  # Hybrid online/offline state
+│               └── <AppContent>
+│                   └── <Layout>
+│                       ├── <Sidebar>              # Navigation
+│                       ├── <DashboardView>        # Main content
+│                       │   ├── <ClassPointsBox>
+│                       │   ├── <StudentGrid>
+│                       │   │   └── <StudentPointCard>
+│                       │   └── <TodaySummary>
+│                       ├── <AwardPointsModal>
+│                       │   └── <BehaviorPicker>
+│                       │       └── <BehaviorButton>
+│                       ├── <ClassAwardModal>
+│                       ├── <UndoToast>
+│                       ├── <SyncStatus>
+│                       └── <ClassSettingsView>
+│                           ├── <ImportStudentsModal>
+│                           └── <SoundSettingsModal>
+│                               └── <SoundSettings>
 ```
 
 ## File Statistics
 
 | Category | Count |
 |----------|-------|
-| React Components | 24 |
-| React Contexts | 4 |
-| Custom Hooks | 7 |
-| Utility Modules | 5 |
+| React Components | 27 |
+| React Contexts | 5 |
+| Custom Hooks | 8 |
+| Utility Modules | 6 |
 | Type Definitions | 2 |
 | Services | 1 |
-| Database Migrations | 1 |
-| E2E Test Files | 1 |
+| Database Migrations | 7 |
+| E2E Test Files | 2 |
+| E2E Page Objects | 1 |
 | Config Files | 10 |
 
 ## Key Entry Points
