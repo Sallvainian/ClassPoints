@@ -4,8 +4,17 @@ import { useRealtimeSubscription } from './useRealtimeSubscription';
 import { getRandomAvatarColor } from '../utils';
 import type { Student, NewStudent, UpdateStudent } from '../types/database';
 
+// Extended student type with point totals
+export interface StudentWithPoints extends Student {
+  point_total: number;
+  positive_total: number;
+  negative_total: number;
+  today_total: number;
+  this_week_total: number;
+}
+
 interface UseStudentsReturn {
-  students: Student[];
+  students: StudentWithPoints[];
   loading: boolean;
   error: Error | null;
   addStudent: (classroomId: string, name: string, avatarColor?: string) => Promise<Student | null>;
@@ -16,7 +25,7 @@ interface UseStudentsReturn {
 }
 
 export function useStudents(classroomId: string | null): UseStudentsReturn {
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<StudentWithPoints[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -39,9 +48,52 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
     if (queryError) {
       setError(new Error(queryError.message));
       setStudents([]);
-    } else {
-      setStudents(data || []);
+      setLoading(false);
+      return;
     }
+
+    // Fetch all transactions for this classroom to calculate point totals per student
+    const { data: transactionData } = await supabase
+      .from('point_transactions')
+      .select('student_id, points, created_at')
+      .eq('classroom_id', classroomId);
+
+    // Calculate time boundaries for today/this week
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = now.getDay();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    // Calculate point totals per student (total, positive, negative, today, thisWeek)
+    const pointTotals = new Map<string, { total: number; positive: number; negative: number; today: number; thisWeek: number }>();
+    (transactionData || []).forEach((t) => {
+      const current = pointTotals.get(t.student_id) || { total: 0, positive: 0, negative: 0, today: 0, thisWeek: 0 };
+      current.total += t.points;
+      if (t.points > 0) current.positive += t.points;
+      if (t.points < 0) current.negative += t.points;
+
+      const createdAt = new Date(t.created_at);
+      if (createdAt >= startOfToday) current.today += t.points;
+      if (createdAt >= startOfWeek) current.thisWeek += t.points;
+
+      pointTotals.set(t.student_id, current);
+    });
+
+    // Map students with point totals
+    const studentsWithPoints: StudentWithPoints[] = (data || []).map((s) => {
+      const totals = pointTotals.get(s.id) || { total: 0, positive: 0, negative: 0, today: 0, thisWeek: 0 };
+      return {
+        ...s,
+        point_total: totals.total,
+        positive_total: totals.positive,
+        negative_total: totals.negative,
+        today_total: totals.today,
+        this_week_total: totals.thisWeek,
+      };
+    });
+    setStudents(studentsWithPoints);
 
     setLoading(false);
   }, [classroomId]);
@@ -59,16 +111,110 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
       setStudents((prev) => {
         // Avoid duplicates if we already added optimistically
         if (prev.some((s) => s.id === student.id)) return prev;
-        return [...prev, student].sort((a, b) => a.name.localeCompare(b.name));
+        // New students start with 0 points
+        const studentWithPoints: StudentWithPoints = {
+          ...student,
+          point_total: 0,
+          positive_total: 0,
+          negative_total: 0,
+          today_total: 0,
+          this_week_total: 0,
+        };
+        return [...prev, studentWithPoints].sort((a, b) => a.name.localeCompare(b.name));
       });
     },
     onUpdate: (student) => {
       setStudents((prev) =>
-        prev.map((s) => (s.id === student.id ? student : s)).sort((a, b) => a.name.localeCompare(b.name))
+        prev
+          .map((s) =>
+            s.id === student.id
+              ? {
+                  ...student,
+                  point_total: s.point_total,
+                  positive_total: s.positive_total,
+                  negative_total: s.negative_total,
+                  today_total: s.today_total,
+                  this_week_total: s.this_week_total,
+                }
+              : s
+          )
+          .sort((a, b) => a.name.localeCompare(b.name))
       );
     },
     onDelete: ({ id }) => {
       setStudents((prev) => prev.filter((s) => s.id !== id));
+    },
+  });
+
+  // Subscribe to point_transactions to update student point totals in real-time
+  useRealtimeSubscription<
+    { id: string; student_id: string; points: number; created_at: string },
+    { id: string; student_id: string; points: number; created_at: string }
+  >({
+    table: 'point_transactions',
+    filter: classroomId ? `classroom_id=eq.${classroomId}` : undefined,
+    enabled: !!classroomId,
+    onInsert: (transaction) => {
+      // Check if transaction is from today/this week
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const day = now.getDay();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      const createdAt = new Date(transaction.created_at);
+      const isToday = createdAt >= startOfToday;
+      const isThisWeek = createdAt >= startOfWeek;
+
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === transaction.student_id
+            ? {
+                ...s,
+                point_total: s.point_total + transaction.points,
+                positive_total: transaction.points > 0 ? s.positive_total + transaction.points : s.positive_total,
+                negative_total: transaction.points < 0 ? s.negative_total + transaction.points : s.negative_total,
+                today_total: isToday ? s.today_total + transaction.points : s.today_total,
+                this_week_total: isThisWeek ? s.this_week_total + transaction.points : s.this_week_total,
+              }
+            : s
+        )
+      );
+    },
+    onDelete: (oldTransaction) => {
+      // If we have full row data (REPLICA IDENTITY FULL), update directly
+      if (oldTransaction.student_id && oldTransaction.points !== undefined) {
+        // Check if transaction was from today/this week
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const day = now.getDay();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const createdAt = new Date(oldTransaction.created_at);
+        const wasToday = createdAt >= startOfToday;
+        const wasThisWeek = createdAt >= startOfWeek;
+
+        setStudents((prev) =>
+          prev.map((s) =>
+            s.id === oldTransaction.student_id
+              ? {
+                  ...s,
+                  point_total: s.point_total - oldTransaction.points,
+                  positive_total: oldTransaction.points > 0 ? s.positive_total - oldTransaction.points : s.positive_total,
+                  negative_total: oldTransaction.points < 0 ? s.negative_total - oldTransaction.points : s.negative_total,
+                  today_total: wasToday ? s.today_total - oldTransaction.points : s.today_total,
+                  this_week_total: wasThisWeek ? s.this_week_total - oldTransaction.points : s.this_week_total,
+                }
+              : s
+          )
+        );
+      } else {
+        // Fallback: refetch all students if we don't have full row data
+        fetchStudents();
+      }
     },
   });
 
@@ -91,7 +237,16 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
         return null;
       }
 
-      setStudents((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      // New students start with 0 points
+      const studentWithPoints: StudentWithPoints = {
+        ...data,
+        point_total: 0,
+        positive_total: 0,
+        negative_total: 0,
+        today_total: 0,
+        this_week_total: 0,
+      };
+      setStudents((prev) => [...prev, studentWithPoints].sort((a, b) => a.name.localeCompare(b.name)));
       return data;
     },
     []
@@ -115,11 +270,19 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
         return [];
       }
 
-      const inserted = data || [];
+      // New students start with 0 points
+      const inserted: StudentWithPoints[] = (data || []).map((s) => ({
+        ...s,
+        point_total: 0,
+        positive_total: 0,
+        negative_total: 0,
+        today_total: 0,
+        this_week_total: 0,
+      }));
       setStudents((prev) =>
         [...prev, ...inserted].sort((a, b) => a.name.localeCompare(b.name))
       );
-      return inserted;
+      return data || [];
     },
     []
   );
@@ -138,8 +301,22 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
         return null;
       }
 
+      // Preserve point totals when updating student
       setStudents((prev) =>
-        prev.map((s) => (s.id === id ? data : s)).sort((a, b) => a.name.localeCompare(b.name))
+        prev
+          .map((s) =>
+            s.id === id
+              ? {
+                  ...data,
+                  point_total: s.point_total,
+                  positive_total: s.positive_total,
+                  negative_total: s.negative_total,
+                  today_total: s.today_total,
+                  this_week_total: s.this_week_total,
+                }
+              : s
+          )
+          .sort((a, b) => a.name.localeCompare(b.name))
       );
       return data;
     },

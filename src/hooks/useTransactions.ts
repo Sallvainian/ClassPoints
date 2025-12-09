@@ -5,6 +5,8 @@ import type { PointTransaction, NewPointTransaction, Behavior } from '../types/d
 
 interface StudentPoints {
   total: number;
+  positiveTotal: number;
+  negativeTotal: number;
   today: number;
   thisWeek: number;
 }
@@ -157,6 +159,12 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
       const startOfWeek = getStartOfWeek();
 
       const total = studentTransactions.reduce((sum, t) => sum + t.points, 0);
+      const positiveTotal = studentTransactions
+        .filter((t) => t.points > 0)
+        .reduce((sum, t) => sum + t.points, 0);
+      const negativeTotal = studentTransactions
+        .filter((t) => t.points < 0)
+        .reduce((sum, t) => sum + t.points, 0);
       const today = studentTransactions
         .filter((t) => new Date(t.created_at) >= startOfToday)
         .reduce((sum, t) => sum + t.points, 0);
@@ -164,7 +172,7 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
         .filter((t) => new Date(t.created_at) >= startOfWeek)
         .reduce((sum, t) => sum + t.points, 0);
 
-      return { total, today, thisWeek };
+      return { total, positiveTotal, negativeTotal, today, thisWeek };
     },
     [transactions]
   );

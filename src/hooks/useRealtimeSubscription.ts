@@ -45,12 +45,22 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
   }, [onInsert, onUpdate, onDelete]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      // Clean up existing channel when disabled
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      return;
+    }
 
-    // Prevent duplicate subscriptions
-    if (channelRef.current) return;
+    // Clean up existing channel before creating new one (filter may have changed)
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
 
-    const channelName = `${table}-changes-${filter || 'all'}`;
+    const channelName = `${table}-changes-${filter || 'all'}-${Date.now()}`;
 
     const channel = supabase.channel(channelName);
     channelRef.current = channel;
@@ -136,11 +146,22 @@ export function useMultiTableRealtimeSubscription(
 
   useEffect(() => {
     const currentSubscriptions = subscriptionsRef.current;
-    if (!enabled || currentSubscriptions.length === 0) return;
+    if (!enabled || currentSubscriptions.length === 0) {
+      // Clean up existing channel when disabled
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      return;
+    }
 
-    if (channelRef.current) return;
+    // Clean up existing channel before creating new one (subscriptions may have changed)
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
 
-    const channel = supabase.channel('multi-table-changes');
+    const channel = supabase.channel(`multi-table-changes-${Date.now()}`);
     channelRef.current = channel;
 
     // Add listeners for each table - use refs for callbacks

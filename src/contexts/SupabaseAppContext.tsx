@@ -38,6 +38,9 @@ interface AppStudent {
   id: string;
   name: string;
   avatarColor?: string;
+  pointTotal: number;
+  positiveTotal: number;
+  negativeTotal: number;
 }
 
 interface AppClassroom {
@@ -47,6 +50,8 @@ interface AppClassroom {
   createdAt: number;
   updatedAt: number;
   pointTotal?: number; // Pre-fetched total points for sidebar display
+  positiveTotal?: number; // Total positive points
+  negativeTotal?: number; // Total negative points
 }
 
 interface AppBehavior {
@@ -61,6 +66,8 @@ interface AppBehavior {
 
 interface StudentPoints {
   total: number;
+  positiveTotal: number;
+  negativeTotal: number;
   today: number;
   thisWeek: number;
 }
@@ -79,6 +86,8 @@ interface UndoableAction {
 
 interface ClassPoints {
   total: number;
+  positiveTotal: number;
+  negativeTotal: number;
   today: number;
   thisWeek: number;
 }
@@ -170,7 +179,6 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     error: transactionsError,
     awardPoints: awardPointsHook,
     undoTransaction: undoTransactionHook,
-    getStudentPoints,
     getStudentTransactions,
     clearStudentPoints: clearStudentPointsHook,
     refetch: refetchTransactions,
@@ -185,17 +193,20 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     const classroom = classrooms.find((c) => c.id === activeClassroomId);
     if (!classroom) return null;
 
-    // Map Supabase students to old format and embed in classroom
-    const mappedStudents = students.map((s) => ({
+    // Map Supabase students to old format with point totals and embed in classroom
+    const mappedStudentsWithPoints: AppStudent[] = students.map((s) => ({
       id: s.id,
       name: s.name,
       avatarColor: s.avatar_color || undefined,
+      pointTotal: s.point_total,
+      positiveTotal: s.positive_total,
+      negativeTotal: s.negative_total,
     }));
 
     return {
       id: classroom.id,
       name: classroom.name,
-      students: mappedStudents,
+      students: mappedStudentsWithPoints,
       createdAt: new Date(classroom.created_at).getTime(),
       updatedAt: new Date(classroom.updated_at).getTime(),
     };
@@ -414,45 +425,54 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     [transactions]
   );
 
+  // Get student points from stored totals (replaces transaction-based calculation)
+  // Uses point totals from useStudents hook which are kept in sync via realtime subscriptions
+  const getStudentPointsStored = useCallback(
+    (studentId: string): StudentPoints => {
+      const student = students.find((s) => s.id === studentId);
+      if (!student) {
+        return { total: 0, positiveTotal: 0, negativeTotal: 0, today: 0, thisWeek: 0 };
+      }
+
+      // All values come from stored totals - no transaction recalculation
+      // This ensures consistency across all screens and eliminates race conditions
+      return {
+        total: student.point_total,
+        positiveTotal: student.positive_total,
+        negativeTotal: student.negative_total,
+        today: student.today_total,
+        thisWeek: student.this_week_total,
+      };
+    },
+    [students]
+  );
+
   // Get aggregated class points (sum of all student points in classroom)
-  // When studentIds provided: guarantees total = sum of individual student totals
+  // Uses stored totals from students - no transaction recalculation
   const getClassPoints = useCallback(
-    (classroomId: string, studentIds?: string[]): ClassPoints => {
-      // If studentIds provided, sum from student points (guarantees consistency with displayed cards)
+    (_classroomId: string, studentIds?: string[]): ClassPoints => {
+      // Sum from student stored totals (guarantees consistency with displayed cards)
       if (studentIds && studentIds.length > 0) {
         let total = 0;
+        let positiveTotal = 0;
+        let negativeTotal = 0;
         let today = 0;
         let thisWeek = 0;
         for (const studentId of studentIds) {
-          const pts = getStudentPoints(studentId);
+          const pts = getStudentPointsStored(studentId);
           total += pts.total;
+          positiveTotal += pts.positiveTotal;
+          negativeTotal += pts.negativeTotal;
           today += pts.today;
           thisWeek += pts.thisWeek;
         }
-        return { total, today, thisWeek };
+        return { total, positiveTotal, negativeTotal, today, thisWeek };
       }
 
-      // Fallback: original behavior (used by sidebar for inactive classrooms)
-      const classTransactions = transactions.filter((t) => t.classroom_id === classroomId);
-
-      const now = new Date();
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const day = now.getDay();
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
-      startOfWeek.setHours(0, 0, 0, 0);
-
-      const total = classTransactions.reduce((sum, t) => sum + t.points, 0);
-      const today = classTransactions
-        .filter((t) => new Date(t.created_at) >= startOfToday)
-        .reduce((sum, t) => sum + t.points, 0);
-      const thisWeek = classTransactions
-        .filter((t) => new Date(t.created_at) >= startOfWeek)
-        .reduce((sum, t) => sum + t.points, 0);
-
-      return { total, today, thisWeek };
+      // No studentIds provided - return zeros (sidebar uses stored classroom totals)
+      return { total: 0, positiveTotal: 0, negativeTotal: 0, today: 0, thisWeek: 0 };
     },
-    [transactions, getStudentPoints]
+    [getStudentPointsStored]
   );
 
   const getRecentUndoableAction = useCallback((): UndoableAction | null => {
@@ -514,35 +534,30 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
   // Map classrooms to app format
   // Always use student_count for the students array length (used by sidebar)
-  // This avoids race conditions when switching between classrooms
+  // Uses stored point totals from database - no transaction recalculation to avoid flicker
+  // Only provide positive/negative breakdown for the active classroom (sidebar design)
   const mappedClassrooms: AppClassroom[] = useMemo(() => {
-    // Calculate actual point total from transactions for the active classroom
-    // This ensures sidebar matches ClassPointsBox/StudentCards (single source of truth)
-    const activeClassroomTotal = activeClassroomId
-      ? transactions.reduce((sum, t) => sum + t.points, 0)
-      : 0;
-
     return classrooms.map((c) => {
       // Create placeholder array matching student_count for consistent display
       const placeholderStudents: AppStudent[] = Array.from(
         { length: c.student_count },
-        (_, i) => ({ id: `placeholder-${i}`, name: '' })
+        (_, i) => ({ id: `placeholder-${i}`, name: '', pointTotal: 0, positiveTotal: 0, negativeTotal: 0 })
       );
 
-      // For active classroom: use calculated total from transactions (source of truth)
-      // For inactive classrooms: use stored point_total from useClassrooms
-      const pointTotal = c.id === activeClassroomId ? activeClassroomTotal : c.point_total;
-
+      const isActive = c.id === activeClassroomId;
       return {
         id: c.id,
         name: c.name,
         students: placeholderStudents,
         createdAt: new Date(c.created_at).getTime(),
         updatedAt: new Date(c.updated_at).getTime(),
-        pointTotal,
+        pointTotal: c.point_total,
+        // Only provide breakdown for active classroom
+        positiveTotal: isActive ? c.positive_total : undefined,
+        negativeTotal: isActive ? c.negative_total : undefined,
       };
     });
-  }, [classrooms, activeClassroomId, transactions]);
+  }, [classrooms, activeClassroomId]);
 
   // Map behaviors to app format
   const mappedBehaviors: AppBehavior[] = useMemo(() => {
@@ -557,12 +572,15 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     }));
   }, [behaviors]);
 
-  // Map students to app format
+  // Map students to app format (now includes point totals from useStudents)
   const mappedStudents: AppStudent[] = useMemo(() => {
     return students.map((s) => ({
       id: s.id,
       name: s.name,
       avatarColor: s.avatar_color || undefined,
+      pointTotal: s.point_total,
+      positiveTotal: s.positive_total,
+      negativeTotal: s.negative_total,
     }));
   }, [students]);
 
@@ -606,7 +624,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     awardClassPoints,
     undoTransaction,
     undoBatchTransaction,
-    getStudentPoints,
+    getStudentPoints: getStudentPointsStored, // Use stored totals instead of transaction-based
     getClassPoints,
     getStudentTransactions,
     getClassroomTransactions,
