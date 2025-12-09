@@ -18,6 +18,7 @@ interface UseClassroomsReturn {
   createClassroom: (name: string) => Promise<Classroom | null>;
   updateClassroom: (id: string, updates: Partial<Classroom>) => Promise<Classroom | null>;
   deleteClassroom: (id: string) => Promise<boolean>;
+  updateClassroomPointsOptimistically: (classroomId: string, points: number) => void;
   refetch: () => Promise<void>;
 }
 
@@ -135,26 +136,15 @@ export function useClassrooms(): UseClassroomsReturn {
     },
   });
 
-  // Subscribe to point_transactions to update point totals in real-time
+  // Subscribe to point_transactions for DELETE events (undo)
+  // Note: INSERT events are handled via optimistic updates in awardPoints/awardClassPoints
+  // to avoid race conditions and double-counting
   useRealtimeSubscription<
     { id: string; classroom_id: string; points: number },
     { id: string; classroom_id: string; points: number }
   >({
     table: 'point_transactions',
-    onInsert: (transaction) => {
-      setClassrooms((prev) =>
-        prev.map((c) => {
-          if (c.id !== transaction.classroom_id) return c;
-          const isPositive = transaction.points > 0;
-          return {
-            ...c,
-            point_total: c.point_total + transaction.points,
-            positive_total: isPositive ? c.positive_total + transaction.points : c.positive_total,
-            negative_total: !isPositive ? c.negative_total + transaction.points : c.negative_total,
-          };
-        })
-      );
-    },
+    // onInsert is intentionally omitted - we use optimistic updates instead
     onDelete: (oldTransaction) => {
       // If we have full row data (REPLICA IDENTITY FULL), update directly
       if (oldTransaction.classroom_id && oldTransaction.points !== undefined) {
@@ -236,6 +226,25 @@ export function useClassrooms(): UseClassroomsReturn {
     return true;
   }, []);
 
+  // Optimistically update classroom points before realtime event arrives
+  const updateClassroomPointsOptimistically = useCallback(
+    (classroomId: string, points: number) => {
+      setClassrooms((prev) =>
+        prev.map((c) =>
+          c.id === classroomId
+            ? {
+                ...c,
+                point_total: c.point_total + points,
+                positive_total: points > 0 ? c.positive_total + points : c.positive_total,
+                negative_total: points < 0 ? c.negative_total + points : c.negative_total,
+              }
+            : c
+        )
+      );
+    },
+    []
+  );
+
   return {
     classrooms,
     loading,
@@ -243,6 +252,7 @@ export function useClassrooms(): UseClassroomsReturn {
     createClassroom,
     updateClassroom,
     deleteClassroom,
+    updateClassroomPointsOptimistically,
     refetch: fetchClassrooms,
   };
 }

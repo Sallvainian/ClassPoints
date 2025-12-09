@@ -151,6 +151,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     createClassroom: createClassroomHook,
     updateClassroom: updateClassroomHook,
     deleteClassroom: deleteClassroomHook,
+    updateClassroomPointsOptimistically,
   } = useClassrooms();
 
   const {
@@ -161,6 +162,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     addStudents: addStudentsHook,
     updateStudent: updateStudentHook,
     removeStudent: removeStudentHook,
+    updateStudentPointsOptimistically,
   } = useStudents(activeClassroomId);
 
   const {
@@ -344,9 +346,14 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     ): Promise<DbPointTransaction | null> => {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior) return null;
+
+      // Optimistically update student and classroom points before awaiting the transaction
+      updateStudentPointsOptimistically(studentId, behavior.points);
+      updateClassroomPointsOptimistically(classroomId, behavior.points);
+
       return await awardPointsHook(studentId, classroomId, behavior, note);
     },
-    [behaviors, awardPointsHook]
+    [behaviors, awardPointsHook, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
   );
 
   const awardClassPoints = useCallback(
@@ -357,6 +364,13 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     ): Promise<DbPointTransaction[]> => {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior || students.length === 0) return [];
+
+      // Optimistically update all students' and classroom points before awaiting the transaction
+      students.forEach((student) => {
+        updateStudentPointsOptimistically(student.id, behavior.points);
+      });
+      // Classroom total is behavior.points * number of students
+      updateClassroomPointsOptimistically(classroomId, behavior.points * students.length);
 
       // Generate a batch_id to group these transactions for undo
       const batchId = crypto.randomUUID();
@@ -388,7 +402,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       return data || [];
     },
-    [behaviors, students, refetchTransactions]
+    [behaviors, students, refetchTransactions, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
   );
 
   const undoTransaction = useCallback(

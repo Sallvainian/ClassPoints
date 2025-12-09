@@ -21,6 +21,7 @@ interface UseStudentsReturn {
   addStudents: (classroomId: string, names: string[]) => Promise<Student[]>;
   updateStudent: (id: string, updates: Partial<Student>) => Promise<Student | null>;
   removeStudent: (id: string) => Promise<boolean>;
+  updateStudentPointsOptimistically: (studentId: string, points: number) => void;
   refetch: () => Promise<void>;
 }
 
@@ -146,7 +147,9 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
     },
   });
 
-  // Subscribe to point_transactions to update student point totals in real-time
+  // Subscribe to point_transactions for DELETE events (undo)
+  // Note: INSERT events are handled via optimistic updates in awardPoints/awardClassPoints
+  // to avoid race conditions and double-counting
   useRealtimeSubscription<
     { id: string; student_id: string; points: number; created_at: string },
     { id: string; student_id: string; points: number; created_at: string }
@@ -154,34 +157,7 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
     table: 'point_transactions',
     filter: classroomId ? `classroom_id=eq.${classroomId}` : undefined,
     enabled: !!classroomId,
-    onInsert: (transaction) => {
-      // Check if transaction is from today/this week
-      const now = new Date();
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const day = now.getDay();
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
-      startOfWeek.setHours(0, 0, 0, 0);
-
-      const createdAt = new Date(transaction.created_at);
-      const isToday = createdAt >= startOfToday;
-      const isThisWeek = createdAt >= startOfWeek;
-
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === transaction.student_id
-            ? {
-                ...s,
-                point_total: s.point_total + transaction.points,
-                positive_total: transaction.points > 0 ? s.positive_total + transaction.points : s.positive_total,
-                negative_total: transaction.points < 0 ? s.negative_total + transaction.points : s.negative_total,
-                today_total: isToday ? s.today_total + transaction.points : s.today_total,
-                this_week_total: isThisWeek ? s.this_week_total + transaction.points : s.this_week_total,
-              }
-            : s
-        )
-      );
-    },
+    // onInsert is intentionally omitted - we use optimistic updates instead
     onDelete: (oldTransaction) => {
       // If we have full row data (REPLICA IDENTITY FULL), update directly
       if (oldTransaction.student_id && oldTransaction.points !== undefined) {
@@ -338,6 +314,27 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
     return true;
   }, []);
 
+  // Optimistically update student points before realtime event arrives
+  const updateStudentPointsOptimistically = useCallback(
+    (studentId: string, points: number) => {
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === studentId
+            ? {
+                ...s,
+                point_total: s.point_total + points,
+                positive_total: points > 0 ? s.positive_total + points : s.positive_total,
+                negative_total: points < 0 ? s.negative_total + points : s.negative_total,
+                today_total: s.today_total + points,
+                this_week_total: s.this_week_total + points,
+              }
+            : s
+        )
+      );
+    },
+    []
+  );
+
   return {
     students,
     loading,
@@ -346,6 +343,7 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
     addStudents,
     updateStudent,
     removeStudent,
+    updateStudentPointsOptimistically,
     refetch: fetchStudents,
   };
 }

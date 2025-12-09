@@ -1,136 +1,27 @@
 {
-  "metadata": {
-    "version": "1.0.0",
-    "created_at": "2025-12-05T00:00:00.000Z",
-    "last_updated": "2025-12-05T00:00:00.000Z",
-    "scan_level": "exhaustive",
-    "workflow_mode": "initial_scan"
+  "workflow_version": "1.2.0",
+  "timestamps": {
+    "started": "2025-12-09T00:00:00.000Z",
+    "last_updated": "2025-12-09T12:10:00.000Z"
   },
-  "project_classification": {
-    "project_name": "ClassPoints",
-    "project_type_ids": ["web"],
-    "repository_type": "monolith",
-    "description": "A classroom management web application for tracking student behavior and awarding points. Built with React 18, TypeScript, Vite, and Supabase with real-time sync capabilities.",
-    "primary_language": "TypeScript",
-    "frameworks": ["React 18", "Vite"],
-    "database": "Supabase (PostgreSQL)",
-    "styling": "Tailwind CSS",
-    "testing": {
-      "unit": "Vitest",
-      "e2e": "Playwright"
+  "mode": "full_rescan",
+  "scan_level": "exhaustive",
+  "project_root": "/Users/sallvain/Projects/ClassPoints",
+  "output_folder": "/Users/sallvain/Projects/ClassPoints/docs",
+  "completed_steps": [
+    {"step": "step_1", "status": "completed", "timestamp": "2025-12-09T12:10:00.000Z", "summary": "Classified as monolith with 1 part, project_type_id=web"}
+  ],
+  "current_step": "step_2",
+  "project_types": [
+    {"part_id": "main", "project_type_id": "web", "display_name": "Web Application"}
+  ],
+  "findings": {
+    "project_classification": {
+      "repository_type": "monolith",
+      "parts_count": 1,
+      "primary_tech": "React 18 + TypeScript + Vite + Supabase"
     }
   },
-  "architecture": {
-    "pattern": "Layered Architecture",
-    "layers": [
-      {
-        "name": "UI Components",
-        "path": "src/components/",
-        "description": "React functional components organized by feature"
-      },
-      {
-        "name": "Context Layer",
-        "path": "src/contexts/",
-        "description": "React Context for state management (AuthContext, AppContext, HybridAppContext)"
-      },
-      {
-        "name": "Hooks Layer",
-        "path": "src/hooks/",
-        "description": "Custom React hooks for data operations and real-time subscriptions"
-      },
-      {
-        "name": "Services Layer",
-        "path": "src/services/",
-        "description": "Business logic services like SyncManager"
-      },
-      {
-        "name": "Data Access",
-        "path": "src/lib/",
-        "description": "Supabase client initialization"
-      }
-    ],
-    "key_features": [
-      "Real-time updates via Supabase subscriptions",
-      "Offline-first with localStorage fallback",
-      "Migration wizard for localStorage to Supabase",
-      "Row Level Security (RLS) for multi-tenant isolation"
-    ]
-  },
-  "entities": {
-    "domain_models": [
-      {
-        "name": "Classroom",
-        "fields": ["id", "name", "students", "createdAt", "updatedAt", "pointTotal"],
-        "relationships": ["has many Students", "has many PointTransactions"]
-      },
-      {
-        "name": "Student",
-        "fields": ["id", "name", "avatarColor", "classroomId"],
-        "relationships": ["belongs to Classroom", "has many PointTransactions"]
-      },
-      {
-        "name": "Behavior",
-        "fields": ["id", "name", "points", "icon", "category", "isCustom", "createdAt"],
-        "relationships": ["used by PointTransactions"]
-      },
-      {
-        "name": "PointTransaction",
-        "fields": ["id", "studentId", "classroomId", "behaviorId", "behaviorName", "behaviorIcon", "points", "timestamp", "note", "batchId"],
-        "relationships": ["belongs to Student", "belongs to Classroom", "references Behavior"]
-      }
-    ]
-  },
-  "file_structure": {
-    "root_directories": [
-      {"name": "src/", "purpose": "Application source code"},
-      {"name": "supabase/", "purpose": "Database migrations and config"},
-      {"name": "e2e/", "purpose": "End-to-end tests (Playwright)"},
-      {"name": "docs/", "purpose": "Documentation output"},
-      {"name": "public/", "purpose": "Static assets"},
-      {"name": "scripts/", "purpose": "Utility scripts"}
-    ],
-    "src_structure": [
-      {"name": "components/", "purpose": "React UI components organized by feature"},
-      {"name": "contexts/", "purpose": "React Context providers for state management"},
-      {"name": "hooks/", "purpose": "Custom React hooks"},
-      {"name": "services/", "purpose": "Business logic and sync services"},
-      {"name": "lib/", "purpose": "External library configurations"},
-      {"name": "types/", "purpose": "TypeScript type definitions"},
-      {"name": "utils/", "purpose": "Utility functions and helpers"}
-    ]
-  },
-  "technology_stack": {
-    "frontend": {
-      "framework": "React 18.3.1",
-      "build_tool": "Vite",
-      "language": "TypeScript",
-      "styling": "Tailwind CSS",
-      "state_management": "React Context + Custom Hooks"
-    },
-    "backend": {
-      "service": "Supabase",
-      "database": "PostgreSQL",
-      "auth": "Supabase Auth",
-      "realtime": "Supabase Realtime (postgres_changes)"
-    },
-    "testing": {
-      "unit_testing": "Vitest",
-      "e2e_testing": "Playwright",
-      "test_directory": "e2e/"
-    },
-    "deployment": {
-      "platform": "GitHub Pages (static)",
-      "ci_cd": "GitHub Actions"
-    }
-  },
-  "completed_steps": ["exhaustive_scan", "project_classification"],
-  "current_step": "generate_documentation",
-  "findings_summary": {
-    "total_files_scanned": 45,
-    "components_found": 24,
-    "hooks_found": 7,
-    "contexts_found": 4,
-    "migrations_found": 1,
-    "tests_found": 1
-  }
+  "outputs_generated": ["project-scan-report.json"],
+  "resume_instructions": "Continue from step 2 - Discover existing documentation"
 }
