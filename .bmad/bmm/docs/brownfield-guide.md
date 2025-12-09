@@ -250,8 +250,8 @@ Without AI-optimized documentation, workflows fail:
 
 - **tech-spec** (Quick Flow) can't auto-detect stack/patterns → Makes wrong assumptions
 - **PRD** (BMad Method) can't reference existing code → Designs incompatible features
-- **create-architecture** can't build on existing structure → Suggests conflicting patterns
-- **create-story** can't provide existing pattern context → Stories lack integration guidance
+- **architecture** can't build on existing structure → Suggests conflicting patterns
+- **story-context** can't inject existing patterns → Dev agent rewrites working code
 - **dev-story** invents implementations → Breaks existing integrations
 
 ### Key Principle
@@ -320,14 +320,18 @@ See the [Workflows section in BMM README](../README.md) for details.
 ```mermaid
 flowchart TD
     SPRINT[sprint-planning<br/>Initialize tracking]
+    EPIC[epic-tech-context<br/>Per epic]
     CREATE[create-story]
+    CONTEXT[story-context]
     DEV[dev-story]
     REVIEW[code-review]
     CHECK{More stories?}
     RETRO[retrospective<br/>Per epic]
 
-    SPRINT --> CREATE
-    CREATE --> DEV
+    SPRINT --> EPIC
+    EPIC --> CREATE
+    CREATE --> CONTEXT
+    CONTEXT --> DEV
     DEV --> REVIEW
     REVIEW --> CHECK
     CHECK -->|Yes| CREATE
@@ -339,7 +343,7 @@ flowchart TD
 
 **Status Progression:**
 
-- Epic: `backlog → in-progress → done`
+- Epic: `backlog → contexted`
 - Story: `backlog → drafted → ready-for-dev → in-progress → review → done`
 
 **Brownfield-Specific Implementation Tips:**
@@ -347,6 +351,7 @@ flowchart TD
 1. **Respect existing patterns** - Follow established conventions
 2. **Test integration thoroughly** - Validate interactions with existing code
 3. **Use feature flags** - Enable gradual rollout
+4. **Context injection matters** - epic-tech-context and story-context reference existing patterns
 
 ---
 
@@ -370,7 +375,7 @@ When workflow-init asks about your work:
 
 ### 4. Respect Existing Patterns
 
-Tech-spec and create-story workflows will detect conventions from existing documentation. Follow them unless explicitly modernizing.
+Tech-spec and story-context will detect conventions. Follow them unless explicitly modernizing.
 
 ### 5. Plan Integration Points Explicitly
 
@@ -400,7 +405,13 @@ Document in tech-spec/architecture:
 - Context epics before drafting stories
 - Update `sprint-status.yaml` as work progresses
 
-### 9. Learn Continuously
+### 9. Leverage Context Injection
+
+- Run `epic-tech-context` before story drafting
+- Always create `story-context` before implementation
+- These reference existing patterns for consistency
+
+### 10. Learn Continuously
 
 - Run `retrospective` after each epic
 - Incorporate learnings into next stories
@@ -446,7 +457,7 @@ Document in tech-spec/architecture:
    - Analyzes existing auth patterns
    - Confirms conventions
    - Creates tech-spec.md + epic + 3-5 stories
-3. **Implement:** Load SM → `sprint-planning` → `create-story`
+3. **Implement:** Load SM → `sprint-planning` → `create-story` → `story-context`
    Load DEV → `dev-story` for each story
 4. **Review:** Load DEV → `code-review`
 
@@ -468,7 +479,7 @@ Document in tech-spec/architecture:
 4. **Solution:** Load Architect → `create-architecture` → `create-epics-and-stories` → `implementation-readiness`
 5. **Implement:** Sprint-based (10-15 stories)
    - Load SM → `sprint-planning`
-   - Load SM → `create-story` per story
+   - Per epic: `epic-tech-context` → stories
    - Load DEV → `dev-story` per story
 6. **Review:** Per story completion
 
@@ -512,9 +523,12 @@ Document in tech-spec/architecture:
    - `product-brief` - Strategic document
 3. **Plan:** Load PM → `prd` (comprehensive FRs/NFRs)
 4. **Solution:**
-   - `create-architecture` - Full system architecture including multi-tenancy design
+   - `create-architecture` - Full system architecture
+   - `integration-planning` - Phased migration strategy
+   - `create-architecture` - Multi-tenancy architecture
+   - `validate-architecture` - External review
    - `create-epics-and-stories` - Create epics and stories
-   - `implementation-readiness` - Final validation before implementation
+   - `implementation-readiness` - Executive approval
 5. **Implement:** Phased sprint-based (50+ stories)
 
 **Time:** 3-6 months
@@ -561,7 +575,7 @@ Document in tech-spec/architecture:
 **Solution:**
 
 1. Ensure `document-project` captured existing architecture
-2. Check story files created by `create-story` - should include integration context
+2. Check `story-context` - should document integration points
 3. In tech-spec/architecture - explicitly document:
    - Which existing modules to modify
    - What APIs/services to integrate with
@@ -594,7 +608,7 @@ Document in tech-spec/architecture:
 
 1. Check convention detection (Quick Spec Flow should detect patterns)
 2. Review documentation - ensure `document-project` captured patterns
-3. Use `create-story` workflow - it loads context from existing documentation
+3. Use `story-context` - injects pattern guidance
 4. Add to code-review checklist: pattern adherence, convention consistency
 5. Run retrospective to identify deviations early
 
@@ -623,9 +637,9 @@ prd                     # BMad Method/Enterprise tracks
 
 # Phase 3: Solutioning (BMad Method/Enterprise)
 # Architect agent:
-create-architecture          # Create/extend architecture
+architecture                 # Create/extend architecture
 create-epics-and-stories     # Create epics and stories (after architecture)
-implementation-readiness     # Final validation
+implementation-readiness       # Final validation
 
 # Phase 4: Implementation (All Tracks)
 # SM agent:
@@ -725,7 +739,6 @@ flowchart TD
 - **[Quick Start Guide](./quick-start.md)** - Getting started with BMM
 - **[Glossary](./glossary.md)** - Key terminology
 - **[FAQ](./faq.md)** - Common questions
-- **[Troubleshooting](./troubleshooting.md)** - Problem resolution
 - **[Workflow Documentation](./README.md#-workflow-guides)** - Complete workflow reference
 
 ---
@@ -740,7 +753,7 @@ flowchart TD
 
 **Documentation:**
 
-- **[Test Architect Guide](./test-architecture.md)** - Comprehensive testing strategy
+- [Test Architect Guide](./test-architecture.md) - Comprehensive testing strategy
 - [BMM Module README](../README.md) - Complete module and workflow reference
 
 ---

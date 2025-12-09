@@ -68,6 +68,12 @@ development_status:
 </step>
 
 <step n="3" goal="Apply intelligent status detection">
+<action>For each epic, check if tech context file exists:</action>
+
+- Check: `{output_folder}/epic-{num}-context.md`
+- If exists → set epic status to `contexted`
+- Else → keep as `backlog`
+
 <action>For each story, detect current status by checking files:</action>
 
 **Story file detection:**
@@ -87,7 +93,7 @@ development_status:
 
 **Status Flow Reference:**
 
-- Epic: `backlog` → `in-progress` → `done`
+- Epic: `backlog` → `contexted`
 - Story: `backlog` → `drafted` → `ready-for-dev` → `in-progress` → `review` → `done`
 - Retrospective: `optional` ↔ `completed`
   </step>
@@ -107,20 +113,15 @@ development_status:
 # STATUS DEFINITIONS:
 # ==================
 # Epic Status:
-#   - backlog: Epic not yet started
-#   - in-progress: Epic actively being worked on
-#   - done: All stories in epic completed
-#
-# Epic Status Transitions:
-#   - backlog → in-progress: Automatically when first story is created (via create-story)
-#   - in-progress → done: Manually when all stories reach 'done' status
+#   - backlog: Epic exists in epic file but not contexted
+#   - contexted: Epic tech context created (required before drafting stories)
 #
 # Story Status:
 #   - backlog: Story only exists in epic file
 #   - drafted: Story file created in stories folder
 #   - ready-for-dev: Draft approved and story context created
 #   - in-progress: Developer actively working on implementation
-#   - review: Ready for code review (via Dev's code-review workflow)
+#   - review: Under SM review (via code-review workflow)
 #   - done: Story completed
 #
 # Retrospective Status:
@@ -129,10 +130,10 @@ development_status:
 #
 # WORKFLOW NOTES:
 # ===============
-# - Epic transitions to 'in-progress' automatically when first story is created
+# - Epics should be 'contexted' before stories can be 'drafted'
 # - Stories can be worked in parallel if team capacity allows
 # - SM typically drafts next story after previous one is 'done' to incorporate learnings
-# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Dev moves story to 'review', SM reviews, then Dev moves to 'done'
 
 generated: { date }
 project: { project_name }
@@ -163,7 +164,8 @@ development_status:
 
 - Total epics: {{epic_count}}
 - Total stories: {{story_count}}
-- Epics in-progress: {{in_progress_count}}
+- Epics contexted: {{contexted_count}}
+- Stories in progress: {{in_progress_count}}
 - Stories done: {{done_count}}
 
 <action>Display completion summary to {user_name} in {communication_language}:</action>
@@ -173,7 +175,8 @@ development_status:
 - **File Location:** {status_file}
 - **Total Epics:** {{epic_count}}
 - **Total Stories:** {{story_count}}
-- **Epics In Progress:** {{epics_in_progress_count}}
+- **Contexted Epics:** {{contexted_count}}
+- **Stories In Progress:** {{in_progress_count}}
 - **Stories Completed:** {{done_count}}
 
 **Next Steps:**
@@ -194,12 +197,11 @@ development_status:
 **Epic Status Flow:**
 
 ```
-backlog → in-progress → done
+backlog → contexted
 ```
 
-- **backlog**: Epic not yet started
-- **in-progress**: Epic actively being worked on (stories being drafted/implemented)
-- **done**: All stories in epic completed
+- **backlog**: Epic exists in epic file but tech context not created
+- **contexted**: Epic tech context has been generated (prerequisite for story drafting)
 
 **Story Status Flow:**
 
@@ -211,7 +213,7 @@ backlog → drafted → ready-for-dev → in-progress → review → done
 - **drafted**: Story file created (e.g., `stories/1-3-plant-naming.md`)
 - **ready-for-dev**: Draft approved + story context created
 - **in-progress**: Developer actively working
-- **review**: Ready for code review (via Dev's code-review workflow)
+- **review**: Under SM review (via code-review workflow)
 - **done**: Completed
 
 **Retrospective Status:**
@@ -225,7 +227,7 @@ optional ↔ completed
 
 ### Guidelines
 
-1. **Epic Activation**: Mark epic as `in-progress` when starting work on its first story
+1. **Epic Context Recommended**: Epics should be `contexted` before stories can be `drafted`
 2. **Sequential Default**: Stories are typically worked in order, but parallel work is supported
 3. **Parallel Work Supported**: Multiple stories can be `in-progress` if team capacity allows
 4. **Review Before Done**: Stories should pass through `review` before `done`

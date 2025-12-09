@@ -1,0 +1,81 @@
+{
+  "namespace": "agent-vibes",
+  "commands": [
+    {
+      "name": "list",
+      "description": "List all available ElevenLabs voices"
+    },
+    {
+      "name": "preview",
+      "description": "Preview ElevenLabs voices by playing audio samples"
+    },
+    {
+      "name": "switch",
+      "description": "Switch to a different ElevenLabs voice"
+    },
+    {
+      "name": "whoami",
+      "description": "Display currently selected voice"
+    },
+    {
+      "name": "sample",
+      "description": "Play a sample with the current or specified voice"
+    },
+    {
+      "name": "replay",
+      "description": "Replay the last TTS message"
+    },
+    {
+      "name": "personality",
+      "description": "Manage AI personality settings"
+    },
+    {
+      "name": "sentiment",
+      "description": "Set temporary personality sentiment"
+    },
+    {
+      "name": "set-pretext",
+      "description": "Configure pre-TTS message text"
+    },
+    {
+      "name": "set-language",
+      "description": "Set TTS language for multilingual voices"
+    },
+    {
+      "name": "add",
+      "description": "Add a new personality"
+    },
+    {
+      "name": "get",
+      "description": "Get personality details"
+    },
+    {
+      "name": "language",
+      "description": "Set main/native language"
+    },
+    {
+      "name": "learn",
+      "description": "Enable/disable language learning mode"
+    },
+    {
+      "name": "target",
+      "description": "Set target language to learn"
+    },
+    {
+      "name": "target-voice",
+      "description": "Set voice for target language"
+    },
+    {
+      "name": "set-speed",
+      "description": "Set speech speed for Piper TTS voices"
+    },
+    {
+      "name": "provider",
+      "description": "Manage TTS providers (ElevenLabs, Piper)"
+    },
+    {
+      "name": "set-favorite-voice",
+      "description": "Set or update the favorite voice for a personality"
+    }
+  ]
+}

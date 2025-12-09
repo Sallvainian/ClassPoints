@@ -1,5 +1,5 @@
 ---
-name: party-mode
+name: Party Mode
 description: Orchestrates group discussions between all installed BMAD agents, enabling natural multi-agent conversations
 ---
 
@@ -31,7 +31,7 @@ Load config from `{project-root}/.bmad/bmm/config.yaml` and resolve:
 
 - `project_name`, `output_folder`, `user_name`
 - `communication_language`, `document_output_language`, `user_skill_level`
-- `date` as a system-generated value
+- `date`, `current_year`, `current_month` as system-generated values
 - Agent manifest path: `{project-root}/.bmad/_cfg/agent-manifest.csv`
 
 ### Paths
@@ -118,6 +118,7 @@ stepsCompleted: [1]
 workflowType: 'party-mode'
 user_name: '{{user_name}}'
 date: '{{date}}'
+current_year: '{{current_year}}'
 agents_loaded: true
 party_active: true
 exit_triggers: ['*exit', 'goodbye', 'end party', 'quit']

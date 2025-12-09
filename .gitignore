@@ -28,7 +28,4 @@ dist-ssr
 .env.keys
 
 # Claude Code TTS audio files
-.claude/audio/docs/index.md
-
-# TTS audio files
 .claude/audio/

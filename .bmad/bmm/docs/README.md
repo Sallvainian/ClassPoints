@@ -139,23 +139,12 @@ Comprehensive documentation for all BMM workflows organized by phase:
   - Complete story lifecycle
   - One-story-at-a-time discipline
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-
 - **[Testing & QA Workflows](./test-architecture.md)** - Comprehensive quality assurance (1,420 lines)
   - Test strategy, automation, quality gates
   - TEA agent and test healing
   - BMad-integrated vs standalone modes
 
 **Total: 34 workflows documented across all phases**
-
-=======
-
-> > > > > > > Stashed changes
-
-=======
-
-> > > > > > > Stashed changes
 
 ### Advanced Workflow References
 
@@ -181,21 +170,10 @@ Quality assurance guidance:
 
 <!-- Test Architect documentation to be added -->
 
-<<<<<<< Updated upstream
-
-<<<<<<< Updated upstream
-
 - Test design workflows
 - Quality gates
 - Risk assessment
-- # NFR validation
-  =======
-  > > > > > > > Stashed changes
-  - Test design workflows
-  - Quality gates
-  - Risk assessment
-  - NFR validation
-    > > > > > > > Stashed changes
+- NFR validation
 
 ---
 
