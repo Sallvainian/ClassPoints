@@ -29,11 +29,17 @@ export interface PointTransaction {
   note?: string;
 }
 
-// Student entity
+// Student entity with point totals
 export interface Student {
   id: string;
   name: string;
   avatarColor?: string; // Optional color for visual distinction
+  // Point totals (cumulative values, not calculated from transactions)
+  pointTotal: number;
+  positiveTotal: number;
+  negativeTotal: number;
+  todayTotal: number;
+  thisWeekTotal: number;
 }
 
 // Classroom container

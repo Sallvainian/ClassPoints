@@ -41,6 +41,8 @@ interface AppStudent {
   pointTotal: number;
   positiveTotal: number;
   negativeTotal: number;
+  todayTotal: number;
+  thisWeekTotal: number;
 }
 
 interface AppClassroom {
@@ -203,6 +205,8 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       pointTotal: s.point_total,
       positiveTotal: s.positive_total,
       negativeTotal: s.negative_total,
+      todayTotal: s.today_total,
+      thisWeekTotal: s.this_week_total,
     }));
 
     return {
@@ -555,7 +559,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       // Create placeholder array matching student_count for consistent display
       const placeholderStudents: AppStudent[] = Array.from(
         { length: c.student_count },
-        (_, i) => ({ id: `placeholder-${i}`, name: '', pointTotal: 0, positiveTotal: 0, negativeTotal: 0 })
+        (_, i) => ({ id: `placeholder-${i}`, name: '', pointTotal: 0, positiveTotal: 0, negativeTotal: 0, todayTotal: 0, thisWeekTotal: 0 })
       );
 
       const isActive = c.id === activeClassroomId;
@@ -595,6 +599,8 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       pointTotal: s.point_total,
       positiveTotal: s.positive_total,
       negativeTotal: s.negative_total,
+      todayTotal: s.today_total,
+      thisWeekTotal: s.this_week_total,
     }));
   }, [students]);
 

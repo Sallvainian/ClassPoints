@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { Student } from '../../types';
-import { useApp } from '../../contexts/AppContext';
 import { StudentPointCard } from './StudentPointCard';
 
 interface StudentGridProps {
@@ -9,8 +8,6 @@ interface StudentGridProps {
 }
 
 export function StudentGrid({ students, onStudentClick }: StudentGridProps) {
-  const { getStudentPoints } = useApp();
-
   // Sort students alphabetically
   const sortedStudents = useMemo(() => {
     return [...students].sort((a, b) =>
@@ -34,7 +31,6 @@ export function StudentGrid({ students, onStudentClick }: StudentGridProps) {
         <StudentPointCard
           key={student.id}
           student={student}
-          points={getStudentPoints(student.id)}
           onClick={() => onStudentClick(student)}
         />
       ))}

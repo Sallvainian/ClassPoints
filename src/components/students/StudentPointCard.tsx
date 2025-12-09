@@ -1,14 +1,13 @@
-import type { Student, StudentPoints } from '../../types';
+import type { Student } from '../../types';
 import { getAvatarColorForName } from '../../utils';
 
 interface StudentPointCardProps {
   student: Student;
-  points: StudentPoints;
   onClick: () => void;
 }
 
-export function StudentPointCard({ student, points, onClick }: StudentPointCardProps) {
-  const pointsColor = points.total >= 0 ? 'text-emerald-600' : 'text-red-600';
+export function StudentPointCard({ student, onClick }: StudentPointCardProps) {
+  const pointsColor = student.pointTotal >= 0 ? 'text-emerald-600' : 'text-red-600';
   const bgColor = student.avatarColor || getAvatarColorForName(student.name);
 
   return (
@@ -31,13 +30,13 @@ export function StudentPointCard({ student, points, onClick }: StudentPointCardP
 
       {/* Points */}
       <span className={`text-xl font-bold mt-1 ${pointsColor}`}>
-        {points.total >= 0 ? '+' : ''}{points.total}
+        {student.pointTotal >= 0 ? '+' : ''}{student.pointTotal}
       </span>
 
       {/* Today's points (small) */}
-      {points.today !== 0 && (
+      {student.todayTotal !== 0 && (
         <span className="text-xs text-gray-500 mt-0.5">
-          Today: {points.today >= 0 ? '+' : ''}{points.today}
+          Today: {student.todayTotal >= 0 ? '+' : ''}{student.todayTotal}
         </span>
       )}
     </button>

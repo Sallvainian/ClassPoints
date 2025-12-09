@@ -50,6 +50,11 @@ interface AppStudent {
   id: string;
   name: string;
   avatarColor?: string;
+  pointTotal: number;
+  positiveTotal: number;
+  negativeTotal: number;
+  todayTotal: number;
+  thisWeekTotal: number;
 }
 
 interface AppClassroom {
