@@ -20,6 +20,8 @@ import type {
 // Re-export types for convenience
 interface StudentPoints {
   total: number;
+  positiveTotal: number;
+  negativeTotal: number;
   today: number;
   thisWeek: number;
 }
@@ -57,6 +59,8 @@ interface AppClassroom {
   createdAt: number;
   updatedAt: number;
   pointTotal?: number; // Pre-fetched total points for sidebar display
+  positiveTotal?: number; // Total positive points
+  negativeTotal?: number; // Total negative points
 }
 
 interface AppBehavior {

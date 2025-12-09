@@ -58,6 +58,8 @@ export interface AppState {
 // Computed point totals for a student
 export interface StudentPoints {
   total: number;
+  positiveTotal: number;
+  negativeTotal: number;
   today: number;
   thisWeek: number;
 }

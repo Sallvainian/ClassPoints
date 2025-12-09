@@ -3,10 +3,12 @@ import { supabase } from '../lib/supabase';
 import { useRealtimeSubscription } from './useRealtimeSubscription';
 import type { Classroom, NewClassroom, UpdateClassroom } from '../types/database';
 
-// Extended classroom type with student count and point total
+// Extended classroom type with student count and point totals
 export interface ClassroomWithCount extends Classroom {
   student_count: number;
   point_total: number;
+  positive_total: number;
+  negative_total: number;
 }
 
 interface UseClassroomsReturn {
@@ -46,23 +48,34 @@ export function useClassrooms(): UseClassroomsReturn {
       .from('point_transactions')
       .select('classroom_id, points');
 
-    // Calculate point totals per classroom
-    const pointTotals = new Map<string, number>();
+    // Calculate point totals (net, positive, negative) per classroom
+    const pointTotals = new Map<string, { total: number; positive: number; negative: number }>();
     (transactionData || []).forEach((t) => {
-      const current = pointTotals.get(t.classroom_id) || 0;
-      pointTotals.set(t.classroom_id, current + t.points);
+      const current = pointTotals.get(t.classroom_id) || { total: 0, positive: 0, negative: 0 };
+      current.total += t.points;
+      if (t.points > 0) {
+        current.positive += t.points;
+      } else {
+        current.negative += t.points;
+      }
+      pointTotals.set(t.classroom_id, current);
     });
 
-    // Map the response to include student_count and point_total
-    const classroomsWithCount: ClassroomWithCount[] = (data || []).map((c) => ({
-      id: c.id,
-      name: c.name,
-      created_at: c.created_at,
-      updated_at: c.updated_at,
-      user_id: c.user_id,
-      student_count: (c.students as { count: number }[])?.[0]?.count ?? 0,
-      point_total: pointTotals.get(c.id) || 0,
-    }));
+    // Map the response to include student_count and point totals
+    const classroomsWithCount: ClassroomWithCount[] = (data || []).map((c) => {
+      const totals = pointTotals.get(c.id) || { total: 0, positive: 0, negative: 0 };
+      return {
+        id: c.id,
+        name: c.name,
+        created_at: c.created_at,
+        updated_at: c.updated_at,
+        user_id: c.user_id,
+        student_count: (c.students as { count: number }[])?.[0]?.count ?? 0,
+        point_total: totals.total,
+        positive_total: totals.positive,
+        negative_total: totals.negative,
+      };
+    });
     setClassrooms(classroomsWithCount);
 
     setLoading(false);
@@ -80,7 +93,7 @@ export function useClassrooms(): UseClassroomsReturn {
         // Avoid duplicates if we already added optimistically
         if (prev.some((c) => c.id === classroom.id)) return prev;
         // New classrooms start with 0 students and 0 points, insert in sorted order
-        const newClassroom = { ...classroom, student_count: 0, point_total: 0 };
+        const newClassroom = { ...classroom, student_count: 0, point_total: 0, positive_total: 0, negative_total: 0 };
         return [...prev, newClassroom].sort((a, b) => a.name.localeCompare(b.name));
       });
     },
@@ -89,7 +102,7 @@ export function useClassrooms(): UseClassroomsReturn {
         prev
           .map((c) =>
             c.id === classroom.id
-              ? { ...classroom, student_count: c.student_count, point_total: c.point_total }
+              ? { ...classroom, student_count: c.student_count, point_total: c.point_total, positive_total: c.positive_total, negative_total: c.negative_total }
               : c
           )
           .sort((a, b) => a.name.localeCompare(b.name))
@@ -130,22 +143,32 @@ export function useClassrooms(): UseClassroomsReturn {
     table: 'point_transactions',
     onInsert: (transaction) => {
       setClassrooms((prev) =>
-        prev.map((c) =>
-          c.id === transaction.classroom_id
-            ? { ...c, point_total: c.point_total + transaction.points }
-            : c
-        )
+        prev.map((c) => {
+          if (c.id !== transaction.classroom_id) return c;
+          const isPositive = transaction.points > 0;
+          return {
+            ...c,
+            point_total: c.point_total + transaction.points,
+            positive_total: isPositive ? c.positive_total + transaction.points : c.positive_total,
+            negative_total: !isPositive ? c.negative_total + transaction.points : c.negative_total,
+          };
+        })
       );
     },
     onDelete: (oldTransaction) => {
       // If we have full row data (REPLICA IDENTITY FULL), update directly
       if (oldTransaction.classroom_id && oldTransaction.points !== undefined) {
         setClassrooms((prev) =>
-          prev.map((c) =>
-            c.id === oldTransaction.classroom_id
-              ? { ...c, point_total: c.point_total - oldTransaction.points }
-              : c
-          )
+          prev.map((c) => {
+            if (c.id !== oldTransaction.classroom_id) return c;
+            const isPositive = oldTransaction.points > 0;
+            return {
+              ...c,
+              point_total: c.point_total - oldTransaction.points,
+              positive_total: isPositive ? c.positive_total - oldTransaction.points : c.positive_total,
+              negative_total: !isPositive ? c.negative_total - oldTransaction.points : c.negative_total,
+            };
+          })
         );
       } else {
         // Fallback: refetch all classrooms if we don't have full row data
@@ -169,7 +192,7 @@ export function useClassrooms(): UseClassroomsReturn {
     }
 
     // New classrooms start with 0 students and 0 points, insert in sorted order
-    const classroomWithCount: ClassroomWithCount = { ...data, student_count: 0, point_total: 0 };
+    const classroomWithCount: ClassroomWithCount = { ...data, student_count: 0, point_total: 0, positive_total: 0, negative_total: 0 };
     setClassrooms((prev) => [...prev, classroomWithCount].sort((a, b) => a.name.localeCompare(b.name)));
     return data;
   }, []);
@@ -190,7 +213,7 @@ export function useClassrooms(): UseClassroomsReturn {
 
       setClassrooms((prev) =>
         prev.map((c) =>
-          c.id === id ? { ...data, student_count: c.student_count, point_total: c.point_total } : c
+          c.id === id ? { ...data, student_count: c.student_count, point_total: c.point_total, positive_total: c.positive_total, negative_total: c.negative_total } : c
         )
       );
       return data;

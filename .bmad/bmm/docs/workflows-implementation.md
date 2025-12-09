@@ -70,7 +70,7 @@ For a visual representation of the complete workflow, see: [workflow-method-gree
 Stories move through these states in the sprint status file:
 
 1. **TODO** - Story identified but not started
-2. **IN PROGRESS** - Story being implemented (create-story → story-context → dev-story)
+2. **IN PROGRESS** - Story being implemented (create-story → dev-story)
 3. **READY FOR REVIEW** - Implementation complete, awaiting code review
 4. **DONE** - Accepted and complete
 
@@ -108,7 +108,8 @@ Stories move through these states in the sprint status file:
 
 **As Needed:**
 
-- Run `workflow-status` anytime to check progress
+- Run `sprint-status` anytime in Phase 4 to inspect sprint-status.yaml and get the next implementation command
+- Run `workflow-status` for cross-phase routing and project-level paths
 - Run `correct-course` if significant changes needed
 
 ---
@@ -132,6 +133,7 @@ The `sprint-status.yaml` file is the single source of truth for all implementati
 ### (BMad Method / Enterprise)
 
 ```
+<<<<<<< Updated upstream
 PRD (PM) → Architecture (Architect)
   → create-epics-and-stories (PM)  ← V6: After architecture!
   → implementation-readiness (Architect)
@@ -140,6 +142,144 @@ PRD (PM) → Architecture (Architect)
       → story loop (SM/DEV)
       → retrospective (SM)
   → [Next Epic]
+=======
+Current Phase: 4 (Implementation)
+Current Epic: Epic 1 (Authentication)
+Current Sprint: Sprint 1
+
+Next Story: Story 1.3 (Email Verification)
+Status: TODO
+Dependencies: Story 1.2 (DONE) ✅
+
+**Recommendation:** Run `create-story` to generate Story 1.3
+
+After create-story:
+1. Run story-context
+2. Run dev-story
+3. Run code-review
+4. Run story-done
+```
+
+See: [workflow-status instructions](../workflows/workflow-status/instructions.md)
+
+---
+
+### document-project
+
+**Purpose:** Analyze and document brownfield projects by scanning codebase, architecture, and patterns.
+
+**Agent:** Analyst
+**Duration:** 1-3 hours
+**When to Use:** Brownfield projects without documentation
+
+**How It Works:**
+
+1. Scans codebase structure
+2. Identifies architecture patterns
+3. Documents technology stack
+4. Creates reference documentation
+5. Generates PRD-like document from existing code
+
+**Output:** `project-documentation-{date}.md`
+
+**When to Run:**
+
+- Before starting work on legacy project
+- When inheriting undocumented codebase
+- Creating onboarding documentation
+
+See: [document-project reference](./workflow-document-project-reference.md)
+
+---
+
+## Story Lifecycle Visualization
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ PHASE 4: IMPLEMENTATION (Iterative Story Lifecycle)        │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────┐
+│ Sprint Planning │  → Creates sprint-status.yaml
+└────────┬────────┘     Defines story queue
+         │
+         ├──────────────────────────────────────────┐
+         │                                          │
+         ▼                                          │
+┌─────────────────────┐                            │
+│ Epic Tech Context   │  → Optional per epic       │
+│ (Once per epic)     │     Provides technical     │
+└─────────────────────┘     guidance              │
+         │                                          │
+         ▼                                          │
+┌─────────────────────────────────────────────────┤
+│ FOR EACH STORY IN QUEUE:                        │
+├─────────────────────────────────────────────────┤
+         │                                          │
+         ▼                                          │
+┌─────────────────┐                                │
+│ Create Story    │  → Generates story file        │
+│ (TODO → IN PROGRESS)                            │
+└────────┬────────┘                                │
+         │                                          │
+         ▼                                          │
+┌─────────────────┐                                │
+│ Story Context   │  → Assembles focused context   │
+└────────┬────────┘                                │
+         │                                          │
+         ▼                                          │
+┌─────────────────┐                                │
+│ Dev Story       │  → Implements + tests           │
+│ (IN PROGRESS)   │                                │
+└────────┬────────┘                                │
+         │                                          │
+         ▼                                          │
+┌─────────────────┐                                │
+│ Code Review     │  → Senior dev review            │
+│ (IN PROGRESS →  │                                │
+│  READY FOR REVIEW)                               │
+└────────┬────────┘                                │
+         │                                          │
+    ┌────┴────┐                                    │
+    │ Result? │                                    │
+    └────┬────┘                                    │
+         │                                          │
+    ┌────┼────────────────────┐                   │
+    │    │                    │                   │
+    ▼    ▼                    ▼                   │
+APPROVED  APPROVED           REQUEST              │
+          WITH COMMENTS      CHANGES              │
+    │         │                   │                │
+    └─────────┴───────────────────┘               │
+              │                                    │
+              ▼                                    │
+    ┌─────────────────┐                           │
+    │ Story Done      │  → READY FOR REVIEW → DONE│
+    └────────┬────────┘                           │
+             │                                     │
+             ├─────────────────────────────────────┘
+             │ More stories?
+             │
+             ▼
+    ┌────────────────┐
+    │ Epic Complete? │
+    └────────┬───────┘
+             │
+        ┌────┼────┐
+        │         │
+       Yes       No
+        │         └──> Continue to next story
+        │
+        ▼
+┌─────────────────┐
+│ Retrospective   │  → Review epic, lessons learned
+└─────────────────┘
+        │
+        ▼
+    All epics done?
+        │
+       Yes → PROJECT COMPLETE
+>>>>>>> Stashed changes
 ```
 
 ---
@@ -155,7 +295,7 @@ PRD (PM) → Architecture (Architect)
 ## Troubleshooting
 
 **Q: Which workflow should I run next?**
-A: Run `workflow-status` - it reads the sprint status file and tells you exactly what to do.
+A: Run `workflow-status` - it reads the sprint status file and tells you exactly what to do. During implementation (Phase 4) run `sprint-status` (fast check against sprint-status.yaml).
 
 **Q: Story needs significant changes mid-implementation?**
 A: Run `correct-course` to analyze impact and route appropriately.

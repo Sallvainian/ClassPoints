@@ -53,6 +53,9 @@ export function Sidebar() {
           <ul className="space-y-1">
             {classrooms.map((classroom) => {
               const pointTotal = classroom.pointTotal ?? 0;
+              const positiveTotal = classroom.positiveTotal;
+              const negativeTotal = classroom.negativeTotal;
+              const hasBreakdown = positiveTotal !== undefined && negativeTotal !== undefined;
               return (
                 <li key={classroom.id}>
                   <button
@@ -65,13 +68,22 @@ export function Sidebar() {
                   >
                     <div className="flex items-center justify-between">
                       <span className="truncate">{classroom.name}</span>
-                      <span
-                        className={`text-xs font-medium ml-2 ${
-                          pointTotal >= 0 ? 'text-emerald-300' : 'text-red-300'
-                        }`}
-                      >
-                        {pointTotal >= 0 ? '+' : ''}{pointTotal}
-                      </span>
+                      <div className="flex flex-col items-end ml-2">
+                        <span
+                          className={`text-xs font-medium ${
+                            pointTotal >= 0 ? 'text-emerald-300' : 'text-red-300'
+                          }`}
+                        >
+                          {pointTotal >= 0 ? '+' : ''}{pointTotal}
+                        </span>
+                        {hasBreakdown && (
+                          <span className="text-[10px] text-blue-200">
+                            <span className="text-emerald-300/80">+{positiveTotal}</span>
+                            {' / '}
+                            <span className="text-red-300/80">{negativeTotal}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <span className="text-xs text-blue-200 block mt-0.5">
                       {classroom.students.length} student{classroom.students.length !== 1 ? 's' : ''}

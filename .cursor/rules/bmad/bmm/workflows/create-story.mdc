@@ -1,64 +1,15 @@
 ---
-description: BMAD BMM Workflow: create-story
-globs: 
+description: BMAD BMM Agent: create-story
+globs:
 alwaysApply: false
 ---
 
-name: create-story
-description: "Create the next user story from epics+stories with enhanced context analysis and direct ready-for-dev marking"
-author: "BMad"
+IT IS CRITICAL THAT YOU FOLLOW THESE STEPS - while staying in character as the current agent persona you may have loaded:
 
-# Critical variables from config
-config_source: "{project-root}/.bmad/bmm/config.yaml"
-output_folder: "{config_source}:output_folder"
-user_name: "{config_source}:user_name"
-communication_language: "{config_source}:communication_language"
-date: system-generated
-sprint_artifacts: "{config_source}:sprint_artifacts"
-story_dir: "{sprint_artifacts}"
-
-# Workflow components
-installed_path: "{project-root}/.bmad/bmm/workflows/4-implementation/create-story"
-template: "{installed_path}/template.md"
-instructions: "{installed_path}/instructions.xml"
-validation: "{installed_path}/checklist.md"
-
-# Variables and inputs
-variables:
-  sprint_status: "{sprint_artifacts}/sprint-status.yaml || {output_folder}/sprint-status.yaml" # Primary source for story tracking
-  epics_file: "{output_folder}/epics.md" # Enhanced epics+stories with BDD and source hints
-  prd_file: "{output_folder}/PRD.md" # Fallback for requirements (if not in epics file)
-  architecture_file: "{output_folder}/architecture.md" # Fallback for constraints (if not in epics file)
-  ux_file: "{output_folder}/ux.md" # Fallback for UX requirements (if not in epics file)
-  story_title: "" # Will be elicited if not derivable
-
-# Project context
-project_context: "**/project-context.md"
-
-default_output_file: "{story_dir}/{{story_key}}.md"
-
-# Smart input file references - Simplified for enhanced approach
-# The epics+stories file should contain everything needed with source hints
-input_file_patterns:
-  prd:
-    description: "PRD (fallback - epics file should have most content)"
-    whole: "{output_folder}/*prd*.md"
-    sharded: "{output_folder}/*prd*/*.md"
-    load_strategy: "SELECTIVE_LOAD" # Only load if needed
-  architecture:
-    description: "Architecture (fallback - epics file should have relevant sections)"
-    whole: "{output_folder}/*architecture*.md"
-    sharded: "{output_folder}/*architecture*/*.md"
-    load_strategy: "SELECTIVE_LOAD" # Only load if needed
-  ux:
-    description: "UX design (fallback - epics file should have relevant sections)"
-    whole: "{output_folder}/*ux*.md"
-    sharded: "{output_folder}/*ux*/*.md"
-    load_strategy: "SELECTIVE_LOAD" # Only load if needed
-  epics:
-    description: "Enhanced epics+stories file with BDD and source hints"
-    whole: "{output_folder}/*epic*.md"
-    sharded: "{output_folder}/*epic*/*.md"
-    load_strategy: "SELECTIVE_LOAD" # Only load needed epic
-
-standalone: true
+<steps CRITICAL="TRUE">
+1. Always LOAD the FULL @.bmad/core/tasks/workflow.xml
+2. READ its entire contents - this is the CORE OS for EXECUTING the specific workflow-config @.bmad/bmm/workflows/4-implementation/create-story/workflow.yaml
+3. Pass the yaml path .bmad/bmm/workflows/4-implementation/create-story/workflow.yaml as 'workflow-config' parameter to the workflow.xml instructions
+4. Follow workflow.xml instructions EXACTLY as written to process and follow the specific workflow config and its instructions
+5. Save outputs after EACH section when generating any documents from templates
+</steps>
