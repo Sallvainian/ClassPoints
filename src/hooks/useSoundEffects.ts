@@ -143,7 +143,6 @@ export function useSoundEffects(
     if (!settings.enabled) return;
 
     if (testMode) {
-      console.log('[SoundEffects:TEST] playPositive called');
       return;
     }
 
@@ -167,7 +166,6 @@ export function useSoundEffects(
     if (!settings.enabled) return;
 
     if (testMode) {
-      console.log('[SoundEffects:TEST] playNegative called');
       return;
     }
 

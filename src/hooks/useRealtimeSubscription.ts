@@ -203,11 +203,7 @@ export function useMultiTableRealtimeSubscription(
       );
     });
 
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('Realtime subscribed to multiple tables');
-      }
-    });
+    channel.subscribe();
 
     return () => {
       if (channelRef.current) {
