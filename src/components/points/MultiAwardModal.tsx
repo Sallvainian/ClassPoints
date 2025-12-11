@@ -78,6 +78,7 @@ export function MultiAwardModal({
 
       onClose();
     } catch (err) {
+      console.error('Failed to award points to students:', err);
       setAwardError(err instanceof Error ? err.message : 'Failed to award points');
       setIsAwarding(false);
     }
