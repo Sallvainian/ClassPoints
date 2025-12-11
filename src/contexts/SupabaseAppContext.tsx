@@ -321,7 +321,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
     if (deleteError) {
       console.error('Error deleting behaviors:', deleteError);
-      return;
+      throw new Error('Failed to reset behaviors. Your custom behaviors were preserved.');
     }
 
     // Insert default behaviors
@@ -331,7 +331,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
     if (insertError) {
       console.error('Error inserting default behaviors:', insertError);
-      return;
+      throw new Error('Failed to restore default behaviors. Please refresh the page.');
     }
 
     // Refetch behaviors to update state
@@ -352,11 +352,22 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior) return null;
 
-      // Optimistically update student and classroom points before awaiting the transaction
-      updateStudentPointsOptimistically(studentId, behavior.points);
-      updateClassroomPointsOptimistically(classroomId, behavior.points);
+      // Store rollback info before optimistic updates
+      const pointsToAward = behavior.points;
 
-      return await awardPointsHook(studentId, classroomId, behavior, note);
+      // Optimistically update student and classroom points before awaiting the transaction
+      updateStudentPointsOptimistically(studentId, pointsToAward);
+      updateClassroomPointsOptimistically(classroomId, pointsToAward);
+
+      try {
+        const result = await awardPointsHook(studentId, classroomId, behavior, note);
+        return result;
+      } catch (err) {
+        // Rollback optimistic updates on error
+        updateStudentPointsOptimistically(studentId, -pointsToAward);
+        updateClassroomPointsOptimistically(classroomId, -pointsToAward);
+        throw err;
+      }
     },
     [behaviors, awardPointsHook, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
   );
@@ -505,7 +516,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       if (deleteError) {
         console.error('Error undoing batch transaction:', deleteError);
-        throw deleteError;
+        throw new Error('Failed to undo class award. Please try again or refresh the page.');
       }
 
       // Refetch transactions to update state

@@ -43,6 +43,15 @@ export function ClassAwardModal({
     };
   }, [isOpen, onClose]);
 
+  // Reset error and loading state when modal closes
+  // Ensures a clean slate if user reopens after a failed attempt
+  useEffect(() => {
+    if (!isOpen) {
+      setAwardError(null);
+      setIsAwarding(false);
+    }
+  }, [isOpen]);
+
   const handleBehaviorSelect = useCallback(async (behavior: Behavior) => {
     if (isAwarding) return;
 

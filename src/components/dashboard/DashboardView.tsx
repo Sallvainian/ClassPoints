@@ -49,6 +49,9 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   // Operation error state (for undo failures, etc.)
   const [operationError, setOperationError] = useState<string | null>(null);
 
+  // Memoized callback to dismiss errors - avoids useEffect dependency issues in ErrorToast
+  const handleDismissError = useCallback(() => setOperationError(null), []);
+
   // Refresh undoable action periodically
   useEffect(() => {
     const interval = setInterval(() => {
@@ -369,7 +372,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       <UndoToast action={undoableAction} onUndo={handleUndo} />
 
       {/* Error Toast */}
-      <ErrorToast error={operationError} onDismiss={() => setOperationError(null)} />
+      <ErrorToast error={operationError} onDismiss={handleDismissError} />
     </div>
   );
 }
