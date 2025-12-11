@@ -128,6 +128,7 @@ interface SupabaseAppContextValue {
   // Point operations
   awardPoints: (classroomId: string, studentId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction | null>;
   awardClassPoints: (classroomId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
+  awardPointsToStudents: (classroomId: string, studentIds: string[], behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
   undoTransaction: (transactionId: string) => Promise<void>;
   undoBatchTransaction: (batchId: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
@@ -409,6 +410,61 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     [behaviors, students, refetchTransactions, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
   );
 
+  // Award points to specific students (atomic batch insert - all or nothing)
+  const awardPointsToStudents = useCallback(
+    async (
+      classroomId: string,
+      studentIds: string[],
+      behaviorId: string,
+      note?: string
+    ): Promise<DbPointTransaction[]> => {
+      const behavior = behaviors.find((b) => b.id === behaviorId);
+      if (!behavior || studentIds.length === 0) return [];
+
+      // Filter to only students that exist
+      const validStudents = students.filter((s) => studentIds.includes(s.id));
+      if (validStudents.length === 0) return [];
+
+      // Optimistically update all selected students' and classroom points
+      validStudents.forEach((student) => {
+        updateStudentPointsOptimistically(student.id, behavior.points);
+      });
+      updateClassroomPointsOptimistically(classroomId, behavior.points * validStudents.length);
+
+      // Generate a batch_id to group these transactions for undo
+      const batchId = crypto.randomUUID();
+
+      // Create transactions for all selected students with shared batch_id (single atomic insert)
+      const newTransactions: NewPointTransaction[] = validStudents.map((student) => ({
+        student_id: student.id,
+        classroom_id: classroomId,
+        behavior_id: behavior.id,
+        behavior_name: behavior.name,
+        behavior_icon: behavior.icon,
+        points: behavior.points,
+        note: note || null,
+        batch_id: batchId,
+      }));
+
+      // Single database call - atomic: either ALL rows insert or NONE
+      const { data, error: insertError } = await supabase
+        .from('point_transactions')
+        .insert(newTransactions)
+        .select();
+
+      if (insertError) {
+        console.error('Error awarding points to students:', insertError);
+        return [];
+      }
+
+      // Refetch transactions to update state
+      refetchTransactions();
+
+      return data || [];
+    },
+    [behaviors, students, refetchTransactions, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
+  );
+
   const undoTransaction = useCallback(
     async (transactionId: string): Promise<void> => {
       await undoTransactionHook(transactionId);
@@ -642,6 +698,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     // Point operations
     awardPoints,
     awardClassPoints,
+    awardPointsToStudents,
     undoTransaction,
     undoBatchTransaction,
     getStudentPoints: getStudentPointsStored, // Use stored totals instead of transaction-based

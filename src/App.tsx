@@ -10,24 +10,24 @@ import { DashboardView } from './components/dashboard';
 import { ClassSettingsView } from './components/settings';
 import { hasLocalStorageData } from './utils/migrateToSupabase';
 
-type View = 'dashboard' | 'settings' | 'migration';
+type View = "dashboard" | "settings" | "migration";
 
 function AppContent() {
   const [view, setView] = useState<View>(() => {
     // Check if we need to show migration wizard
     if (hasLocalStorageData()) {
-      return 'migration';
+      return "migration";
     }
-    return 'dashboard';
+    return "dashboard";
   });
 
   // Migration wizard view
-  if (view === 'migration') {
+  if (view === "migration") {
     return (
       <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <MigrationWizard
-          onComplete={() => setView('dashboard')}
-          onSkip={() => setView('dashboard')}
+          onComplete={() => setView("dashboard")}
+          onSkip={() => setView("dashboard")}
         />
       </div>
     );
@@ -36,10 +36,10 @@ function AppContent() {
   return (
     <>
       <Layout>
-        {view === 'dashboard' ? (
-          <DashboardView onOpenSettings={() => setView('settings')} />
+        {view === "dashboard" ? (
+          <DashboardView onOpenSettings={() => setView("settings")} />
         ) : (
-          <ClassSettingsView onClose={() => setView('dashboard')} />
+          <ClassSettingsView onClose={() => setView("dashboard")} />
         )}
       </Layout>
       <SyncStatus />

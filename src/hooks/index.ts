@@ -1,4 +1,6 @@
 export { usePersistedState } from './usePersistedState';
+export { useDisplaySettings } from './useDisplaySettings';
+export type { CardSize, DisplaySettings } from './useDisplaySettings';
 
 // Supabase hooks
 export { useClassrooms } from './useClassrooms';
