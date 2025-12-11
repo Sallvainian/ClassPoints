@@ -29,3 +29,11 @@ dist-ssr
 
 # Claude Code TTS audio files
 .claude/audio/
+# BMAD framework files
+.cursor/rules/bmad/
+.claude/hooks/bmad-*.sh
+.claude/.agentvibes-backup/bmad.md
+.claude/commands/bmad/
+.claude/commands/agent-vibes/bmad.md
+.github/agents/*bmad*.md
+.agent/workflows/bmad/
