@@ -57,17 +57,13 @@ export function MultiAwardModal({
       // Extract student IDs for the atomic batch operation
       const studentIds = selectedStudents.map((s) => s.id);
 
-      // Single atomic database call - all students get points or none do
-      const results = await awardPointsToStudents(
+      // awardPointsToStudents throws on error with automatic rollback
+      await awardPointsToStudents(
         classroomId,
         studentIds,
         behavior.id,
         `Multi-select award (${selectedStudents.length} students)`
       );
-
-      if (results.length === 0) {
-        throw new Error('Failed to award points');
-      }
 
       // Play sound once after successful batch award
       if (behavior.category === 'positive') {

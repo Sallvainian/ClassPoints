@@ -50,10 +50,9 @@ export function ClassAwardModal({
     setAwardError(null);
 
     try {
-      const result = await awardClassPoints(classroomId, behavior.id);
-      if (!result || result.length === 0) {
-        throw new Error('Failed to award points');
-      }
+      // awardClassPoints throws on error with automatic rollback
+      await awardClassPoints(classroomId, behavior.id);
+
       // Only play sound on success
       if (behavior.category === 'positive') {
         playPositive();

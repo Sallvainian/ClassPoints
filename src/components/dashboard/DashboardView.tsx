@@ -12,6 +12,7 @@ import { UndoToast } from '../points/UndoToast';
 import { TodaySummary } from '../points/TodaySummary';
 import { SoundSettingsModal } from '../settings/SoundSettingsModal';
 import { Button } from '../ui/Button';
+import { ErrorToast } from '../ui/ErrorToast';
 import { BottomToolbar } from './BottomToolbar';
 
 interface DashboardViewProps {
@@ -44,6 +45,9 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   // Selection state
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+
+  // Operation error state (for undo failures, etc.)
+  const [operationError, setOperationError] = useState<string | null>(null);
 
   // Refresh undoable action periodically
   useEffect(() => {
@@ -138,6 +142,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       setUndoableAction(null);
     } catch (err) {
       console.error('Failed to undo transaction:', err);
+      setOperationError('Failed to undo. Please try again.');
     }
   }, [undoTransaction, undoBatchTransaction, undoableAction]);
 
@@ -362,6 +367,9 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
       {/* Undo Toast */}
       <UndoToast action={undoableAction} onUndo={handleUndo} />
+
+      {/* Error Toast */}
+      <ErrorToast error={operationError} onDismiss={() => setOperationError(null)} />
     </div>
   );
 }

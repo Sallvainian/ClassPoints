@@ -21,7 +21,7 @@ interface UseTransactionsReturn {
     behavior: Behavior,
     note?: string
   ) => Promise<PointTransaction | null>;
-  undoTransaction: (id: string) => Promise<boolean>;
+  undoTransaction: (id: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
   getStudentTransactions: (studentId: string, limit?: number) => PointTransaction[];
   clearStudentPoints: (studentId: string) => Promise<boolean>;
@@ -136,19 +136,17 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
     []
   );
 
-  const undoTransaction = useCallback(async (id: string): Promise<boolean> => {
+  const undoTransaction = useCallback(async (id: string): Promise<void> => {
     const { error: deleteError } = await supabase
       .from('point_transactions')
       .delete()
       .eq('id', id);
 
     if (deleteError) {
-      setError(new Error(deleteError.message));
-      return false;
+      throw new Error(deleteError.message);
     }
 
     setTransactions((prev) => prev.filter((t) => t.id !== id));
-    return true;
   }, []);
 
   const getStudentPoints = useCallback(
