@@ -1,14 +1,14 @@
-import { useState } from "react";
-import { AuthProvider } from "./contexts/AuthContext";
-import { SoundProvider } from "./contexts/SoundContext";
-import { HybridAppProvider } from "./contexts/HybridAppContext";
-import { AuthGuard } from "./components/auth/AuthGuard";
-import { SyncStatus } from "./components/common/SyncStatus";
-import { MigrationWizard } from "./components/migration/MigrationWizard";
-import { Layout } from "./components/layout";
-import { DashboardView } from "./components/dashboard";
-import { ClassSettingsView } from "./components/settings";
-import { hasLocalStorageData } from "./utils/migrateToSupabase";
+import { useState } from 'react';
+import { AuthProvider } from './contexts/AuthContext';
+import { SoundProvider } from './contexts/SoundContext';
+import { HybridAppProvider } from './contexts/HybridAppContext';
+import { AuthGuard } from './components/auth/AuthGuard';
+import { SyncStatus } from './components/common/SyncStatus';
+import { MigrationWizard } from './components/migration/MigrationWizard';
+import { Layout } from './components/layout';
+import { DashboardView } from './components/dashboard';
+import { ClassSettingsView } from './components/settings';
+import { hasLocalStorageData } from './utils/migrateToSupabase';
 
 type View = "dashboard" | "settings" | "migration";
 
