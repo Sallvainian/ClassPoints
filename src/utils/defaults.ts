@@ -85,5 +85,5 @@ function getLuminance(hexColor: string): number {
 
 // Determine if a color needs dark text for contrast
 export function needsDarkText(hexColor: string): boolean {
-  return getLuminance(hexColor) > 0.4;
+  return getLuminance(hexColor) > 0.5;
 }
