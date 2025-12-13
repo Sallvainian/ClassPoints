@@ -5,7 +5,30 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', '.bmad'] },
+  {
+    ignores: [
+      // Build output
+      'dist',
+      'dist-ssr',
+      // AI tooling folders (not project code)
+      '.bmad',
+      '.claude',
+      '.agent',
+      '.cursor',
+      '.serena',
+      // Dependencies
+      'node_modules',
+      // Generated/config
+      '*.config.js',
+      '*.config.ts',
+      // Supabase
+      'supabase',
+      // Scripts
+      'scripts',
+      // Coverage
+      'coverage',
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
