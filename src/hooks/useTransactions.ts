@@ -20,11 +20,11 @@ interface UseTransactionsReturn {
     classroomId: string,
     behavior: Behavior,
     note?: string
-  ) => Promise<PointTransaction | null>;
-  undoTransaction: (id: string) => Promise<boolean>;
+  ) => Promise<PointTransaction>;
+  undoTransaction: (id: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
   getStudentTransactions: (studentId: string, limit?: number) => PointTransaction[];
-  clearStudentPoints: (studentId: string) => Promise<boolean>;
+  clearStudentPoints: (studentId: string) => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -108,7 +108,7 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
       classroomId: string,
       behavior: Behavior,
       note?: string
-    ): Promise<PointTransaction | null> => {
+    ): Promise<PointTransaction> => {
       const newTransaction: NewPointTransaction = {
         student_id: studentId,
         classroom_id: classroomId,
@@ -126,8 +126,7 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
         .single();
 
       if (insertError) {
-        setError(new Error(insertError.message));
-        return null;
+        throw new Error(insertError.message);
       }
 
       setTransactions((prev) => [data, ...prev]);
@@ -136,19 +135,17 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
     []
   );
 
-  const undoTransaction = useCallback(async (id: string): Promise<boolean> => {
+  const undoTransaction = useCallback(async (id: string): Promise<void> => {
     const { error: deleteError } = await supabase
       .from('point_transactions')
       .delete()
       .eq('id', id);
 
     if (deleteError) {
-      setError(new Error(deleteError.message));
-      return false;
+      throw new Error(deleteError.message);
     }
 
     setTransactions((prev) => prev.filter((t) => t.id !== id));
-    return true;
   }, []);
 
   const getStudentPoints = useCallback(
@@ -186,19 +183,17 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
   );
 
   const clearStudentPoints = useCallback(
-    async (studentId: string): Promise<boolean> => {
+    async (studentId: string): Promise<void> => {
       const { error: deleteError } = await supabase
         .from('point_transactions')
         .delete()
         .eq('student_id', studentId);
 
       if (deleteError) {
-        setError(new Error(deleteError.message));
-        return false;
+        throw new Error(deleteError.message);
       }
 
       setTransactions((prev) => prev.filter((t) => t.student_id !== studentId));
-      return true;
     },
     []
   );

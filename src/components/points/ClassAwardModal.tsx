@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState } from 'react';
 import type { Behavior, StudentPoints } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
+import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
 
 interface ClassAwardModalProps {
@@ -43,6 +44,15 @@ export function ClassAwardModal({
     };
   }, [isOpen, onClose]);
 
+  // Reset error and loading state when modal closes
+  // Ensures a clean slate if user reopens after a failed attempt
+  useEffect(() => {
+    if (!isOpen) {
+      setAwardError(null);
+      setIsAwarding(false);
+    }
+  }, [isOpen]);
+
   const handleBehaviorSelect = useCallback(async (behavior: Behavior) => {
     if (isAwarding) return;
 
@@ -50,10 +60,9 @@ export function ClassAwardModal({
     setAwardError(null);
 
     try {
-      const result = await awardClassPoints(classroomId, behavior.id);
-      if (!result || result.length === 0) {
-        throw new Error('Failed to award points');
-      }
+      // awardClassPoints throws on error with automatic rollback
+      await awardClassPoints(classroomId, behavior.id);
+
       // Only play sound on success
       if (behavior.category === 'positive') {
         playPositive();
@@ -63,7 +72,7 @@ export function ClassAwardModal({
       onClose();
     } catch (err) {
       console.error('Failed to award class points:', err);
-      setAwardError(err instanceof Error ? err.message : 'Failed to award points');
+      setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_CLASS);
       setIsAwarding(false);
     }
   }, [classroomId, isAwarding, awardClassPoints, playPositive, playNegative, onClose]);

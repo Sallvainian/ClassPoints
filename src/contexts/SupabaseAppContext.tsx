@@ -321,7 +321,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
     if (deleteError) {
       console.error('Error deleting behaviors:', deleteError);
-      return;
+      throw new Error('Failed to reset behaviors. Your custom behaviors were preserved.');
     }
 
     // Insert default behaviors
@@ -331,7 +331,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
     if (insertError) {
       console.error('Error inserting default behaviors:', insertError);
-      return;
+      throw new Error('Failed to restore default behaviors. Please refresh the page.');
     }
 
     // Refetch behaviors to update state
@@ -352,11 +352,22 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior) return null;
 
-      // Optimistically update student and classroom points before awaiting the transaction
-      updateStudentPointsOptimistically(studentId, behavior.points);
-      updateClassroomPointsOptimistically(classroomId, behavior.points);
+      // Store rollback info before optimistic updates
+      const pointsToAward = behavior.points;
 
-      return await awardPointsHook(studentId, classroomId, behavior, note);
+      // Optimistically update student and classroom points before awaiting the transaction
+      updateStudentPointsOptimistically(studentId, pointsToAward);
+      updateClassroomPointsOptimistically(classroomId, pointsToAward);
+
+      try {
+        const result = await awardPointsHook(studentId, classroomId, behavior, note);
+        return result;
+      } catch (err) {
+        // Rollback optimistic updates on error
+        updateStudentPointsOptimistically(studentId, -pointsToAward);
+        updateClassroomPointsOptimistically(classroomId, -pointsToAward);
+        throw err;
+      }
     },
     [behaviors, awardPointsHook, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
   );
@@ -370,12 +381,16 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior || students.length === 0) return [];
 
+      // Store rollback info before optimistic updates
+      const pointsPerStudent = behavior.points;
+      const totalPoints = pointsPerStudent * students.length;
+      const affectedStudentIds = students.map((s) => s.id);
+
       // Optimistically update all students' and classroom points before awaiting the transaction
       students.forEach((student) => {
-        updateStudentPointsOptimistically(student.id, behavior.points);
+        updateStudentPointsOptimistically(student.id, pointsPerStudent);
       });
-      // Classroom total is behavior.points * number of students
-      updateClassroomPointsOptimistically(classroomId, behavior.points * students.length);
+      updateClassroomPointsOptimistically(classroomId, totalPoints);
 
       // Generate a batch_id to group these transactions for undo
       const batchId = crypto.randomUUID();
@@ -399,7 +414,14 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       if (insertError) {
         console.error('Error awarding class points:', insertError);
-        return [];
+
+        // Rollback optimistic updates
+        affectedStudentIds.forEach((studentId) => {
+          updateStudentPointsOptimistically(studentId, -pointsPerStudent);
+        });
+        updateClassroomPointsOptimistically(classroomId, -totalPoints);
+
+        throw new Error('Failed to award points to class. Please try again.');
       }
 
       // Refetch transactions to update state
@@ -425,11 +447,16 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       const validStudents = students.filter((s) => studentIds.includes(s.id));
       if (validStudents.length === 0) return [];
 
+      // Store rollback info before optimistic updates
+      const pointsPerStudent = behavior.points;
+      const totalPoints = pointsPerStudent * validStudents.length;
+      const affectedStudentIds = validStudents.map((s) => s.id);
+
       // Optimistically update all selected students' and classroom points
       validStudents.forEach((student) => {
-        updateStudentPointsOptimistically(student.id, behavior.points);
+        updateStudentPointsOptimistically(student.id, pointsPerStudent);
       });
-      updateClassroomPointsOptimistically(classroomId, behavior.points * validStudents.length);
+      updateClassroomPointsOptimistically(classroomId, totalPoints);
 
       // Generate a batch_id to group these transactions for undo
       const batchId = crypto.randomUUID();
@@ -454,7 +481,14 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       if (insertError) {
         console.error('Error awarding points to students:', insertError);
-        return [];
+
+        // Rollback optimistic updates
+        affectedStudentIds.forEach((studentId) => {
+          updateStudentPointsOptimistically(studentId, -pointsPerStudent);
+        });
+        updateClassroomPointsOptimistically(classroomId, -totalPoints);
+
+        throw new Error('Failed to award points to selected students. Please try again.');
       }
 
       // Refetch transactions to update state
@@ -482,7 +516,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       if (deleteError) {
         console.error('Error undoing batch transaction:', deleteError);
-        throw deleteError;
+        throw new Error('Failed to undo class award. Please try again or refresh the page.');
       }
 
       // Refetch transactions to update state

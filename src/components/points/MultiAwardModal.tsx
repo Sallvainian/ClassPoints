@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { Behavior, Student } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
+import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
 
 interface MultiAwardModalProps {
@@ -57,17 +58,13 @@ export function MultiAwardModal({
       // Extract student IDs for the atomic batch operation
       const studentIds = selectedStudents.map((s) => s.id);
 
-      // Single atomic database call - all students get points or none do
-      const results = await awardPointsToStudents(
+      // awardPointsToStudents throws on error with automatic rollback
+      await awardPointsToStudents(
         classroomId,
         studentIds,
         behavior.id,
         `Multi-select award (${selectedStudents.length} students)`
       );
-
-      if (results.length === 0) {
-        throw new Error('Failed to award points');
-      }
 
       // Play sound once after successful batch award
       if (behavior.category === 'positive') {
@@ -79,7 +76,7 @@ export function MultiAwardModal({
       onClose();
     } catch (err) {
       console.error('Failed to award points to students:', err);
-      setAwardError(err instanceof Error ? err.message : 'Failed to award points');
+      setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_STUDENTS);
       setIsAwarding(false);
     }
   }, [classroomId, selectedStudents, isAwarding, awardPointsToStudents, playPositive, playNegative, onClose]);

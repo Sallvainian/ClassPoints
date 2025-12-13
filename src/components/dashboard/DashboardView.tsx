@@ -3,6 +3,7 @@ import type { Student, PointTransaction } from '../../types';
 import type { CardSize } from '../../hooks/useDisplaySettings';
 import { useApp } from '../../contexts/AppContext';
 import { useDisplaySettings } from '../../hooks/useDisplaySettings';
+import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { StudentGrid } from '../students/StudentGrid';
 import { AwardPointsModal } from '../points/AwardPointsModal';
 import { ClassAwardModal } from '../points/ClassAwardModal';
@@ -12,6 +13,7 @@ import { UndoToast } from '../points/UndoToast';
 import { TodaySummary } from '../points/TodaySummary';
 import { SoundSettingsModal } from '../settings/SoundSettingsModal';
 import { Button } from '../ui/Button';
+import { ErrorToast } from '../ui/ErrorToast';
 import { BottomToolbar } from './BottomToolbar';
 
 interface DashboardViewProps {
@@ -44,6 +46,12 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   // Selection state
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+
+  // Operation error state (for undo failures, etc.)
+  const [operationError, setOperationError] = useState<string | null>(null);
+
+  // Memoized callback to dismiss errors - avoids useEffect dependency issues in ErrorToast
+  const handleDismissError = useCallback(() => setOperationError(null), []);
 
   // Refresh undoable action periodically
   useEffect(() => {
@@ -128,16 +136,22 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   };
 
   const handleUndo = useCallback(async (transactionId: string) => {
+    // Capture current undoable action at invocation time to prevent race condition
+    // where the action could become null during async execution (near end of undo window)
+    const actionToUndo = undoableAction;
+    if (!actionToUndo) return;
+
     try {
       // Check if this is a batch undo (class-wide award)
-      if (undoableAction?.isBatch && undoableAction.batchId) {
-        await undoBatchTransaction(undoableAction.batchId);
+      if (actionToUndo.isBatch && actionToUndo.batchId) {
+        await undoBatchTransaction(actionToUndo.batchId);
       } else {
         await undoTransaction(transactionId);
       }
       setUndoableAction(null);
     } catch (err) {
       console.error('Failed to undo transaction:', err);
+      setOperationError(ERROR_MESSAGES.UNDO);
     }
   }, [undoTransaction, undoBatchTransaction, undoableAction]);
 
@@ -362,6 +376,9 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
       {/* Undo Toast */}
       <UndoToast action={undoableAction} onUndo={handleUndo} />
+
+      {/* Error Toast */}
+      <ErrorToast error={operationError} onDismiss={handleDismissError} />
     </div>
   );
 }
