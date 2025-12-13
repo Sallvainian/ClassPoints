@@ -25,11 +25,18 @@
 The app uses a strict nested provider pattern. **Order matters** - providers must be nested in this exact sequence:
 
 ```tsx
-<AuthProvider>           // 1. Authentication state (user, session)
-  <AuthGuard>            // 2. Route protection (redirects unauthenticated)
-    <SoundProvider>      // 3. Sound effects settings
-      <HybridAppProvider>// 4. App data layer (online/offline)
-        <AppContent />   // 5. Main application
+<AuthProvider>
+  {' '}
+  // 1. Authentication state (user, session)
+  <AuthGuard>
+    {' '}
+    // 2. Route protection (redirects unauthenticated)
+    <SoundProvider>
+      {' '}
+      // 3. Sound effects settings
+      <HybridAppProvider>
+        // 4. App data layer (online/offline)
+        <AppContent /> // 5. Main application
       </HybridAppProvider>
     </SoundProvider>
   </AuthGuard>
@@ -37,6 +44,7 @@ The app uses a strict nested provider pattern. **Order matters** - providers mus
 ```
 
 **Rules:**
+
 - Never access a context from a component that's not wrapped by that provider
 - If adding a new provider, determine where it fits in the hierarchy
 - Providers that depend on others must be nested inside them
@@ -50,6 +58,7 @@ Component → useApp() → HybridAppContext → SupabaseAppContext → Supabase 
 ```
 
 **Rules:**
+
 - Components **MUST** use `useApp()` for all data operations
 - Never import `SupabaseAppContext` directly in components
 - Never use `supabase` client directly in components (only in hooks/contexts)
@@ -61,12 +70,13 @@ The app supports both online (Supabase) and offline (localStorage) modes:
 ```tsx
 // HybridAppContext decides which implementation to use
 const value = {
-  ...supabaseApp,  // Online: delegates to Supabase
-  syncStatus,      // Tracks sync state
+  ...supabaseApp, // Online: delegates to Supabase
+  syncStatus, // Tracks sync state
 };
 ```
 
 **Rules:**
+
 - All data operations must go through `HybridAppContext`
 - Future offline support will queue operations in `SyncManager`
 - Don't assume network connectivity in any component
@@ -81,12 +91,13 @@ UI updates immediately before server confirmation:
 
 ```tsx
 // In SupabaseAppContext.awardPoints()
-updateStudentPointsOptimistically(studentId, behavior.points);  // 1. Update UI
+updateStudentPointsOptimistically(studentId, behavior.points); // 1. Update UI
 updateClassroomPointsOptimistically(classroomId, behavior.points);
-return await awardPointsHook(studentId, classroomId, behavior);  // 2. Then server
+return await awardPointsHook(studentId, classroomId, behavior); // 2. Then server
 ```
 
 **Rules:**
+
 - Always update UI optimistically for responsive UX
 - Realtime subscriptions handle eventual consistency
 - On DELETE events (undo), update state from realtime payload
@@ -111,6 +122,7 @@ useRealtimeSubscription<Classroom>({
 ```
 
 **Rules:**
+
 - Use refs for callbacks to avoid stale closures (the hook handles this)
 - Clean up channels on unmount (handled by the hook)
 - For INSERT events with optimistic updates, check for duplicates before adding
@@ -132,6 +144,7 @@ const getRecentUndoableAction = useCallback(() => {
 ```
 
 **Rules:**
+
 - Undo only available within 10 seconds
 - Batch transactions (class-wide awards) use `batch_id` for grouped undo
 - `UndoToast` component handles the undo UI
@@ -144,11 +157,12 @@ Class-wide point awards use `batch_id` for grouped operations:
 const batchId = crypto.randomUUID();
 const newTransactions = students.map((student) => ({
   ...transactionData,
-  batch_id: batchId,  // Links all transactions together
+  batch_id: batchId, // Links all transactions together
 }));
 ```
 
 **Rules:**
+
 - All transactions in a batch share the same `batch_id`
 - Undo batch deletes ALL transactions with that `batch_id`
 - UI shows batch info (student count, total points)
@@ -169,6 +183,7 @@ const { transactions, awardPoints, ... } = useTransactions(activeClassroomId);
 ```
 
 **Rules:**
+
 - Each hook manages one table/concern
 - Hooks can depend on each other (e.g., `useTransactions` needs `activeClassroomId`)
 - Combined loading/error state in context: `loading = a || b || c`
@@ -184,7 +199,7 @@ const fetchData = useCallback(async () => {
 
   const { data, error: queryError } = await supabase
     .from('table')
-    .select('*, related(count)')  // Nested select for counts
+    .select('*, related(count)') // Nested select for counts
     .order('name', { ascending: true });
 
   if (queryError) {
@@ -199,6 +214,7 @@ const fetchData = useCallback(async () => {
 ```
 
 **Rules:**
+
 - Always handle errors and set empty array as fallback
 - Use `useCallback` for fetch functions
 - Include loading state management
@@ -207,23 +223,20 @@ const fetchData = useCallback(async () => {
 
 ```tsx
 const createItem = useCallback(async (input): Promise<Item | null> => {
-  const { data, error } = await supabase
-    .from('items')
-    .insert(input)
-    .select()
-    .single();
+  const { data, error } = await supabase.from('items').insert(input).select().single();
 
   if (error) {
     setError(new Error(error.message));
     return null;
   }
 
-  setItems(prev => [...prev, data]);  // Update local state
+  setItems((prev) => [...prev, data]); // Update local state
   return data;
 }, []);
 ```
 
 **Rules:**
+
 - Return `null` on error, actual data on success
 - Always `.select()` after insert/update to get the full row
 - Update local state after successful operation
@@ -258,6 +271,7 @@ export function Component({ required, optional = false }: ComponentProps) {
 ```
 
 **Rules:**
+
 - All hooks MUST be called before any early returns
 - Props interface defined above component
 - Export named functions (not default except App.tsx)
@@ -282,6 +296,7 @@ export function FeatureModal({ isOpen, onClose, ... }: ModalProps) {
 ```
 
 **Rules:**
+
 - All modals use the `Modal` wrapper component from `components/ui/`
 - `isOpen` and `onClose` are required props
 - Modal handles backdrop click and escape key
@@ -297,6 +312,7 @@ export { StudentPointCard } from './StudentPointCard';
 ```
 
 **Rules:**
+
 - Every component folder MUST have an `index.ts`
 - Export all public components from the index
 - Import from folder, not individual files: `import { StudentGrid } from './components/students'`
@@ -308,6 +324,7 @@ export { StudentPointCard } from './StudentPointCard';
 ### Dual Type System
 
 Two parallel type definitions exist:
+
 1. **Database types** (`src/types/database.ts`) - Snake_case, matches Supabase
 2. **Domain types** (`src/types/index.ts`) - CamelCase, used in components
 
@@ -315,19 +332,20 @@ Two parallel type definitions exist:
 // Database type (database.ts)
 interface Student {
   id: string;
-  classroom_id: string;  // snake_case
+  classroom_id: string; // snake_case
   avatar_color: string | null;
 }
 
 // Domain type (index.ts)
 interface Student {
   id: string;
-  classroomId: string;  // camelCase
+  classroomId: string; // camelCase
   avatarColor?: string;
 }
 ```
 
 **Rules:**
+
 - Hooks work with database types internally
 - Context maps to domain types before exposing to components
 - Components should only see domain types
@@ -346,6 +364,7 @@ export type UpdateClassroom = Database['public']['Tables']['classrooms']['Update
 ```
 
 **Rules:**
+
 - `New*` prefix for Insert types
 - `Update*` prefix for Update types
 - Plain name for Row (read) types
@@ -364,6 +383,7 @@ From `tsconfig.app.json`:
 ```
 
 **Rules:**
+
 - No unused variables or parameters
 - All switch cases must have break/return
 - Strict null checking enabled
@@ -374,15 +394,16 @@ From `tsconfig.app.json`:
 
 ### Table Ownership Rules
 
-| Table | Ownership | RLS Pattern |
-|-------|-----------|-------------|
-| `classrooms` | `user_id = auth.uid()` | Direct ownership |
-| `students` | Via classroom | Check classroom.user_id |
-| `behaviors` | `user_id IS NULL` (default) OR `user_id = auth.uid()` | Shared + Personal |
-| `point_transactions` | Via classroom | Check classroom.user_id |
-| `user_sound_settings` | `user_id = auth.uid()` | Direct ownership |
+| Table                 | Ownership                                             | RLS Pattern             |
+| --------------------- | ----------------------------------------------------- | ----------------------- |
+| `classrooms`          | `user_id = auth.uid()`                                | Direct ownership        |
+| `students`            | Via classroom                                         | Check classroom.user_id |
+| `behaviors`           | `user_id IS NULL` (default) OR `user_id = auth.uid()` | Shared + Personal       |
+| `point_transactions`  | Via classroom                                         | Check classroom.user_id |
+| `user_sound_settings` | `user_id = auth.uid()`                                | Direct ownership        |
 
 **Rules:**
+
 - Always include RLS policies when creating new tables
 - Tables inheriting ownership check parent via subquery
 - Default behaviors have `user_id = NULL` (shared across all users)
@@ -398,6 +419,7 @@ REFERENCES classrooms(id) ON DELETE CASCADE
 ```
 
 **Rules:**
+
 - Always use `ON DELETE CASCADE` for child tables
 - Add appropriate CHECK constraints for domain rules
 - Use ENUM types for fixed categories (`behavior_category`)
@@ -411,6 +433,7 @@ ALTER TABLE students REPLICA IDENTITY FULL;
 ```
 
 **Rules:**
+
 - Set `REPLICA IDENTITY FULL` on tables where DELETE handlers need column data
 - Without this, DELETE only provides primary key
 
@@ -426,6 +449,7 @@ CREATE INDEX idx_transactions_student_created
 ```
 
 **Rules:**
+
 - Index foreign key columns
 - Index columns used in ORDER BY
 - Use composite indexes for common query patterns
@@ -452,6 +476,7 @@ function AuthGuard({ children }) {
 ```
 
 **Rules:**
+
 - Never bypass AuthGuard
 - Don't store sensitive data in localStorage
 - Use Supabase Auth for all authentication flows
@@ -479,6 +504,7 @@ CREATE POLICY "Users can view X in own classrooms" ON child_table
 ```
 
 **Rules:**
+
 - Every table MUST have RLS enabled
 - Every operation (SELECT, INSERT, UPDATE, DELETE) needs a policy
 - Use `auth.uid()` to check current user
@@ -498,6 +524,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
 **Rules:**
+
 - Tables with `user_id` should have trigger to auto-set
 - Client doesn't need to manually set `user_id`
 
@@ -507,33 +534,33 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ### File Naming
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Components | PascalCase.tsx | `StudentGrid.tsx` |
-| Hooks | camelCase with `use` prefix | `useClassrooms.ts` |
-| Contexts | PascalCase with `Context` suffix | `AuthContext.tsx` |
-| Types | camelCase.ts | `database.ts` |
-| Utils | camelCase.ts | `migrateToSupabase.ts` |
+| Type       | Convention                       | Example                |
+| ---------- | -------------------------------- | ---------------------- |
+| Components | PascalCase.tsx                   | `StudentGrid.tsx`      |
+| Hooks      | camelCase with `use` prefix      | `useClassrooms.ts`     |
+| Contexts   | PascalCase with `Context` suffix | `AuthContext.tsx`      |
+| Types      | camelCase.ts                     | `database.ts`          |
+| Utils      | camelCase.ts                     | `migrateToSupabase.ts` |
 
 ### Code Naming
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Components | PascalCase | `StudentPointCard` |
-| Hooks | camelCase with `use` prefix | `useRealtimeSubscription` |
-| Context values | camelCase | `activeClassroomId` |
-| Event handlers | `handle` + Event | `handleClick` |
-| Boolean props | `is` or `on` prefix | `isOpen`, `onClose` |
+| Type           | Convention                  | Example                   |
+| -------------- | --------------------------- | ------------------------- |
+| Components     | PascalCase                  | `StudentPointCard`        |
+| Hooks          | camelCase with `use` prefix | `useRealtimeSubscription` |
+| Context values | camelCase                   | `activeClassroomId`       |
+| Event handlers | `handle` + Event            | `handleClick`             |
+| Boolean props  | `is` or `on` prefix         | `isOpen`, `onClose`       |
 
 ### Database Naming
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Tables | snake_case plural | `point_transactions` |
-| Columns | snake_case | `classroom_id` |
-| Indexes | `idx_tablename_column` | `idx_students_classroom_id` |
-| Policies | Descriptive sentence | `"Users can view own classrooms"` |
-| Triggers | `trigger_action_tablename` | `set_classrooms_user_id` |
+| Type     | Convention                 | Example                           |
+| -------- | -------------------------- | --------------------------------- |
+| Tables   | snake_case plural          | `point_transactions`              |
+| Columns  | snake_case                 | `classroom_id`                    |
+| Indexes  | `idx_tablename_column`     | `idx_students_classroom_id`       |
+| Policies | Descriptive sentence       | `"Users can view own classrooms"` |
+| Triggers | `trigger_action_tablename` | `set_classrooms_user_id`          |
 
 ---
 
@@ -564,6 +591,7 @@ src/
 ```
 
 **Rules:**
+
 - Components organized by feature/domain, not by type
 - Each feature folder has its own `index.ts` barrel export
 - Base UI components go in `components/ui/`
@@ -629,5 +657,5 @@ import type { Student, Classroom } from '../types/database';
 
 ---
 
-*Last Updated: 2025-12-09*
-*Generated by document-project workflow*
+_Last Updated: 2025-12-12_
+_Generated by document-project workflow_

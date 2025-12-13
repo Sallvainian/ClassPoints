@@ -10,7 +10,7 @@ ClassPoints/
 │   ├── index.css                 # Global styles (Tailwind imports)
 │   ├── vite-env.d.ts             # Vite type declarations
 │   │
-│   ├── components/               # React UI components (24 components)
+│   ├── components/               # React UI components (29 components)
 │   │   ├── auth/                 # Authentication components
 │   │   │   ├── AuthGuard.tsx     # Route protection wrapper
 │   │   │   ├── AuthPage.tsx      # Auth page container
@@ -29,7 +29,8 @@ ClassPoints/
 │   │   │   └── SyncStatus.tsx    # Online/offline indicator
 │   │   │
 │   │   ├── dashboard/            # Main dashboard view
-│   │   │   └── DashboardView.tsx # Primary app screen
+│   │   │   ├── DashboardView.tsx # Primary app screen
+│   │   │   └── BottomToolbar.tsx # Selection mode toolbar
 │   │   │
 │   │   ├── layout/               # Layout components
 │   │   │   ├── Layout.tsx        # App shell layout
@@ -39,11 +40,12 @@ ClassPoints/
 │   │   │   └── MigrationWizard.tsx
 │   │   │
 │   │   ├── points/               # Points management
-│   │   │   ├── AwardPointsModal.tsx
-│   │   │   ├── ClassAwardModal.tsx
-│   │   │   ├── ClassPointsBox.tsx
-│   │   │   ├── TodaySummary.tsx
-│   │   │   └── UndoToast.tsx
+│   │   │   ├── AwardPointsModal.tsx  # Single student points
+│   │   │   ├── ClassAwardModal.tsx   # Class-wide points
+│   │   │   ├── MultiAwardModal.tsx   # Multi-select points
+│   │   │   ├── ClassPointsBox.tsx    # Class totals display
+│   │   │   ├── TodaySummary.tsx      # Recent activity
+│   │   │   └── UndoToast.tsx         # Undo notification
 │   │   │
 │   │   ├── settings/             # Settings views
 │   │   │   ├── ClassSettingsView.tsx
@@ -57,7 +59,8 @@ ClassPoints/
 │   │   └── ui/                   # Base UI components
 │   │       ├── Button.tsx
 │   │       ├── Input.tsx
-│   │       └── Modal.tsx
+│   │       ├── Modal.tsx
+│   │       └── ErrorToast.tsx
 │   │
 │   ├── contexts/                 # React Context providers (5 contexts)
 │   │   ├── AppContext.tsx        # Main app context facade
@@ -66,10 +69,11 @@ ClassPoints/
 │   │   ├── SoundContext.tsx      # Sound effects settings
 │   │   └── SupabaseAppContext.tsx # Full Supabase data layer
 │   │
-│   ├── hooks/                    # Custom React hooks (8 hooks)
+│   ├── hooks/                    # Custom React hooks (9 hooks)
 │   │   ├── index.ts              # Hook exports
 │   │   ├── useBehaviors.ts       # Behavior CRUD operations
 │   │   ├── useClassrooms.ts      # Classroom management
+│   │   ├── useDisplaySettings.ts # Card size and display prefs
 │   │   ├── usePersistedState.ts  # localStorage persistence
 │   │   ├── useRealtimeSubscription.ts # Supabase realtime
 │   │   ├── useSoundEffects.ts    # Sound effect playback
@@ -86,9 +90,10 @@ ClassPoints/
 │   │   ├── index.ts              # Domain types (Behavior, Student, etc.)
 │   │   └── database.ts           # Supabase-generated types
 │   │
-│   ├── utils/                    # Utility functions
+│   ├── utils/                    # Utility functions (7 modules)
 │   │   ├── index.ts              # Utility exports
 │   │   ├── defaults.ts           # Default behaviors, avatar colors
+│   │   ├── errorMessages.ts      # Centralized error messages
 │   │   ├── migrations.ts         # State migration utilities
 │   │   ├── migrateToSupabase.ts  # localStorage to Supabase migration
 │   │   ├── studentParser.ts      # Student name parsing (CSV/JSON)
@@ -174,25 +179,27 @@ ClassPoints/
 
 ## File Statistics
 
-| Category | Count |
-|----------|-------|
-| React Components | 27 |
-| React Contexts | 5 |
-| Custom Hooks | 8 |
-| Utility Modules | 6 |
-| Type Definitions | 2 |
-| Services | 1 |
-| Database Migrations | 7 |
-| E2E Test Files | 2 |
-| E2E Page Objects | 1 |
-| Config Files | 10 |
+| Category            | Count |
+| ------------------- | ----- |
+| React Components    | 29    |
+| React Contexts      | 5     |
+| Custom Hooks        | 9     |
+| Utility Modules     | 7     |
+| Type Definitions    | 2     |
+| Services            | 1     |
+| Database Migrations | 7     |
+| E2E Test Files      | 2     |
+| E2E Page Objects    | 1     |
+| Config Files        | 10    |
+
+_Last updated: 2025-12-12_
 
 ## Key Entry Points
 
-| File | Purpose |
-|------|---------|
-| `src/main.tsx` | React DOM mount point |
-| `src/App.tsx` | Root component with provider hierarchy |
-| `src/contexts/AppContext.tsx` | Main state management facade |
-| `src/lib/supabase.ts` | Supabase client initialization |
-| `supabase/migrations/001_initial_schema.sql` | Database schema |
+| File                                         | Purpose                                |
+| -------------------------------------------- | -------------------------------------- |
+| `src/main.tsx`                               | React DOM mount point                  |
+| `src/App.tsx`                                | Root component with provider hierarchy |
+| `src/contexts/AppContext.tsx`                | Main state management facade           |
+| `src/lib/supabase.ts`                        | Supabase client initialization         |
+| `supabase/migrations/001_initial_schema.sql` | Database schema                        |

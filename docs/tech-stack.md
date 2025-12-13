@@ -8,37 +8,37 @@ ClassPoints is built with a modern React + Supabase stack, optimized for rapid d
 
 ### Core Framework
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **React** | 18.3.1 | UI component library |
-| **TypeScript** | 5.6.2 | Static type checking |
-| **Vite** | 6.0.1 | Build tool and dev server |
+| Technology     | Version | Purpose                   |
+| -------------- | ------- | ------------------------- |
+| **React**      | 18.3.1  | UI component library      |
+| **TypeScript** | 5.6.2   | Static type checking      |
+| **Vite**       | 6.0.5   | Build tool and dev server |
 
 ### Styling
 
-| Technology | Purpose |
-|------------|---------|
+| Technology       | Purpose                     |
+| ---------------- | --------------------------- |
 | **Tailwind CSS** | Utility-first CSS framework |
-| **PostCSS** | CSS processing |
+| **PostCSS**      | CSS processing              |
 
 ### State Management
 
-| Technology | Purpose |
-|------------|---------|
+| Technology        | Purpose                      |
+| ----------------- | ---------------------------- |
 | **React Context** | Application state management |
-| **Custom Hooks** | Reusable state logic |
-| **useReducer** | Complex state updates |
+| **Custom Hooks**  | Reusable state logic         |
+| **useReducer**    | Complex state updates        |
 
 ## Backend Stack (Supabase)
 
 ### Services Used
 
-| Service | Purpose |
-|---------|---------|
-| **PostgreSQL** | Relational database |
-| **Supabase Auth** | User authentication (email/password) |
-| **Supabase Realtime** | Live data synchronization |
-| **Row Level Security** | Multi-tenant data isolation |
+| Service                | Purpose                              |
+| ---------------------- | ------------------------------------ |
+| **PostgreSQL**         | Relational database                  |
+| **Supabase Auth**      | User authentication (email/password) |
+| **Supabase Realtime**  | Live data synchronization            |
+| **Row Level Security** | Multi-tenant data isolation          |
 
 ### Database Features
 
@@ -51,28 +51,28 @@ ClassPoints is built with a modern React + Supabase stack, optimized for rapid d
 
 ### Build & Dev
 
-| Tool | Purpose |
-|------|---------|
-| **Vite** | Fast HMR, optimized production builds |
-| **ESLint** | Code linting and style enforcement |
-| **TypeScript** | Type checking and IDE support |
+| Tool           | Purpose                               |
+| -------------- | ------------------------------------- |
+| **Vite**       | Fast HMR, optimized production builds |
+| **ESLint**     | Code linting and style enforcement    |
+| **TypeScript** | Type checking and IDE support         |
 
 ### Testing
 
-| Tool | Purpose |
-|------|---------|
-| **Vitest** | Unit testing (Vite-native) |
-| **Playwright** | End-to-end browser testing |
-| **@testing-library/react** | React component testing |
+| Tool                       | Purpose                             |
+| -------------------------- | ----------------------------------- |
+| **Vitest**                 | Unit testing (Vite-native, 4.0.13)  |
+| **Playwright**             | End-to-end browser testing (1.57.0) |
+| **@testing-library/react** | React component testing             |
 
 ### Version Control & CI/CD
 
-| Tool | Purpose |
-|------|---------|
-| **Git** | Version control |
-| **GitHub** | Repository hosting |
-| **GitHub Actions** | CI/CD pipeline |
-| **GitHub Pages** | Static site hosting |
+| Tool               | Purpose             |
+| ------------------ | ------------------- |
+| **Git**            | Version control     |
+| **GitHub**         | Repository hosting  |
+| **GitHub Actions** | CI/CD pipeline      |
+| **GitHub Pages**   | Static site hosting |
 
 ## Dependencies
 
@@ -91,24 +91,24 @@ ClassPoints is built with a modern React + Supabase stack, optimized for rapid d
 
 ```json
 {
-  "@eslint/js": "^9.15.0",
-  "@playwright/test": "^1.49.0",
-  "@testing-library/react": "^16.2.0",
-  "@types/react": "^18.3.12",
-  "@types/react-dom": "^18.3.1",
+  "@eslint/js": "^9.17.0",
+  "@playwright/test": "^1.57.0",
+  "@testing-library/react": "^16.3.0",
+  "@types/react": "^18.3.18",
+  "@types/react-dom": "^18.3.5",
   "@types/uuid": "^10.0.0",
   "@vitejs/plugin-react": "^4.3.4",
-  "autoprefixer": "^10.4.20",
-  "eslint": "^9.15.0",
+  "autoprefixer": "^10.4.22",
+  "eslint": "^9.17.0",
   "eslint-plugin-react-hooks": "^5.0.0",
-  "eslint-plugin-react-refresh": "^0.4.14",
-  "globals": "^15.12.0",
-  "postcss": "^8.4.49",
-  "tailwindcss": "^3.4.15",
+  "eslint-plugin-react-refresh": "^0.4.16",
+  "globals": "^15.14.0",
+  "postcss": "^8.5.6",
+  "tailwindcss": "^4.1.17",
   "typescript": "~5.6.2",
-  "typescript-eslint": "^8.15.0",
-  "vite": "^6.0.1",
-  "vitest": "^2.1.8"
+  "typescript-eslint": "^8.18.2",
+  "vite": "^6.0.5",
+  "vitest": "^4.0.13"
 }
 ```
 
@@ -118,16 +118,16 @@ ClassPoints is built with a modern React + Supabase stack, optimized for rapid d
 
 ```typescript
 // vite.config.ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: '/ClassPoints/',  // GitHub Pages path
+  base: '/ClassPoints/', // GitHub Pages path
   server: {
-    host: true,  // Allow network access
+    host: true, // Allow network access
   },
-})
+});
 ```
 
 ### TypeScript Configuration
@@ -136,10 +136,7 @@ export default defineConfig({
 // tsconfig.json (project references)
 {
   "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
 }
 ```
 
@@ -148,15 +145,12 @@ export default defineConfig({
 ```javascript
 // tailwind.config.js
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {},
   },
   plugins: [],
-}
+};
 ```
 
 ### Playwright Configuration
@@ -192,9 +186,9 @@ export default defineConfig({
 
 ### Required Variables
 
-| Variable | Description |
-|----------|-------------|
-| `VITE_SUPABASE_URL` | Supabase project URL |
+| Variable                 | Description            |
+| ------------------------ | ---------------------- |
+| `VITE_SUPABASE_URL`      | Supabase project URL   |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key |
 
 ### Example `.env.local`
@@ -206,14 +200,14 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ## NPM Scripts
 
-| Script | Command | Purpose |
-|--------|---------|---------|
-| `dev` | `vite` | Start development server |
-| `build` | `tsc -b && vite build` | Production build |
-| `lint` | `eslint .` | Run ESLint |
-| `preview` | `vite preview` | Preview production build |
-| `test` | `vitest` | Run unit tests |
-| `test:e2e` | `playwright test` | Run E2E tests |
+| Script     | Command                | Purpose                  |
+| ---------- | ---------------------- | ------------------------ |
+| `dev`      | `vite`                 | Start development server |
+| `build`    | `tsc -b && vite build` | Production build         |
+| `lint`     | `eslint .`             | Run ESLint               |
+| `preview`  | `vite preview`         | Preview production build |
+| `test`     | `vitest`               | Run unit tests           |
+| `test:e2e` | `playwright test`      | Run E2E tests            |
 
 ## Browser Support
 
@@ -224,11 +218,13 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ## Performance Optimizations
 
 ### Build Optimizations
+
 - Vite tree-shaking and code splitting
 - CSS purging via Tailwind
 - ES module output
 
 ### Runtime Optimizations
+
 - React 18 Concurrent Mode
 - Optimistic UI updates
 - Efficient realtime subscriptions (per-table channels)
@@ -236,15 +232,18 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ## Security Considerations
 
 ### Authentication
+
 - Supabase Auth handles all auth flows
 - JWT tokens with automatic refresh
 - Secure session management
 
 ### Data Access
+
 - Row Level Security on all tables
 - No direct database credentials in client
 - Server-side access control
 
 ### HTTPS
+
 - Supabase endpoints are HTTPS-only
 - GitHub Pages serves over HTTPS
