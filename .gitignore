@@ -30,6 +30,7 @@ dist-ssr
 # AI tooling folders (local configs, not project code)
 .agent/
 .bmad/
-.claude/
+.claude/*
+!.claude/rules/
 .cursor/
 .serena/
