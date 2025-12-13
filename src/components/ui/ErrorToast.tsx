@@ -43,10 +43,7 @@ export function ErrorToast({ error, onDismiss, duration = 5000 }: ErrorToastProp
     }
   }, [error, duration, onDismiss]);
 
-  if (!visible || !error) return null;
-
-  const progress = (timeLeft / duration) * 100;
-
+  // Hook must be called BEFORE any early returns
   const handleDismiss = useCallback(() => {
     dismissedRef.current = true;
     if (hideTimerRef.current) {
@@ -55,6 +52,10 @@ export function ErrorToast({ error, onDismiss, duration = 5000 }: ErrorToastProp
     setVisible(false);
     onDismiss();
   }, [onDismiss]);
+
+  if (!visible || !error) return null;
+
+  const progress = (timeLeft / duration) * 100;
 
   return (
     <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 animate-slide-up">
