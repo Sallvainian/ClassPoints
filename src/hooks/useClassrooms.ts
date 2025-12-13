@@ -183,7 +183,11 @@ export function useClassrooms(): UseClassroomsReturn {
 
     // New classrooms start with 0 students and 0 points, insert in sorted order
     const classroomWithCount: ClassroomWithCount = { ...data, student_count: 0, point_total: 0, positive_total: 0, negative_total: 0 };
-    setClassrooms((prev) => [...prev, classroomWithCount].sort((a, b) => a.name.localeCompare(b.name)));
+    setClassrooms((prev) => {
+      // Avoid duplicates if realtime subscription already added this classroom
+      if (prev.some((c) => c.id === data.id)) return prev;
+      return [...prev, classroomWithCount].sort((a, b) => a.name.localeCompare(b.name));
+    });
     return data;
   }, []);
 

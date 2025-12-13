@@ -75,7 +75,11 @@ export function useBehaviors(): UseBehaviorsReturn {
         return null;
       }
 
-      setBehaviors((prev) => [...prev, data]);
+      setBehaviors((prev) => {
+        // Avoid duplicates if realtime subscription already added this behavior
+        if (prev.some((b) => b.id === data.id)) return prev;
+        return [...prev, data];
+      });
       return data;
     },
     []

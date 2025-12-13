@@ -222,7 +222,11 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
         today_total: 0,
         this_week_total: 0,
       };
-      setStudents((prev) => [...prev, studentWithPoints].sort((a, b) => a.name.localeCompare(b.name)));
+      setStudents((prev) => {
+        // Avoid duplicates if realtime subscription already added this student
+        if (prev.some((s) => s.id === data.id)) return prev;
+        return [...prev, studentWithPoints].sort((a, b) => a.name.localeCompare(b.name));
+      });
       return data;
     },
     []
@@ -255,9 +259,12 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
         today_total: 0,
         this_week_total: 0,
       }));
-      setStudents((prev) =>
-        [...prev, ...inserted].sort((a, b) => a.name.localeCompare(b.name))
-      );
+      setStudents((prev) => {
+        // Filter out any students that realtime subscription already added
+        const newStudents = inserted.filter((newS) => !prev.some((s) => s.id === newS.id));
+        if (newStudents.length === 0) return prev;
+        return [...prev, ...newStudents].sort((a, b) => a.name.localeCompare(b.name));
+      });
       return data || [];
     },
     []
