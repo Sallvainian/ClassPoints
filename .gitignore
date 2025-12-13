@@ -27,5 +27,9 @@ dist-ssr
 # .env.keys contains private keys - NEVER commit
 .env.keys
 
-# Claude Code TTS audio files
-.claude/audio/
+# AI tooling folders (local configs, not project code)
+.agent/
+.bmad/
+.claude/
+.cursor/
+.serena/
