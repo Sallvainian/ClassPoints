@@ -10,13 +10,15 @@
 
 ## Quick Links
 
-| Document                                    | Description                                           |
-| ------------------------------------------- | ----------------------------------------------------- |
-| [Architecture](./architecture.md)           | System architecture and design patterns               |
-| [Patterns & Rules](./patterns-and-rules.md) | **Comprehensive patterns and coding rules reference** |
-| [Data Models](./data-models.md)             | Database schema and TypeScript types                  |
-| [Tech Stack](./tech-stack.md)               | Technologies, dependencies, and configuration         |
-| [Source Tree](./source-tree.md)             | File structure and component hierarchy                |
+| Document                                          | Description                                           |
+| ------------------------------------------------- | ----------------------------------------------------- |
+| [Architecture](./architecture.md)                 | System architecture and design patterns               |
+| [Patterns & Rules](./patterns-and-rules/index.md) | **Comprehensive patterns and coding rules reference** |
+| [Data Models](./data-models.md)                   | Database schema and TypeScript types                  |
+| [Tech Stack](./tech-stack.md)                     | Technologies, dependencies, and configuration         |
+| [Source Tree](./source-tree.md)                   | File structure and component hierarchy                |
+| [UX Design](./ux-design-specification/index.md)   | UX specification and design system                    |
+| [PRD](./prd.md)                                   | Product requirements document                         |
 
 ---
 
@@ -146,17 +148,34 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ### Architecture & Design
 
 - [Architecture Overview](./architecture.md) - System design, patterns, and data flow
-- [Patterns & Rules](./patterns-and-rules.md) - **Authoritative guide for code patterns and conventions**
+- [Architecture Decisions](./architecture-decisions.md) - Technical decisions and debt audit
+- [Patterns & Rules](./patterns-and-rules/index.md) - **Authoritative guide for code patterns and conventions**
 - [Data Models](./data-models.md) - Database schema, types, and relationships
+
+### UX & Product
+
+- [PRD](./prd.md) - Product requirements document
+- [UX Design Specification](./ux-design-specification/index.md) - Complete UX design system
+- [Project Context](./project_context.md) - AI agent context with 42 rules
 
 ### Technical Reference
 
 - [Tech Stack](./tech-stack.md) - Dependencies, configuration, and tooling
 - [Source Tree](./source-tree.md) - File structure and component hierarchy
 
-### State File
+### Plans & Specs
 
-- [Scan Report](./project-scan-report.json) - Raw scan data and findings
+- [Seating Chart Design](./plans/2025-01-22-seating-chart-design/index.md) - Feature design specification
+- [Seating Chart Implementation](./plans/2025-01-22-seating-chart-implementation.md) - Implementation plan
+
+### Sprint Artifacts
+
+- [Sound Effects Tech Spec](./sprint-artifacts/tech-spec-sound-effects.md) - Audio feedback system
+- [Student Grid Enhancements](./sprint-artifacts/tech-spec-student-grid-enhancements.md) - Multi-select, card sizes
+
+### Diagrams
+
+- `diagrams/wireframe-classpoints.excalidraw` - App wireframe (8 screens)
 
 ---
 
