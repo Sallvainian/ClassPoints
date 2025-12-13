@@ -31,12 +31,9 @@ interface UseSoundEffectsReturn {
   isReady: boolean;
 }
 
-export function useSoundEffects(
-  options: UseSoundEffectsOptions = {}
-): UseSoundEffectsReturn {
+export function useSoundEffects(options: UseSoundEffectsOptions = {}): UseSoundEffectsReturn {
   const { testMode = false } = options;
-  const { settings, updateSettings, audioContext, soundBuffers, isAudioReady } =
-    useSoundContext();
+  const { settings, updateSettings, audioContext, soundBuffers, isAudioReady } = useSoundContext();
 
   // Cache for custom URL audio buffers
   const customBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
@@ -76,12 +73,7 @@ export function useSoundEffects(
     };
 
     loadCustomSounds();
-  }, [
-    audioContext,
-    isAudioReady,
-    settings.customPositiveUrl,
-    settings.customNegativeUrl,
-  ]);
+  }, [audioContext, isAudioReady, settings.customPositiveUrl, settings.customNegativeUrl]);
 
   // Play a sound buffer
   const playBuffer = useCallback(
@@ -108,8 +100,7 @@ export function useSoundEffects(
         source.start(0);
       } catch (err) {
         // Distinguish between autoplay restrictions and real errors
-        const isAutoplayRestriction =
-          err instanceof DOMException && err.name === 'NotAllowedError';
+        const isAutoplayRestriction = err instanceof DOMException && err.name === 'NotAllowedError';
 
         if (isAutoplayRestriction) {
           // Browser autoplay policy - will work after user interaction
@@ -143,13 +134,11 @@ export function useSoundEffects(
     if (!settings.enabled) return;
 
     if (testMode) {
+      console.log('[SoundEffects:TEST] playPositive called');
       return;
     }
 
-    const buffer = getBuffer(
-      settings.positiveSound,
-      settings.customPositiveUrl
-    );
+    const buffer = getBuffer(settings.positiveSound, settings.customPositiveUrl);
     if (buffer) {
       playBuffer(buffer);
     }
@@ -166,13 +155,11 @@ export function useSoundEffects(
     if (!settings.enabled) return;
 
     if (testMode) {
+      console.log('[SoundEffects:TEST] playNegative called');
       return;
     }
 
-    const buffer = getBuffer(
-      settings.negativeSound,
-      settings.customNegativeUrl
-    );
+    const buffer = getBuffer(settings.negativeSound, settings.customNegativeUrl);
     if (buffer) {
       playBuffer(buffer);
     }
