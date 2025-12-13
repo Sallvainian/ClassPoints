@@ -3,6 +3,7 @@ import type { Student, PointTransaction } from '../../types';
 import type { CardSize } from '../../hooks/useDisplaySettings';
 import { useApp } from '../../contexts/AppContext';
 import { useDisplaySettings } from '../../hooks/useDisplaySettings';
+import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { StudentGrid } from '../students/StudentGrid';
 import { AwardPointsModal } from '../points/AwardPointsModal';
 import { ClassAwardModal } from '../points/ClassAwardModal';
@@ -135,17 +136,22 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   };
 
   const handleUndo = useCallback(async (transactionId: string) => {
+    // Capture current undoable action at invocation time to prevent race condition
+    // where the action could become null during async execution (near end of undo window)
+    const actionToUndo = undoableAction;
+    if (!actionToUndo) return;
+
     try {
       // Check if this is a batch undo (class-wide award)
-      if (undoableAction?.isBatch && undoableAction.batchId) {
-        await undoBatchTransaction(undoableAction.batchId);
+      if (actionToUndo.isBatch && actionToUndo.batchId) {
+        await undoBatchTransaction(actionToUndo.batchId);
       } else {
         await undoTransaction(transactionId);
       }
       setUndoableAction(null);
     } catch (err) {
       console.error('Failed to undo transaction:', err);
-      setOperationError('Failed to undo. Please try again.');
+      setOperationError(ERROR_MESSAGES.UNDO);
     }
   }, [undoTransaction, undoBatchTransaction, undoableAction]);
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Button } from './Button';
 
 interface ErrorToastProps {
@@ -10,15 +10,21 @@ interface ErrorToastProps {
 export function ErrorToast({ error, onDismiss, duration = 5000 }: ErrorToastProps) {
   const [visible, setVisible] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  // Track if already dismissed to prevent double onDismiss calls
+  const dismissedRef = useRef(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (error) {
+      dismissedRef.current = false;
       setVisible(true);
       setTimeLeft(duration);
 
-      const hideTimer = setTimeout(() => {
-        setVisible(false);
-        onDismiss();
+      hideTimerRef.current = setTimeout(() => {
+        if (!dismissedRef.current) {
+          setVisible(false);
+          onDismiss();
+        }
       }, duration);
 
       // Countdown timer for progress bar
@@ -27,7 +33,9 @@ export function ErrorToast({ error, onDismiss, duration = 5000 }: ErrorToastProp
       }, 100);
 
       return () => {
-        clearTimeout(hideTimer);
+        if (hideTimerRef.current) {
+          clearTimeout(hideTimerRef.current);
+        }
         clearInterval(interval);
       };
     } else {
@@ -39,10 +47,14 @@ export function ErrorToast({ error, onDismiss, duration = 5000 }: ErrorToastProp
 
   const progress = (timeLeft / duration) * 100;
 
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
+    dismissedRef.current = true;
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+    }
     setVisible(false);
     onDismiss();
-  };
+  }, [onDismiss]);
 
   return (
     <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 animate-slide-up">

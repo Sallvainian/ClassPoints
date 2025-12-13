@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState } from 'react';
 import type { Behavior, StudentPoints } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
+import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
 
 interface ClassAwardModalProps {
@@ -71,7 +72,7 @@ export function ClassAwardModal({
       onClose();
     } catch (err) {
       console.error('Failed to award class points:', err);
-      setAwardError(err instanceof Error ? err.message : 'Failed to award points');
+      setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_CLASS);
       setIsAwarding(false);
     }
   }, [classroomId, isAwarding, awardClassPoints, playPositive, playNegative, onClose]);

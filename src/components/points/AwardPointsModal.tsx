@@ -3,6 +3,7 @@ import type { Student, Behavior } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { getAvatarColorForName } from '../../utils';
+import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
 
 interface AwardPointsModalProps {
@@ -64,7 +65,7 @@ export function AwardPointsModal({
       }
       onClose();
     } catch (err) {
-      setAwardError(err instanceof Error ? err.message : 'Failed to award points');
+      setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_POINTS);
       setIsAwarding(false);
     }
   }, [classroomId, student, isAwarding, awardPoints, playPositive, playNegative, onClose]);

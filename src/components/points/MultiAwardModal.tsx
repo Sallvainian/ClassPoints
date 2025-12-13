@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { Behavior, Student } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
+import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
 
 interface MultiAwardModalProps {
@@ -75,7 +76,7 @@ export function MultiAwardModal({
       onClose();
     } catch (err) {
       console.error('Failed to award points to students:', err);
-      setAwardError(err instanceof Error ? err.message : 'Failed to award points');
+      setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_STUDENTS);
       setIsAwarding(false);
     }
   }, [classroomId, selectedStudents, isAwarding, awardPointsToStudents, playPositive, playNegative, onClose]);
