@@ -34,3 +34,7 @@ dist-ssr
 !.claude/rules/
 .cursor/
 .serena/
+
+# Test artifacts
+playwright-report/
+test-results/
