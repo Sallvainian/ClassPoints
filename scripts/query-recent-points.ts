@@ -1,11 +1,12 @@
 // Query recent point transactions for period 7
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://hxclfwawibrtfjvptxno.supabase.co';
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY');
+if (!supabaseKey) {
+  console.error('Missing VITE_SUPABASE_ANON_KEY - please provide the anon key');
+  console.error('You can find it in Supabase Dashboard > Project Settings > API');
   process.exit(1);
 }
 
