@@ -11,6 +11,7 @@ UI Components → React Context → Custom Hooks → Supabase Client → Postgre
 ```
 
 **Key Contexts (in provider order):**
+
 1. `AuthProvider` - Supabase authentication
 2. `AuthGuard` - Route protection
 3. `HybridAppProvider` - Online/offline mode switching
@@ -19,17 +20,20 @@ UI Components → React Context → Custom Hooks → Supabase Client → Postgre
 ## Code Conventions
 
 ### File Organization
+
 - Components: `src/components/{feature}/ComponentName.tsx`
 - Hooks: `src/hooks/useHookName.ts`
 - Types: `src/types/`
 - Utils: `src/utils/`
 
 ### Naming
+
 - Components: PascalCase (`StudentGrid.tsx`)
 - Hooks: camelCase with `use` prefix (`useClassrooms.ts`)
 - Types: PascalCase interfaces (`Classroom`, `Student`)
 
 ### Component Patterns
+
 ```tsx
 // Functional components with TypeScript props
 interface ComponentProps {
@@ -52,32 +56,36 @@ export function Component({ prop }: ComponentProps) {
 ```
 
 ### State Management
+
 - Use `useApp()` hook for app-wide state access
 - Local state with `useState` for component-specific state
 - Never access contexts directly in components - use `useApp()` facade
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
-| `src/App.tsx` | Root component with provider hierarchy |
-| `src/contexts/AppContext.tsx` | Main state facade - READ THIS FIRST for data operations |
-| `src/contexts/HybridAppContext.tsx` | Online/offline switching logic |
-| `src/contexts/SupabaseAppContext.tsx` | Full Supabase data layer |
-| `src/hooks/useRealtimeSubscription.ts` | Generic realtime subscription hook |
-| `src/lib/supabase.ts` | Supabase client initialization |
-| `supabase/migrations/001_initial_schema.sql` | Database schema with RLS |
+| File                                         | Purpose                                                 |
+| -------------------------------------------- | ------------------------------------------------------- |
+| `src/App.tsx`                                | Root component with provider hierarchy                  |
+| `src/contexts/AppContext.tsx`                | Main state facade - READ THIS FIRST for data operations |
+| `src/contexts/HybridAppContext.tsx`          | Online/offline switching logic                          |
+| `src/contexts/SupabaseAppContext.tsx`        | Full Supabase data layer                                |
+| `src/hooks/useRealtimeSubscription.ts`       | Generic realtime subscription hook                      |
+| `src/lib/supabase.ts`                        | Supabase client initialization                          |
+| `supabase/migrations/001_initial_schema.sql` | Database schema with RLS                                |
 
 ## Database
 
 ### Tables
+
 - `classrooms` - User's classrooms
 - `students` - Students in classrooms
 - `behaviors` - Point behavior templates
 - `point_transactions` - Awarded points history
 
 ### Important: Row Level Security
+
 All tables have RLS. When adding new tables:
+
 ```sql
 ALTER TABLE new_table ENABLE ROW LEVEL SECURITY;
 
@@ -87,7 +95,9 @@ CREATE POLICY "Users can view own data" ON new_table
 ```
 
 ### Important: Realtime DELETE events
+
 Tables need `REPLICA IDENTITY FULL` for complete DELETE payloads:
+
 ```sql
 ALTER TABLE table_name REPLICA IDENTITY FULL;
 ```
@@ -95,16 +105,19 @@ ALTER TABLE table_name REPLICA IDENTITY FULL;
 ## Common Operations
 
 ### Adding a new component
+
 1. Create in appropriate `src/components/{feature}/` directory
 2. Export from component's index if exists
 3. Use `useApp()` for state access
 
 ### Adding a new hook
+
 1. Create in `src/hooks/useHookName.ts`
 2. Export from `src/hooks/index.ts`
 3. Follow existing hook patterns
 
 ### Adding a new database table
+
 1. Create migration in `supabase/migrations/`
 2. Add RLS policies
 3. Add types to `src/types/database.ts`
@@ -112,6 +125,7 @@ ALTER TABLE table_name REPLICA IDENTITY FULL;
 5. Create hook for data access
 
 ### Modifying state operations
+
 1. Update `SupabaseAppContext.tsx` for Supabase operations
 2. Update `HybridAppContext.tsx` if it affects online/offline behavior
 3. Expose through `AppContext.tsx` if needed by components
@@ -131,25 +145,28 @@ npm run test:e2e     # Playwright E2E tests
 
 **Using dotenvx for encrypted secrets.**
 
-| File | Purpose | Git |
-|------|---------|-----|
-| `.env.local` | Encrypted env vars | ✅ Committed |
-| `.env.keys` | Private decryption keys | ❌ Never commit |
-| `.env.example` | Template for reference | ✅ Committed |
+| File           | Purpose                 | Git             |
+| -------------- | ----------------------- | --------------- |
+| `.env.local`   | Encrypted env vars      | ✅ Committed    |
+| `.env.keys`    | Private decryption keys | ❌ Never commit |
+| `.env.example` | Template for reference  | ✅ Committed    |
 
 ### Running locally
+
 ```bash
 npm run dev        # dotenvx is built into npm scripts
 npm run dev:host   # expose to network
 ```
 
 ### Required variables (in `.env.local`):
+
 ```
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
 ```
 
 ### CI/CD Setup
+
 Set `DOTENV_PRIVATE_KEY_LOCAL` as a secret in your CI environment.
 
 ## Testing
@@ -169,35 +186,90 @@ Set `DOTENV_PRIVATE_KEY_LOCAL` as a secret in your CI environment.
 ## Types
 
 ### Core Domain Types
+
 ```typescript
 type BehaviorCategory = 'positive' | 'negative';
 
 interface Behavior {
-  id: string; name: string; points: number;
-  icon: string; category: BehaviorCategory;
-  isCustom: boolean; createdAt: number;
+  id: string;
+  name: string;
+  points: number;
+  icon: string;
+  category: BehaviorCategory;
+  isCustom: boolean;
+  createdAt: number;
 }
 
 interface Student {
-  id: string; name: string; avatarColor?: string;
+  id: string;
+  name: string;
+  avatarColor?: string;
 }
 
 interface Classroom {
-  id: string; name: string; students: Student[];
-  createdAt: number; updatedAt: number; pointTotal?: number;
+  id: string;
+  name: string;
+  students: Student[];
+  createdAt: number;
+  updatedAt: number;
+  pointTotal?: number;
 }
 
 interface PointTransaction {
-  id: string; studentId: string; classroomId: string;
-  behaviorId: string; behaviorName: string; behaviorIcon: string;
-  points: number; timestamp: number; note?: string;
+  id: string;
+  studentId: string;
+  classroomId: string;
+  behaviorId: string;
+  behaviorName: string;
+  behaviorIcon: string;
+  points: number;
+  timestamp: number;
+  note?: string;
 }
 ```
 
 ## Documentation
 
 Full documentation available in `docs/`:
+
 - [Architecture](docs/architecture.md)
 - [Data Models](docs/data-models.md)
 - [Tech Stack](docs/tech-stack.md)
 - [Source Tree](docs/source-tree.md)
+
+## Development Workflow
+
+This project uses the BMAD (Business Method for AI Development) framework for structured development workflows. Use the appropriate slash command for each task type.
+
+### Planning Phase
+
+| Task Type     | Command                                    | Description                                   |
+| ------------- | ------------------------------------------ | --------------------------------------------- |
+| Product Brief | `/bmad:bmm:workflows:create-product-brief` | Create initial product concept documentation  |
+| Research      | `/bmad:bmm:workflows:research`             | Conduct market, technical, or domain research |
+| PRD           | `/bmad:bmm:workflows:create-prd`           | Create Product Requirements Document          |
+
+### Solutioning Phase
+
+| Task Type       | Command                                    | Description                                    |
+| --------------- | ------------------------------------------ | ---------------------------------------------- |
+| Architecture    | `/bmad:bmm:workflows:create-architecture`  | Design system architecture                     |
+| UX Design       | `/bmad:bmm:workflows:create-ux-design`     | Create UX design specifications                |
+| Epics & Stories | `/bmad:bmm:workflows:create-epics-stories` | Break down requirements into epics and stories |
+
+### Implementation Phase
+
+> **Prerequisite:** `sprint-status.yaml` must exist before starting implementation. Run `sprint-planning` first if it doesn't exist.
+
+| Task Type       | Command                               | Description                                        |
+| --------------- | ------------------------------------- | -------------------------------------------------- |
+| Sprint Planning | `/bmad:bmm:workflows:sprint-planning` | Initialize sprint tracking with sprint-status.yaml |
+| Create Story    | `/bmad:bmm:workflows:create-story`    | Create comprehensive story context for development |
+| Implement Story | `/bmad:bmm:workflows:dev-story`       | Execute story implementation with TDD              |
+
+### Review & Completion Phase
+
+| Task Type     | Command                             | Description                                     |
+| ------------- | ----------------------------------- | ----------------------------------------------- |
+| Code Review   | `/bmad:bmm:workflows:code-review`   | Run adversarial code review on completed work   |
+| Retrospective | `/bmad:bmm:workflows:retrospective` | Run epic retrospective after completing an epic |
