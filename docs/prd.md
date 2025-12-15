@@ -76,13 +76,13 @@ Measurable technical outcomes:
 
 ### Measurable Outcomes
 
-| Metric                 | Target                       |
-| ---------------------- | ---------------------------- |
-| TypeScript strict mode | Enabled, zero errors         |
-| ESLint warnings        | Zero                         |
-| Prettier compliance    | 100% of files formatted      |
-| Git hooks              | Pre-commit validation active |
-| CLAUDE.md completeness | All patterns documented      |
+| Metric                 | Target                         |
+| ---------------------- | ------------------------------ |
+| TypeScript strict mode | Enabled, zero errors           |
+| ESLint warnings        | Zero                           |
+| Prettier compliance    | 100% of files formatted        |
+| Git hooks              | Pre-commit validation active   |
+| BMAD integration       | CLAUDE.md references workflows |
 
 ## Product Scope
 
@@ -93,7 +93,7 @@ Developer experience foundation:
 1. **Tooling Setup:** Prettier + ESLint configured with appropriate rules
 2. **Git Hooks:** Pre-commit hooks enforcing format and lint
 3. **TypeScript Strict Mode:** Enable and fix all resulting errors
-4. **Pattern Documentation:** Update CLAUDE.md with clear coding conventions
+4. **BMAD Integration:** Update CLAUDE.md to reference BMAD workflows
 5. **Code Cleanup:** Address obvious pattern inconsistencies
 
 ### Growth Features (Post-MVP)
@@ -178,7 +178,7 @@ These journeys reveal the core capabilities needed:
 | ESLint            | Zero warnings, rules enforced    |
 | TypeScript Strict | Enabled, all errors resolved     |
 | Git Hooks         | Pre-commit validation active     |
-| CLAUDE.md         | All patterns clearly documented  |
+| BMAD Integration  | CLAUDE.md references workflows   |
 
 ### Post-MVP Features
 
@@ -240,21 +240,20 @@ These journeys reveal the core capabilities needed:
 - FR13: Commits that fail validation are rejected with clear error messages
 - FR14: Developers can bypass hooks in emergency situations with explicit flag
 
-### Pattern Documentation (Claude Rules)
+### BMAD Workflow Integration
 
-- FR15: CLAUDE.md documents universal project context (tech stack, architecture, key files)
-- FR16: Modular rules files exist in `.claude/rules/` for path-specific patterns
-- FR17: Component rules load only when working on component files
-- FR18: Hook rules load only when working on hook files
-- FR19: Context/state management rules load only when working on context files
-- FR20: Each rules file documents naming conventions, patterns, and examples for its domain
-- FR21: AI assistants receive relevant rules automatically based on the files they're editing
+- FR15: CLAUDE.md contains a "Development Workflow" section that maps task types to BMAD workflows
+- FR16: Planning tasks (PRD, research, product briefs) are routed to /bmad:bmm:workflows commands
+- FR17: Solutioning tasks (architecture, UX design, epics/stories) are routed to /bmad:bmm:workflows commands
+- FR18: Implementation tasks require active sprint-status.yaml and use dev-story workflow
+- FR19: Code review and retrospective tasks use corresponding BMAD workflows
+- FR20: bmm-workflow-status.yaml must only be updated through proper BMAD workflows, not manually
 
 ### Developer Experience
 
-- FR22: Developers can set up the project with a single npm install command
-- FR23: All tooling runs automatically without manual intervention during normal workflow
-- FR24: Error messages from tooling are clear and actionable
+- FR21: Developers can set up the project with a single npm install command
+- FR22: All tooling runs automatically without manual intervention during normal workflow
+- FR23: Error messages from tooling are clear and actionable
 
 ## Non-Functional Requirements
 
@@ -270,14 +269,8 @@ These journeys reveal the core capabilities needed:
 - NFR5: Tooling configuration is documented and easy to understand
 - NFR6: New developers can set up the project in under 5 minutes
 
-### Documentation Accuracy
-
-- NFR7: CLAUDE.md and rules files accurately reflect current project patterns
-- NFR8: Documentation updates are part of the PR process when patterns change
-- NFR9: No outdated or contradictory pattern guidance exists in documentation
-
 ### Reliability
 
-- NFR10: Tooling works consistently across all developer machines
-- NFR11: Pre-commit hooks don't fail due to environment differences
-- NFR12: CI/CD pipeline validates the same rules as local development
+- NFR7: Tooling works consistently across all developer machines
+- NFR8: Pre-commit hooks don't fail due to environment differences
+- NFR9: CI/CD pipeline validates the same rules as local development
