@@ -7,13 +7,32 @@
 
 set -e
 
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
 BASE_BRANCH="${1:-main}"
 
 echo "🔍 Detecting changed files since $BASE_BRANCH..."
 echo ""
 
-# Get changed files
-CHANGED_FILES=$(git diff --name-only "$BASE_BRANCH"...HEAD 2>/dev/null || git diff --name-only HEAD~1)
+# Get changed files with explicit fallback handling
+if ! CHANGED_FILES=$(git diff --name-only "$BASE_BRANCH"...HEAD 2>&1); then
+  echo -e "${YELLOW}Warning: Could not diff against '$BASE_BRANCH'${NC}"
+  echo "  Reason: $CHANGED_FILES"
+  echo ""
+  echo -e "${YELLOW}Falling back to comparing with HEAD~1${NC}"
+  echo ""
+
+  if ! CHANGED_FILES=$(git diff --name-only HEAD~1 2>&1); then
+    echo -e "${RED}Error: Could not determine changed files${NC}"
+    echo "  Reason: $CHANGED_FILES"
+    echo ""
+    echo "Ensure you're in a git repository with at least one commit."
+    exit 1
+  fi
+fi
 
 # Filter for test-affecting changes
 TEST_FILES=$(echo "$CHANGED_FILES" | grep -E "^e2e/.*\.(ts|tsx)$" || true)
@@ -43,9 +62,8 @@ echo ""
 # If specific test files changed, run only those
 if [ -n "$TEST_FILES" ]; then
   echo "🧪 Running changed test files..."
-  # Convert file paths to test filter
-  TEST_FILTER=$(echo "$TEST_FILES" | tr '\n' '|' | sed 's/|$//')
-  npx playwright test --grep "$TEST_FILTER"
+  # Pass files directly to playwright (not --grep which filters by title)
+  echo "$TEST_FILES" | xargs npx playwright test
 else
   echo "🧪 Source files changed - running full test suite..."
   npm run test:e2e
