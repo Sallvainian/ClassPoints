@@ -15,8 +15,22 @@ interface ParsedName {
 
 // Common name suffixes to preserve (case-insensitive)
 const NAME_SUFFIXES = new Set([
-  'jr', 'jr.', 'sr', 'sr.', 'i', 'ii', 'iii', 'iv', 'v', 'vi',
-  'esq', 'esq.', 'phd', 'md', 'dds', 'dvm'
+  'jr',
+  'jr.',
+  'sr',
+  'sr.',
+  'i',
+  'ii',
+  'iii',
+  'iv',
+  'v',
+  'vi',
+  'esq',
+  'esq.',
+  'phd',
+  'md',
+  'dds',
+  'dvm',
 ]);
 
 /**
@@ -67,7 +81,7 @@ function parseFullName(fullName: string): ParsedName {
     return {
       firstName: firstName || lastName.trim(),
       lastName: firstName ? lastName.trim() : '',
-      original: trimmed
+      original: trimmed,
     };
   }
 
@@ -104,7 +118,7 @@ export function generateDisplayNames(rawNames: string[]): string[] {
   }
 
   // Generate display names
-  return parsedNames.map(parsed => {
+  return parsedNames.map((parsed) => {
     const key = parsed.firstName.toLowerCase();
     const group = firstNameGroups.get(key)!;
 
@@ -121,8 +135,8 @@ export function generateDisplayNames(rawNames: string[]): string[] {
     const lastInitial = parsed.lastName[0].toUpperCase();
 
     // Check if last initial is enough to disambiguate
-    const sameInitial = group.filter(p =>
-      p.lastName && p.lastName[0].toUpperCase() === lastInitial
+    const sameInitial = group.filter(
+      (p) => p.lastName && p.lastName[0].toUpperCase() === lastInitial
     );
 
     if (sameInitial.length === 1) {
@@ -163,7 +177,16 @@ export function parseJSON(content: string): ParseResult {
         }
       } else if (typeof item === 'object' && item !== null) {
         // Try common property names for student name
-        const nameKeys = ['name', 'Name', 'student', 'Student', 'studentName', 'StudentName', 'fullName', 'FullName'];
+        const nameKeys = [
+          'name',
+          'Name',
+          'student',
+          'Student',
+          'studentName',
+          'StudentName',
+          'fullName',
+          'FullName',
+        ];
         let found = false;
 
         for (const key of nameKeys) {
@@ -216,7 +239,7 @@ export function parseCSV(content: string): ParseResult {
   const errors: string[] = [];
   const names: string[] = [];
 
-  const lines = content.split(/\r?\n/).filter(line => line.trim());
+  const lines = content.split(/\r?\n/).filter((line) => line.trim());
 
   if (lines.length === 0) {
     return { names: [], errors: ['CSV file is empty'] };
@@ -224,10 +247,11 @@ export function parseCSV(content: string): ParseResult {
 
   // Check if first line is a header
   const firstLine = lines[0].toLowerCase();
-  const hasHeader = firstLine.includes('name') ||
-                    firstLine.includes('student') ||
-                    firstLine === 'names' ||
-                    firstLine === 'students';
+  const hasHeader =
+    firstLine.includes('name') ||
+    firstLine.includes('student') ||
+    firstLine === 'names' ||
+    firstLine === 'students';
 
   const startIndex = hasHeader ? 1 : 0;
 
@@ -239,10 +263,11 @@ export function parseCSV(content: string): ParseResult {
   let nameColumnIndex = 0;
   if (hasHeader) {
     const headers = parseCSVLine(lines[0]);
-    const headerLower = headers.map(h => h.toLowerCase().trim());
+    const headerLower = headers.map((h) => h.toLowerCase().trim());
 
-    const nameIndex = headerLower.findIndex(h =>
-      h === 'name' || h === 'student' || h === 'studentname' || h === 'fullname' || h === 'names'
+    const nameIndex = headerLower.findIndex(
+      (h) =>
+        h === 'name' || h === 'student' || h === 'studentname' || h === 'fullname' || h === 'names'
     );
 
     if (nameIndex !== -1) {

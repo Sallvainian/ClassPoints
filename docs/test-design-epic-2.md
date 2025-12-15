@@ -1,4 +1,4 @@
-# Test Design: Epic 3 - BMAD Workflow Integration
+# Test Design: Epic 2 - BMAD Workflow Integration
 
 **Date:** 2025-12-14
 **Author:** Sallvain
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-**Scope:** Full test design for Epic 3 - BMAD Workflow Integration
+**Scope:** Full test design for Epic 2 - BMAD Workflow Integration
 
 **Risk Summary:**
 
@@ -29,7 +29,7 @@
 
 ### Context: Documentation-Only Epic
 
-Epic 3 is unique in this project because it involves **documentation updates only** - specifically updating CLAUDE.md to include BMAD workflow guidance. There is no production code being written, no database changes, and no UI modifications.
+Epic 2 is unique in this project because it involves **documentation updates only** - specifically updating CLAUDE.md to include BMAD workflow guidance. There is no production code being written, no database changes, and no UI modifications.
 
 This significantly reduces the risk profile compared to code-focused epics. The primary risks are:
 
@@ -70,7 +70,7 @@ This epic has **no high-priority risks** because:
 
 ### Testing Philosophy for Documentation Epics
 
-Traditional automated testing (unit, integration, E2E) is **not applicable** for documentation-only changes like Epic 3. Instead, we use:
+Traditional automated testing (unit, integration, E2E) is **not applicable** for documentation-only changes like Epic 2. Instead, we use:
 
 1. **Content Verification Tests** - Validate that specific content exists in CLAUDE.md
 2. **Cross-Reference Validation** - Verify documented commands match actual files
@@ -301,7 +301,7 @@ fi
 
 **Mitigation Strategy:** Add explicit warning in CLAUDE.md; optionally add pre-commit hook to detect manual edits
 **Owner:** DEV
-**Timeline:** Story 3.3 implementation
+**Timeline:** Story 2.3 implementation
 **Status:** Planned
 **Verification:** grep test for prohibition text
 
@@ -318,7 +318,7 @@ fi
 
 ### Dependencies
 
-1. Epic 1 and Epic 2 not required before Epic 3 (documentation is independent)
+1. Epic 1 not required before Epic 2 (documentation is independent)
 2. BMAD installation must be complete before validation tests can run
 
 ### Risks to Plan
@@ -353,7 +353,7 @@ fi
 ### Related Documents
 
 - PRD: `docs/prd.md`
-- Epic: `docs/epics.md` (Epic 3 section)
+- Epic: `docs/epics.md` (Epic 2 section)
 - Architecture: `docs/architecture.md`
 - System Test Design: `docs/test-design-system.md`
 

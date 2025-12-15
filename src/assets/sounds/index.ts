@@ -16,11 +16,7 @@ export type SoundId = PositiveSoundId | NegativeSoundId;
 export type SoundCategory = 'positive' | 'negative';
 
 // Runtime validation arrays (must match type definitions)
-export const POSITIVE_SOUND_IDS: readonly PositiveSoundId[] = [
-  'chime',
-  'bell',
-  'sparkle',
-] as const;
+export const POSITIVE_SOUND_IDS: readonly PositiveSoundId[] = ['chime', 'bell', 'sparkle'] as const;
 export const NEGATIVE_SOUND_IDS: readonly NegativeSoundId[] = [
   'soft-buzz',
   'low-tone',
@@ -69,7 +65,7 @@ export const SOUND_DEFINITIONS: Record<SoundId, SoundDefinition> = {
     name: 'Sparkle',
     category: 'positive',
     description: 'Magical sparkle effect',
-    frequencies: [1318.51, 1567.98, 2093.00], // E6, G6, C7 - high sparkle
+    frequencies: [1318.51, 1567.98, 2093.0], // E6, G6, C7 - high sparkle
     duration: 0.35,
     waveType: 'sine',
   },

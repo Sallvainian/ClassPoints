@@ -1,0 +1,38 @@
+# Build output
+dist
+dist-ssr
+
+# AI tooling folders
+.bmad
+.claude
+.agent
+.cursor
+.serena
+.github
+.agentvibes
+
+# BMAD custom modules
+bmad-custom-src
+bmad-custom-modules-src
+
+# Documentation (BMAD artifacts)
+docs
+
+# Dependencies
+node_modules
+
+# Generated/config
+*.config.js
+*.config.ts
+
+# Supabase
+supabase
+
+# Scripts
+scripts
+
+# Coverage
+coverage
+
+# Misc
+.git

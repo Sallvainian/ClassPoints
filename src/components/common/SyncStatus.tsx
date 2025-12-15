@@ -38,9 +38,7 @@ export function SyncStatus() {
       >
         {/* Status indicator */}
         <div
-          className={`w-2 h-2 rounded-full ${
-            status.isOnline ? 'bg-green-500' : 'bg-gray-400'
-          }`}
+          className={`w-2 h-2 rounded-full ${status.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}
         />
 
         {/* Status text */}
@@ -49,9 +47,7 @@ export function SyncStatus() {
           {status.isOnline && status.pendingOperations > 0 && (
             <>Syncing {status.pendingOperations} changes...</>
           )}
-          {status.isOnline && status.syncError && (
-            <>Sync error: {status.syncError}</>
-          )}
+          {status.isOnline && status.syncError && <>Sync error: {status.syncError}</>}
         </span>
 
         {/* Retry button for errors */}

@@ -30,9 +30,7 @@ export function TodaySummary({ transactions, students, limit = 10 }: TodaySummar
 
   // Get recent transactions
   const recentTransactions = useMemo(() => {
-    return [...transactions]
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, limit);
+    return [...transactions].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
   }, [transactions, limit]);
 
   if (recentTransactions.length === 0) {
@@ -63,23 +61,16 @@ export function TodaySummary({ transactions, students, limit = 10 }: TodaySummar
               <p className="text-sm font-medium text-gray-900 truncate">
                 {getStudentName(transaction.studentId)}
               </p>
-              <p className="text-xs text-gray-500 truncate">
-                {transaction.behaviorName}
-              </p>
+              <p className="text-xs text-gray-500 truncate">{transaction.behaviorName}</p>
             </div>
 
             {/* Points & Time */}
             <div className="text-right">
-              <span
-                className={`font-bold ${
-                  isPositive ? 'text-emerald-600' : 'text-red-600'
-                }`}
-              >
-                {isPositive ? '+' : ''}{transaction.points}
+              <span className={`font-bold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+                {isPositive ? '+' : ''}
+                {transaction.points}
               </span>
-              <p className="text-xs text-gray-400">
-                {formatRelativeTime(transaction.timestamp)}
-              </p>
+              <p className="text-xs text-gray-400">{formatRelativeTime(transaction.timestamp)}</p>
             </div>
           </div>
         );

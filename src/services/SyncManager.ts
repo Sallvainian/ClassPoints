@@ -146,11 +146,7 @@ class SyncManager {
   /**
    * Queue an operation for sync
    */
-  queueOperation(
-    table: TableName,
-    type: OperationType,
-    data: Record<string, unknown>
-  ): void {
+  queueOperation(table: TableName, type: OperationType, data: Record<string, unknown>): void {
     const operation: QueuedOperation = {
       id: crypto.randomUUID(),
       table,
@@ -213,8 +209,9 @@ class SyncManager {
     switch (type) {
       case 'INSERT': {
         // Type assertion needed for dynamic table operations
-        const { error } = await (supabase.from(table) as ReturnType<typeof supabase.from>)
-          .insert(data as Database['public']['Tables'][typeof table]['Insert']);
+        const { error } = await (supabase.from(table) as ReturnType<typeof supabase.from>).insert(
+          data as Database['public']['Tables'][typeof table]['Insert']
+        );
         if (error) throw error;
         break;
       }

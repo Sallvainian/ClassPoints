@@ -165,12 +165,12 @@
 | FR12 | Pre-commit hooks automation                 | Epic 1, Story 1.3 | ✓ Covered |
 | FR13 | Clear rejection messages                    | Epic 1, Story 1.3 | ✓ Covered |
 | FR14 | Emergency bypass flag                       | Epic 1, Story 1.3 | ✓ Covered |
-| FR15 | CLAUDE.md workflow mapping                  | Epic 3, Story 3.1 | ✓ Covered |
-| FR16 | Planning tasks routed to BMAD               | Epic 3, Story 3.1 | ✓ Covered |
-| FR17 | Solutioning tasks routed to BMAD            | Epic 3, Story 3.1 | ✓ Covered |
-| FR18 | Implementation requires sprint-status.yaml  | Epic 3, Story 3.2 | ✓ Covered |
-| FR19 | Code review/retro use BMAD workflows        | Epic 3, Story 3.2 | ✓ Covered |
-| FR20 | bmm-workflow-status.yaml via workflows only | Epic 3, Story 3.3 | ✓ Covered |
+| FR15 | CLAUDE.md workflow mapping                  | Epic 2, Story 2.1 | ✓ Covered |
+| FR16 | Planning tasks routed to BMAD               | Epic 2, Story 2.1 | ✓ Covered |
+| FR17 | Solutioning tasks routed to BMAD            | Epic 2, Story 2.1 | ✓ Covered |
+| FR18 | Implementation requires sprint-status.yaml  | Epic 2, Story 2.2 | ✓ Covered |
+| FR19 | Code review/retro use BMAD workflows        | Epic 2, Story 2.2 | ✓ Covered |
+| FR20 | bmm-workflow-status.yaml via workflows only | Epic 2, Story 2.3 | ✓ Covered |
 | FR21 | Single npm install setup                    | Epic 1, Story 1.4 | ✓ Covered |
 | FR22 | Automatic tooling workflow                  | Epic 1, Story 1.4 | ✓ Covered |
 | FR23 | Actionable error messages                   | Epic 1, Story 1.4 | ✓ Covered |
@@ -252,8 +252,7 @@
 | Epic                                      | User Value | Independent | Story Sizing | No Forward Deps | AC Quality | FR Traceability |
 | ----------------------------------------- | ---------- | ----------- | ------------ | --------------- | ---------- | --------------- |
 | Epic 1: Automated Code Quality Foundation | ✓          | ✓           | ✓            | ✓               | ✓          | ✓               |
-| Epic 2: Type-Safe Development Environment | ✓          | ✓           | ✓            | ✓               | ✓          | ✓               |
-| Epic 3: BMAD Workflow Integration         | ✓          | ✓           | ✓            | ✓               | ✓          | ✓               |
+| Epic 2: BMAD Workflow Integration         | ✓          | ✓           | ✓            | ✓               | ✓          | ✓               |
 
 ### Epic Structure Validation
 
@@ -261,7 +260,7 @@
 | ------ | ------------------- | ---------------------------------- | ---------- |
 | Epic 1 | 4 stories (1.1-1.4) | 1.3 uses 1.1 & 1.2 (backward only) | ✓ Valid    |
 | Epic 2 | 2 stories (2.1-2.2) | 2.2 uses 2.1 (backward only)       | ✓ Valid    |
-| Epic 3 | 3 stories (3.1-3.3) | None between stories               | ✓ Valid    |
+| Epic 2 | 3 stories (2.1-2.3) | None between stories               | ✓ Valid    |
 
 ### Quality Violations Found
 

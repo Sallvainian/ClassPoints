@@ -28,16 +28,10 @@ export function AuthPage() {
           />
         )}
 
-        {view === 'signup' && (
-          <SignupForm
-            onSwitchToLogin={() => setView('login')}
-          />
-        )}
+        {view === 'signup' && <SignupForm onSwitchToLogin={() => setView('login')} />}
 
         {view === 'forgot-password' && (
-          <ForgotPasswordForm
-            onBackToLogin={() => setView('login')}
-          />
+          <ForgotPasswordForm onBackToLogin={() => setView('login')} />
         )}
       </div>
     </div>

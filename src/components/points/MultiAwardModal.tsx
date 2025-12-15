@@ -48,38 +48,49 @@ export function MultiAwardModal({
     }
   }, [isOpen]);
 
-  const handleBehaviorSelect = useCallback(async (behavior: Behavior) => {
-    if (selectedStudents.length === 0 || isAwarding) return;
+  const handleBehaviorSelect = useCallback(
+    async (behavior: Behavior) => {
+      if (selectedStudents.length === 0 || isAwarding) return;
 
-    setIsAwarding(true);
-    setAwardError(null);
+      setIsAwarding(true);
+      setAwardError(null);
 
-    try {
-      // Extract student IDs for the atomic batch operation
-      const studentIds = selectedStudents.map((s) => s.id);
+      try {
+        // Extract student IDs for the atomic batch operation
+        const studentIds = selectedStudents.map((s) => s.id);
 
-      // awardPointsToStudents throws on error with automatic rollback
-      await awardPointsToStudents(
-        classroomId,
-        studentIds,
-        behavior.id,
-        `Multi-select award (${selectedStudents.length} students)`
-      );
+        // awardPointsToStudents throws on error with automatic rollback
+        await awardPointsToStudents(
+          classroomId,
+          studentIds,
+          behavior.id,
+          `Multi-select award (${selectedStudents.length} students)`
+        );
 
-      // Play sound once after successful batch award
-      if (behavior.category === 'positive') {
-        playPositive();
-      } else {
-        playNegative();
+        // Play sound once after successful batch award
+        if (behavior.category === 'positive') {
+          playPositive();
+        } else {
+          playNegative();
+        }
+
+        onClose();
+      } catch (err) {
+        console.error('Failed to award points to students:', err);
+        setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_STUDENTS);
+        setIsAwarding(false);
       }
-
-      onClose();
-    } catch (err) {
-      console.error('Failed to award points to students:', err);
-      setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_STUDENTS);
-      setIsAwarding(false);
-    }
-  }, [classroomId, selectedStudents, isAwarding, awardPointsToStudents, playPositive, playNegative, onClose]);
+    },
+    [
+      classroomId,
+      selectedStudents,
+      isAwarding,
+      awardPointsToStudents,
+      playPositive,
+      playNegative,
+      onClose,
+    ]
+  );
 
   if (!isOpen || selectedStudents.length === 0) return null;
 
@@ -124,9 +135,7 @@ export function MultiAwardModal({
                 </div>
               ))}
               {selectedStudents.length > 3 && (
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-white/30 border-2 border-white/40"
-                >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-white/30 border-2 border-white/40">
                   +{selectedStudents.length - 3}
                 </div>
               )}
@@ -154,7 +163,9 @@ export function MultiAwardModal({
           {isAwarding ? (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mb-3" />
-              <p className="text-gray-600">Awarding points to {selectedStudents.length} students...</p>
+              <p className="text-gray-600">
+                Awarding points to {selectedStudents.length} students...
+              </p>
             </div>
           ) : (
             <>

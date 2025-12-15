@@ -5,11 +5,7 @@
 import { useState } from 'react';
 import { useSoundContext } from '../../contexts/SoundContext';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
-import {
-  type SoundId,
-  POSITIVE_SOUNDS,
-  NEGATIVE_SOUNDS,
-} from '../../assets/sounds';
+import { type SoundId, POSITIVE_SOUNDS, NEGATIVE_SOUNDS } from '../../assets/sounds';
 import { validateAudioUrl } from '../../utils/validateAudioUrl';
 
 interface SoundSettingsProps {
@@ -20,12 +16,8 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
   const { settings, updateSettings, isLoading, error } = useSoundContext();
   const { playPositive, playNegative } = useSoundEffects();
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [customPositiveUrl, setCustomPositiveUrl] = useState(
-    settings.customPositiveUrl || ''
-  );
-  const [customNegativeUrl, setCustomNegativeUrl] = useState(
-    settings.customNegativeUrl || ''
-  );
+  const [customPositiveUrl, setCustomPositiveUrl] = useState(settings.customPositiveUrl || '');
+  const [customNegativeUrl, setCustomNegativeUrl] = useState(settings.customNegativeUrl || '');
   const [urlError, setUrlError] = useState<string | null>(null);
   const [isSavingUrl, setIsSavingUrl] = useState(false);
 
@@ -88,7 +80,9 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 id="sound-settings-title" className="text-lg font-semibold text-gray-900">Sound Settings</h2>
+        <h2 id="sound-settings-title" className="text-lg font-semibold text-gray-900">
+          Sound Settings
+        </h2>
         {onClose && (
           <button
             onClick={onClose}
@@ -145,9 +139,7 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
 
       {/* Positive Sound Selection */}
       <div className={settings.enabled ? '' : 'opacity-50 pointer-events-none'}>
-        <label className="block font-medium text-gray-900 mb-2">
-          Positive Behavior Sound
-        </label>
+        <label className="block font-medium text-gray-900 mb-2">Positive Behavior Sound</label>
         <div className="flex gap-2">
           <select
             value={settings.positiveSound}
@@ -172,9 +164,7 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
 
       {/* Negative Sound Selection */}
       <div className={settings.enabled ? '' : 'opacity-50 pointer-events-none'}>
-        <label className="block font-medium text-gray-900 mb-2">
-          Negative Behavior Sound
-        </label>
+        <label className="block font-medium text-gray-900 mb-2">Negative Behavior Sound</label>
         <div className="flex gap-2">
           <select
             value={settings.negativeSound}
@@ -203,10 +193,13 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
           onClick={() => setShowAdvanced(!showAdvanced)}
           className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
         >
-          <span className="transform transition-transform" style={{
-            display: 'inline-block',
-            transform: showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)'
-          }}>
+          <span
+            className="transform transition-transform"
+            style={{
+              display: 'inline-block',
+              transform: showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)',
+            }}
+          >
             ▶
           </span>
           Advanced: Custom Sound URLs
@@ -222,9 +215,7 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
 
             {/* Custom Positive URL */}
             <div>
-              <label className="block text-sm text-gray-700 mb-1">
-                Custom Positive Sound URL
-              </label>
+              <label className="block text-sm text-gray-700 mb-1">Custom Positive Sound URL</label>
               <div className="flex gap-2">
                 <input
                   type="url"
@@ -248,9 +239,7 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
 
             {/* Custom Negative URL */}
             <div>
-              <label className="block text-sm text-gray-700 mb-1">
-                Custom Negative Sound URL
-              </label>
+              <label className="block text-sm text-gray-700 mb-1">Custom Negative Sound URL</label>
               <div className="flex gap-2">
                 <input
                   type="url"
@@ -267,9 +256,7 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
                   {isSavingUrl ? '...' : 'Save'}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Leave empty to use built-in sound
-              </p>
+              <p className="text-xs text-gray-500 mt-1">Leave empty to use built-in sound</p>
             </div>
           </div>
         )}

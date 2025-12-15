@@ -101,7 +101,11 @@ interface HybridAppContextValue {
   // Student operations
   addStudent: (classroomId: string, name: string) => Promise<DbStudent | null>;
   addStudents: (classroomId: string, names: string[]) => Promise<DbStudent[]>;
-  updateStudent: (classroomId: string, studentId: string, updates: Partial<DbStudent>) => Promise<void>;
+  updateStudent: (
+    classroomId: string,
+    studentId: string,
+    updates: Partial<DbStudent>
+  ) => Promise<void>;
   removeStudent: (classroomId: string, studentId: string) => Promise<void>;
 
   // Behavior operations
@@ -111,9 +115,23 @@ interface HybridAppContextValue {
   resetBehaviorsToDefault: () => Promise<void>;
 
   // Point operations
-  awardPoints: (classroomId: string, studentId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction | null>;
-  awardClassPoints: (classroomId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
-  awardPointsToStudents: (classroomId: string, studentIds: string[], behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
+  awardPoints: (
+    classroomId: string,
+    studentId: string,
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction | null>;
+  awardClassPoints: (
+    classroomId: string,
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction[]>;
+  awardPointsToStudents: (
+    classroomId: string,
+    studentIds: string[],
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction[]>;
   undoTransaction: (transactionId: string) => Promise<void>;
   undoBatchTransaction: (batchId: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
@@ -187,11 +205,7 @@ function HybridAppProviderInner({ children }: { children: ReactNode }) {
     clearStudentPoints: supabaseApp.clearStudentPoints,
   };
 
-  return (
-    <HybridAppContext.Provider value={value}>
-      {children}
-    </HybridAppContext.Provider>
-  );
+  return <HybridAppContext.Provider value={value}>{children}</HybridAppContext.Provider>;
 }
 
 /**

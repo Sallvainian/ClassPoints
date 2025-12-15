@@ -116,7 +116,11 @@ interface SupabaseAppContextValue {
   // Student operations
   addStudent: (classroomId: string, name: string) => Promise<DbStudent | null>;
   addStudents: (classroomId: string, names: string[]) => Promise<DbStudent[]>;
-  updateStudent: (classroomId: string, studentId: string, updates: Partial<DbStudent>) => Promise<void>;
+  updateStudent: (
+    classroomId: string,
+    studentId: string,
+    updates: Partial<DbStudent>
+  ) => Promise<void>;
   removeStudent: (classroomId: string, studentId: string) => Promise<void>;
 
   // Behavior operations
@@ -126,9 +130,23 @@ interface SupabaseAppContextValue {
   resetBehaviorsToDefault: () => Promise<void>;
 
   // Point operations
-  awardPoints: (classroomId: string, studentId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction | null>;
-  awardClassPoints: (classroomId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
-  awardPointsToStudents: (classroomId: string, studentIds: string[], behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
+  awardPoints: (
+    classroomId: string,
+    studentId: string,
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction | null>;
+  awardClassPoints: (
+    classroomId: string,
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction[]>;
+  awardPointsToStudents: (
+    classroomId: string,
+    studentIds: string[],
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction[]>;
   undoTransaction: (transactionId: string) => Promise<void>;
   undoBatchTransaction: (batchId: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
@@ -314,10 +332,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
   const resetBehaviorsToDefault = useCallback(async (): Promise<void> => {
     // Delete all current behaviors for this user
-    const { error: deleteError } = await supabase
-      .from('behaviors')
-      .delete()
-      .not('id', 'is', null); // Delete all rows
+    const { error: deleteError } = await supabase.from('behaviors').delete().not('id', 'is', null); // Delete all rows
 
     if (deleteError) {
       console.error('Error deleting behaviors:', deleteError);
@@ -325,9 +340,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     }
 
     // Insert default behaviors
-    const { error: insertError } = await supabase
-      .from('behaviors')
-      .insert(DEFAULT_BEHAVIORS);
+    const { error: insertError } = await supabase.from('behaviors').insert(DEFAULT_BEHAVIORS);
 
     if (insertError) {
       console.error('Error inserting default behaviors:', insertError);
@@ -369,7 +382,12 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
         throw err;
       }
     },
-    [behaviors, awardPointsHook, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
+    [
+      behaviors,
+      awardPointsHook,
+      updateStudentPointsOptimistically,
+      updateClassroomPointsOptimistically,
+    ]
   );
 
   const awardClassPoints = useCallback(
@@ -429,7 +447,13 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       return data || [];
     },
-    [behaviors, students, refetchTransactions, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
+    [
+      behaviors,
+      students,
+      refetchTransactions,
+      updateStudentPointsOptimistically,
+      updateClassroomPointsOptimistically,
+    ]
   );
 
   // Award points to specific students (atomic batch insert - all or nothing)
@@ -496,7 +520,13 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       return data || [];
     },
-    [behaviors, students, refetchTransactions, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
+    [
+      behaviors,
+      students,
+      refetchTransactions,
+      updateStudentPointsOptimistically,
+      updateClassroomPointsOptimistically,
+    ]
   );
 
   const undoTransaction = useCallback(
@@ -647,10 +677,15 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   const mappedClassrooms: AppClassroom[] = useMemo(() => {
     return classrooms.map((c) => {
       // Create placeholder array matching student_count for consistent display
-      const placeholderStudents: AppStudent[] = Array.from(
-        { length: c.student_count },
-        (_, i) => ({ id: `placeholder-${i}`, name: '', pointTotal: 0, positiveTotal: 0, negativeTotal: 0, todayTotal: 0, thisWeekTotal: 0 })
-      );
+      const placeholderStudents: AppStudent[] = Array.from({ length: c.student_count }, (_, i) => ({
+        id: `placeholder-${i}`,
+        name: '',
+        pointTotal: 0,
+        positiveTotal: 0,
+        negativeTotal: 0,
+        todayTotal: 0,
+        thisWeekTotal: 0,
+      }));
 
       const isActive = c.id === activeClassroomId;
       return {
@@ -743,11 +778,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     clearStudentPoints,
   };
 
-  return (
-    <SupabaseAppContext.Provider value={value}>
-      {children}
-    </SupabaseAppContext.Provider>
-  );
+  return <SupabaseAppContext.Provider value={value}>{children}</SupabaseAppContext.Provider>;
 }
 
 export function useSupabaseApp() {

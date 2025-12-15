@@ -82,10 +82,16 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
     }
 
     // Supabase's .on() method requires type casting due to strict typing
-    (channel as unknown as { on: (event: string, config: typeof filterConfig, callback: (payload: RealtimePostgresChangesPayload<T>) => void) => typeof channel }).on(
-      'postgres_changes',
-      filterConfig,
-      (payload: RealtimePostgresChangesPayload<T>) => {
+    (
+      channel as unknown as {
+        on: (
+          event: string,
+          config: typeof filterConfig,
+          callback: (payload: RealtimePostgresChangesPayload<T>) => void
+        ) => typeof channel;
+      }
+    )
+      .on('postgres_changes', filterConfig, (payload: RealtimePostgresChangesPayload<T>) => {
         switch (payload.eventType) {
           case 'INSERT':
             onInsertRef.current?.(payload.new as T);
@@ -97,8 +103,8 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
             onDeleteRef.current?.(payload.old as D);
             break;
         }
-      }
-    ).subscribe();
+      })
+      .subscribe();
 
     return () => {
       if (channelRef.current) {
@@ -140,9 +146,7 @@ export function useMultiTableRealtimeSubscription(
   }, [subscriptions]);
 
   // Build a stable key from table names and filters only
-  const subscriptionKey = subscriptions
-    .map((s) => `${s.table}:${s.filter || ''}`)
-    .join('|');
+  const subscriptionKey = subscriptions.map((s) => `${s.table}:${s.filter || ''}`).join('|');
 
   useEffect(() => {
     const currentSubscriptions = subscriptionsRef.current;
@@ -182,25 +186,29 @@ export function useMultiTableRealtimeSubscription(
       }
 
       // Supabase's .on() method requires type casting due to strict typing
-      (channel as unknown as { on: (event: string, config: typeof filterConfig, callback: (payload: RealtimePayload) => void) => typeof channel }).on(
-        'postgres_changes',
-        filterConfig,
-        (payload: RealtimePayload) => {
-          // Use refs to get fresh callbacks
-          const currentSub = subscriptionsRef.current[index];
-          switch (payload.eventType) {
-            case 'INSERT':
-              currentSub?.onInsert?.(payload.new);
-              break;
-            case 'UPDATE':
-              currentSub?.onUpdate?.(payload.new);
-              break;
-            case 'DELETE':
-              currentSub?.onDelete?.(payload.old as { id: string });
-              break;
-          }
+      (
+        channel as unknown as {
+          on: (
+            event: string,
+            config: typeof filterConfig,
+            callback: (payload: RealtimePayload) => void
+          ) => typeof channel;
         }
-      );
+      ).on('postgres_changes', filterConfig, (payload: RealtimePayload) => {
+        // Use refs to get fresh callbacks
+        const currentSub = subscriptionsRef.current[index];
+        switch (payload.eventType) {
+          case 'INSERT':
+            currentSub?.onInsert?.(payload.new);
+            break;
+          case 'UPDATE':
+            currentSub?.onUpdate?.(payload.new);
+            break;
+          case 'DELETE':
+            currentSub?.onDelete?.(payload.old as { id: string });
+            break;
+        }
+      });
     });
 
     channel.subscribe();

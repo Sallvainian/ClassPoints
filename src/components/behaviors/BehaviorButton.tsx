@@ -27,11 +27,10 @@ export function BehaviorButton({ behavior, onClick }: BehaviorButtonProps) {
 
       {/* Points */}
       <span
-        className={`text-sm font-bold mt-1 ${
-          isPositive ? 'text-emerald-600' : 'text-red-600'
-        }`}
+        className={`text-sm font-bold mt-1 ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}
       >
-        {behavior.points > 0 ? '+' : ''}{behavior.points}
+        {behavior.points > 0 ? '+' : ''}
+        {behavior.points}
       </span>
     </button>
   );

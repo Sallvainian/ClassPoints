@@ -1,6 +1,6 @@
-# Story 3.1: Add BMAD Workflow Mapping to CLAUDE.md
+# Story 2.1: Add BMAD Workflow Mapping to CLAUDE.md
 
-Status: Ready for Review
+Status: done
 
 ## Story
 
@@ -117,7 +117,7 @@ This project uses the BMAD (Business Method for AI Development) framework for st
 
 ### Testing Approach
 
-Per the test design document (`docs/test-design-epic-3.md`), validation for this story:
+Per the test design document (`docs/test-design-epic-2.md`), validation for this story:
 
 1. **Content Verification**: `grep "Development Workflow\|BMAD" CLAUDE.md` should return results
 2. **Command Verification**: Each documented command name should be searchable in CLAUDE.md
@@ -125,8 +125,8 @@ Per the test design document (`docs/test-design-epic-3.md`), validation for this
 
 ### References
 
-- [Source: docs/epics.md#Story 3.1] - Story requirements and acceptance criteria
-- [Source: docs/test-design-epic-3.md] - Test design and validation approach
+- [Source: docs/epics.md#Story 2.1] - Story requirements and acceptance criteria
+- [Source: docs/test-design-epic-2.md] - Test design and validation approach
 - [Source: docs/prd.md#FR15-FR17] - Functional requirements coverage
 
 ## Dev Agent Record
@@ -145,7 +145,7 @@ N/A - Documentation-only story
 
 ### Completion Notes List
 
-- Story 3.1 is the first story in Epic 3 (BMAD Workflow Integration)
+- Story 2.1 is the first story in Epic 2 (BMAD Workflow Integration)
 - This is a documentation-only change to CLAUDE.md
 - No code, database, or test changes required
 - Subsequent stories (3.2, 3.3) will add Implementation Phase and status file guidance

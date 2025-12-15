@@ -1,13 +1,7 @@
 // Supabase Database Types - Auto-generated with convenience aliases
 // Run: npx supabase gen types typescript --project-id hxclfwawibrtfjvptxno
 
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type BehaviorCategory = 'positive' | 'negative';
 
@@ -129,7 +123,7 @@ export interface Database {
             isOneToOne: false;
             referencedRelation: 'students';
             referencedColumns: ['id'];
-          }
+          },
         ];
       };
       students: {
@@ -161,7 +155,7 @@ export interface Database {
             isOneToOne: false;
             referencedRelation: 'classrooms';
             referencedColumns: ['id'];
-          }
+          },
         ];
       };
       user_sound_settings: {

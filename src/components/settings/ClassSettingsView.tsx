@@ -122,11 +122,7 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
             <h2 className="text-sm font-semibold text-gray-700">
               Students ({activeClassroom.students.length})
             </h2>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setIsImportModalOpen(true)}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setIsImportModalOpen(true)}>
               Import
             </Button>
           </div>
@@ -186,7 +182,10 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
                       <div className="flex items-center gap-3">
                         <div
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
-                          style={{ backgroundColor: student.avatarColor || getAvatarColorForName(student.name) }}
+                          style={{
+                            backgroundColor:
+                              student.avatarColor || getAvatarColorForName(student.name),
+                          }}
                         >
                           {student.name.charAt(0).toUpperCase()}
                         </div>
@@ -222,13 +221,10 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
           <h2 className="text-sm font-semibold text-red-600 mb-3">Danger Zone</h2>
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-sm text-gray-700 mb-3">
-              Deleting this classroom will remove all students and their point history.
-              This action cannot be undone.
+              Deleting this classroom will remove all students and their point history. This action
+              cannot be undone.
             </p>
-            <Button
-              variant="danger"
-              onClick={() => setIsDeleteConfirmOpen(true)}
-            >
+            <Button variant="danger" onClick={() => setIsDeleteConfirmOpen(true)}>
               Delete Classroom
             </Button>
           </div>
@@ -249,14 +245,11 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
         title="Delete Classroom?"
       >
         <p className="text-gray-600 mb-4">
-          Are you sure you want to delete "{activeClassroom.name}"? This will remove
-          all {activeClassroom.students.length} students and their point history.
+          Are you sure you want to delete "{activeClassroom.name}"? This will remove all{' '}
+          {activeClassroom.students.length} students and their point history.
         </p>
         <div className="flex justify-end gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => setIsDeleteConfirmOpen(false)}
-          >
+          <Button variant="secondary" onClick={() => setIsDeleteConfirmOpen(false)}>
             Cancel
           </Button>
           <Button variant="danger" onClick={handleDeleteClassroom}>

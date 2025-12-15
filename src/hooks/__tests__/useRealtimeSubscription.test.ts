@@ -17,17 +17,11 @@ declare global {
 // Mock supabase - handler is stored in globalThis for test access
 vi.mock('../../lib/supabase', () => {
   const channel = {
-    on: vi.fn(
-      (
-        _event: string,
-        _config: Record<string, unknown>,
-        handler: MockHandler
-      ) => {
-        // Store handler for test access
-        globalThis.__mockOnHandler = handler;
-        return channel;
-      }
-    ),
+    on: vi.fn((_event: string, _config: Record<string, unknown>, handler: MockHandler) => {
+      // Store handler for test access
+      globalThis.__mockOnHandler = handler;
+      return channel;
+    }),
     subscribe: vi.fn((callback?: (status: string) => void) => {
       if (callback) setTimeout(() => callback('SUBSCRIBED'), 0);
       return channel;

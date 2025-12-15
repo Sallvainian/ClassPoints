@@ -93,9 +93,7 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
       });
     },
     onUpdate: (transaction) => {
-      setTransactions((prev) =>
-        prev.map((t) => (t.id === transaction.id ? transaction : t))
-      );
+      setTransactions((prev) => prev.map((t) => (t.id === transaction.id ? transaction : t)));
     },
     onDelete: ({ id }) => {
       setTransactions((prev) => prev.filter((t) => t.id !== id));
@@ -136,10 +134,7 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
   );
 
   const undoTransaction = useCallback(async (id: string): Promise<void> => {
-    const { error: deleteError } = await supabase
-      .from('point_transactions')
-      .delete()
-      .eq('id', id);
+    const { error: deleteError } = await supabase.from('point_transactions').delete().eq('id', id);
 
     if (deleteError) {
       throw new Error(deleteError.message);
@@ -182,21 +177,18 @@ export function useTransactions(classroomId: string | null): UseTransactionsRetu
     [transactions]
   );
 
-  const clearStudentPoints = useCallback(
-    async (studentId: string): Promise<void> => {
-      const { error: deleteError } = await supabase
-        .from('point_transactions')
-        .delete()
-        .eq('student_id', studentId);
+  const clearStudentPoints = useCallback(async (studentId: string): Promise<void> => {
+    const { error: deleteError } = await supabase
+      .from('point_transactions')
+      .delete()
+      .eq('student_id', studentId);
 
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
 
-      setTransactions((prev) => prev.filter((t) => t.student_id !== studentId));
-    },
-    []
-  );
+    setTransactions((prev) => prev.filter((t) => t.student_id !== studentId));
+  }, []);
 
   return {
     transactions,

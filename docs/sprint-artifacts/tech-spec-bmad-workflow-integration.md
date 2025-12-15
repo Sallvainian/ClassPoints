@@ -27,9 +27,9 @@ Update `CLAUDE.md` with a comprehensive "Development Workflow" section that:
 
 **In Scope:**
 
-- Story 3.1: Add BMAD Workflow Mapping to CLAUDE.md (FR15, FR16, FR17)
-- Story 3.2: Document Implementation and Review Requirements (FR18, FR19)
-- Story 3.3: Enforce Workflow-Only Status File Updates (FR20)
+- Story 2.1: Add BMAD Workflow Mapping to CLAUDE.md (FR15, FR16, FR17)
+- Story 2.2: Document Implementation and Review Requirements (FR18, FR19)
+- Story 2.3: Enforce Workflow-Only Status File Updates (FR20)
 - Create validation script `scripts/validate-claude-md-workflows.sh`
 
 **Out of Scope:**
@@ -53,8 +53,8 @@ This is a **documentation-only epic**. The implementation involves:
 | File                         | Purpose                                  |
 | ---------------------------- | ---------------------------------------- |
 | `CLAUDE.md`                  | Target file for workflow documentation   |
-| `docs/epics.md`              | Epic 3 requirements and stories          |
-| `docs/test-design-epic-3.md` | Test design with validation requirements |
+| `docs/epics.md`              | Epic 2 requirements and stories          |
+| `docs/test-design-epic-2.md` | Test design with validation requirements |
 | `.bmad/bmm/workflows/`       | Source of truth for available workflows  |
 
 ### Technical Decisions
@@ -235,12 +235,12 @@ fi
 
 | FR   | Story | Acceptance Criteria                                                                           |
 | ---- | ----- | --------------------------------------------------------------------------------------------- |
-| FR15 | 3.1   | "Development Workflow" section exists in CLAUDE.md                                            |
-| FR16 | 3.1   | Planning commands (create-prd, research, create-product-brief) documented                     |
-| FR17 | 3.1   | Solutioning commands (create-architecture, create-ux-design, create-epics-stories) documented |
-| FR18 | 3.2   | sprint-status.yaml prerequisite documented for dev-story                                      |
-| FR19 | 3.2   | code-review and retrospective commands documented                                             |
-| FR20 | 3.3   | bmm-workflow-status.yaml manual edit prohibition documented                                   |
+| FR15 | 2.1   | "Development Workflow" section exists in CLAUDE.md                                            |
+| FR16 | 2.1   | Planning commands (create-prd, research, create-product-brief) documented                     |
+| FR17 | 2.1   | Solutioning commands (create-architecture, create-ux-design, create-epics-stories) documented |
+| FR18 | 2.2   | sprint-status.yaml prerequisite documented for dev-story                                      |
+| FR19 | 2.2   | code-review and retrospective commands documented                                             |
+| FR20 | 2.3   | bmm-workflow-status.yaml manual edit prohibition documented                                   |
 
 ## Additional Context
 
@@ -252,7 +252,7 @@ fi
 
 ### Testing Strategy
 
-Per `docs/test-design-epic-3.md`:
+Per `docs/test-design-epic-2.md`:
 
 1. **Automated Validation**: Run `scripts/validate-claude-md-workflows.sh`
 2. **Manual Review**:

@@ -66,11 +66,16 @@ export function UndoToast({ action, onUndo, duration = 5000 }: UndoToastProps) {
               <p className="text-sm font-medium">
                 {action.studentName}
                 {action.isBatch && action.studentCount && (
-                  <span className="text-gray-400 font-normal"> ({action.studentCount} students)</span>
+                  <span className="text-gray-400 font-normal">
+                    {' '}
+                    ({action.studentCount} students)
+                  </span>
                 )}
               </p>
               <p className="text-xs text-gray-400">
-                {action.behaviorName} ({action.points > 0 ? '+' : ''}{action.points}{action.isBatch ? ' total' : ''})
+                {action.behaviorName} ({action.points > 0 ? '+' : ''}
+                {action.points}
+                {action.isBatch ? ' total' : ''})
               </p>
             </div>
           </div>

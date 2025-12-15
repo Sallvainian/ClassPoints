@@ -141,6 +141,52 @@ npm run test         # Vitest unit tests
 npm run test:e2e     # Playwright E2E tests
 ```
 
+## Pre-commit Hooks
+
+This project uses `simple-git-hooks` + `lint-staged` to enforce code quality on every commit.
+
+### What runs on `git commit`
+
+1. **ESLint** - Checks TypeScript files for errors (auto-fixes when possible)
+2. **Prettier** - Formats all staged files
+3. **TypeScript** - Full type check via `npm run typecheck`
+
+If any step fails, the commit is rejected with a clear error message.
+
+### Configuration
+
+All hook config is in `package.json`:
+
+```json
+{
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged && npm run typecheck"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": ["eslint --fix"],
+    "*.{ts,tsx,js,jsx,json,css,md}": ["prettier --write"]
+  }
+}
+```
+
+### Emergency bypass
+
+For genuine emergencies only:
+
+```bash
+git commit --no-verify -m "your message"
+```
+
+Use sparingly - hooks exist to catch issues before they reach the repository.
+
+### Hook installation
+
+Hooks are auto-installed on `npm install` via the `prepare` script. To reinstall manually:
+
+```bash
+npm run prepare
+```
+
 ## Environment Variables
 
 **Using dotenvx for encrypted secrets.**
@@ -273,3 +319,31 @@ This project uses the BMAD (Business Method for AI Development) framework for st
 | ------------- | ----------------------------------- | ----------------------------------------------- |
 | Code Review   | `/bmad:bmm:workflows:code-review`   | Run adversarial code review on completed work   |
 | Retrospective | `/bmad:bmm:workflows:retrospective` | Run epic retrospective after completing an epic |
+
+### Status File Rules
+
+> ⚠️ **CRITICAL**: Status files must NEVER be manually edited. All status updates happen automatically through BMAD workflows.
+
+**Protected Files:**
+
+- `docs/sprint-artifacts/sprint-status.yaml` - Primary sprint tracking file
+
+**Why This Matters:**
+
+- Manual edits break workflow traceability
+- Status should reflect actual workflow progress
+- Code review will flag direct status file modifications as violations
+
+**Status Update Responsibility:**
+
+| Workflow          | Updates Status To                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `sprint-planning` | Creates file, initializes all entries to `backlog`                                   |
+| `create-story`    | Story: `backlog` → `ready-for-dev`, Epic: `backlog` → `in-progress` (if first story) |
+| `dev-story`       | Story: `ready-for-dev` → `in-progress`                                               |
+| `code-review`     | Story: `in-progress` → `review` → `done`                                             |
+| `retrospective`   | Epic retrospective: `optional` → `completed`                                         |
+
+**Violation Detection:**
+
+During code review, any git diff showing direct edits to `sprint-status.yaml` without corresponding workflow execution is a process violation.

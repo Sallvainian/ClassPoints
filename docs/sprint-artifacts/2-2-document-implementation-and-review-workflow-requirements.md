@@ -1,6 +1,6 @@
-# Story 3.2: Document Implementation and Review Workflow Requirements
+# Story 2.2: Document Implementation and Review Workflow Requirements
 
-Status: Ready for Review
+Status: done
 
 ## Story
 
@@ -32,7 +32,7 @@ So that **I follow the correct BMAD process throughout the development lifecycle
   - [x] 1.3: Document `/bmad:bmm:workflows:sprint-planning` for initializing sprint tracking
   - [x] 1.4: Document `/bmad:bmm:workflows:create-story` for creating story context
   - [x] 1.5: Document `/bmad:bmm:workflows:dev-story` for implementing stories
-  - [x] 1.6: Add table format consistent with Planning/Solutioning sections from Story 3.1
+  - [x] 1.6: Add table format consistent with Planning/Solutioning sections from Story 2.1
 
 - [x] Task 2: Add "Review & Completion Phase" subsection (AC: #2, #3)
   - [x] 2.1: Add "### Review & Completion Phase" header after Implementation Phase
@@ -49,14 +49,14 @@ So that **I follow the correct BMAD process throughout the development lifecycle
 
 ## Dev Notes
 
-### Important Dependency: Story 3.1 Must Be Completed First
+### Important Dependency: Story 2.1 Must Be Completed First
 
-**CRITICAL**: This story (3.2) ADDS to the "Development Workflow" section created by Story 3.1.
+**CRITICAL**: This story (3.2) ADDS to the "Development Workflow" section created by Story 2.1.
 
-If Story 3.1 is not yet complete:
+If Story 2.1 is not yet complete:
 
-1. Complete Story 3.1 first to create the base "Development Workflow" section
-2. Then return to Story 3.2 to add Implementation and Review phases
+1. Complete Story 2.1 first to create the base "Development Workflow" section
+2. Then return to Story 2.2 to add Implementation and Review phases
 
 ### What This Story Changes
 
@@ -68,9 +68,9 @@ If Story 3.1 is not yet complete:
 
 ### Exact Content Location
 
-Add the new subsections **within the "Development Workflow" section of CLAUDE.md**, after the "Solutioning Phase" subsection added by Story 3.1.
+Add the new subsections **within the "Development Workflow" section of CLAUDE.md**, after the "Solutioning Phase" subsection added by Story 2.1.
 
-Expected location: After Story 3.1's content (which ends around line ~220), add:
+Expected location: After Story 2.1's content (Development Workflow section starting at line 240), add:
 
 - "### Implementation Phase" subsection
 - "### Review & Completion Phase" subsection
@@ -122,22 +122,22 @@ These workflow directories have been verified to exist:
 ### Project Structure Notes
 
 - CLAUDE.md is in project root: `/home/sallvain/dev/work/ClassPoints/CLAUDE.md`
-- Current CLAUDE.md ends at line ~204 (Story 3.1 will extend this with Development Workflow section)
-- This story adds to Story 3.1's content
+- Current CLAUDE.md ends at line ~204 (Story 2.1 will extend this with Development Workflow section)
+- This story adds to Story 2.1's content
 - This story is documentation-only - safe to edit without code impact
 
-### Previous Story Intelligence (Story 3.1)
+### Previous Story Intelligence (Story 2.1)
 
-From Story 3.1 (same epic), key learnings to apply:
+From Story 2.1 (same epic), key learnings to apply:
 
-1. **Table format consistency**: Use the same markdown table format as Story 3.1's Planning/Solutioning phases
+1. **Table format consistency**: Use the same markdown table format as Story 2.1's Planning/Solutioning phases
 2. **Command validation**: Each documented command must be verified to exist in `.bmad/bmm/workflows/`
 3. **Placement**: New subsections go AFTER existing sections, maintaining logical flow
-4. **Style**: Match the brief descriptions in the table format used by Story 3.1
+4. **Style**: Match the brief descriptions in the table format used by Story 2.1
 
 ### Testing Approach
 
-Per the test design document (`docs/test-design-epic-3.md`), validation for this story:
+Per the test design document (`docs/test-design-epic-2.md`), validation for this story:
 
 1. **FR18 Validation**: `grep "sprint-status" CLAUDE.md` should return results
 2. **FR19 Validation**: `grep "code-review\|retrospective" CLAUDE.md` should return results
@@ -145,10 +145,10 @@ Per the test design document (`docs/test-design-epic-3.md`), validation for this
 
 ### References
 
-- [Source: docs/epics.md#Story 3.2] - Story requirements and acceptance criteria
-- [Source: docs/test-design-epic-3.md] - Test design and validation approach
+- [Source: docs/epics.md#Story 2.2] - Story requirements and acceptance criteria
+- [Source: docs/test-design-epic-2.md] - Test design and validation approach
 - [Source: docs/prd.md#FR18-FR19] - Functional requirements coverage
-- [Source: docs/sprint-artifacts/3-1-add-bmad-workflow-mapping-to-claude-md.md] - Previous story context
+- [Source: docs/sprint-artifacts/2-1-add-bmad-workflow-mapping-to-claude-md.md] - Previous story context
 
 ## Dev Agent Record
 
@@ -166,14 +166,24 @@ N/A - Documentation-only story
 
 ### Completion Notes List
 
-- Story 3.2 is the second story in Epic 3 (BMAD Workflow Integration)
-- **DEPENDS ON Story 3.1** - Must have "Development Workflow" section before adding Implementation/Review phases
+- Story 2.2 is the second story in Epic 2 (BMAD Workflow Integration)
+- **DEPENDS ON Story 2.1** - Must have "Development Workflow" section before adding Implementation/Review phases
 - This is a documentation-only change to CLAUDE.md
 - No code, database, or test changes required
-- Story 3.3 will add the status file guidance to complete Epic 3
+- Story 2.3 will add the status file guidance to complete Epic 2
+- ✅ 2025-12-14: Implementation complete - Added Implementation Phase and Review & Completion Phase sections to CLAUDE.md
+- ✅ All 5 workflows verified to exist in `.bmad/bmm/workflows/4-implementation/`
+- ✅ FR18 validation passed: sprint-status documented in CLAUDE.md (lines 262, 266)
+- ✅ FR19 validation passed: code-review and retrospective documented (lines 274, 275)
+- ✅ All 3 acceptance criteria satisfied
 
 ### File List
 
-Files to be created/modified:
+Files modified:
 
-- `CLAUDE.md` (modify - add new subsections to Development Workflow section)
+- `CLAUDE.md` (modified - added Implementation Phase and Review & Completion Phase subsections, lines 260-275)
+
+### Change Log
+
+- 2025-12-14: Story 2.2 implemented - Added Implementation Phase and Review & Completion Phase documentation to CLAUDE.md Development Workflow section
+- 2025-12-14: Code review completed - Fixed 5 documentation inaccuracies (line number references)

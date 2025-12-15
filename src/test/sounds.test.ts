@@ -223,17 +223,13 @@ describe('useSoundEffects', () => {
       result.current.playPositive();
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[SoundEffects:TEST] playPositive called'
-    );
+    expect(consoleSpy).toHaveBeenCalledWith('[SoundEffects:TEST] playPositive called');
 
     act(() => {
       result.current.playNegative();
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[SoundEffects:TEST] playNegative called'
-    );
+    expect(consoleSpy).toHaveBeenCalledWith('[SoundEffects:TEST] playNegative called');
 
     consoleSpy.mockRestore();
   });
@@ -317,8 +313,7 @@ describe('validateAudioUrl', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: {
-        get: (name: string) =>
-          name === 'content-type' ? 'text/plain' : null,
+        get: (name: string) => (name === 'content-type' ? 'text/plain' : null),
       },
     }) as unknown as typeof fetch;
 
@@ -335,8 +330,7 @@ describe('validateAudioUrl', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: {
-        get: (name: string) =>
-          name === 'content-type' ? 'audio/mpeg' : null,
+        get: (name: string) => (name === 'content-type' ? 'audio/mpeg' : null),
       },
     }) as unknown as typeof fetch;
 

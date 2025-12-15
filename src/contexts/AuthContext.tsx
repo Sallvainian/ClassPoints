@@ -7,7 +7,11 @@ interface AuthContextValue {
   session: Session | null;
   loading: boolean;
   error: AuthError | null;
-  signUp: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: AuthError }>;
+  signUp: (
+    email: string,
+    password: string,
+    name?: string
+  ) => Promise<{ success: boolean; error?: AuthError }>;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: AuthError }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: AuthError }>;

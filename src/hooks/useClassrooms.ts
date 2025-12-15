@@ -94,7 +94,13 @@ export function useClassrooms(): UseClassroomsReturn {
         // Avoid duplicates if we already added optimistically
         if (prev.some((c) => c.id === classroom.id)) return prev;
         // New classrooms start with 0 students and 0 points, insert in sorted order
-        const newClassroom = { ...classroom, student_count: 0, point_total: 0, positive_total: 0, negative_total: 0 };
+        const newClassroom = {
+          ...classroom,
+          student_count: 0,
+          point_total: 0,
+          positive_total: 0,
+          negative_total: 0,
+        };
         return [...prev, newClassroom].sort((a, b) => a.name.localeCompare(b.name));
       });
     },
@@ -103,7 +109,13 @@ export function useClassrooms(): UseClassroomsReturn {
         prev
           .map((c) =>
             c.id === classroom.id
-              ? { ...classroom, student_count: c.student_count, point_total: c.point_total, positive_total: c.positive_total, negative_total: c.negative_total }
+              ? {
+                  ...classroom,
+                  student_count: c.student_count,
+                  point_total: c.point_total,
+                  positive_total: c.positive_total,
+                  negative_total: c.negative_total,
+                }
               : c
           )
           .sort((a, b) => a.name.localeCompare(b.name))
@@ -130,7 +142,9 @@ export function useClassrooms(): UseClassroomsReturn {
     onDelete: (oldStudent) => {
       setClassrooms((prev) =>
         prev.map((c) =>
-          c.id === oldStudent.classroom_id ? { ...c, student_count: Math.max(0, c.student_count - 1) } : c
+          c.id === oldStudent.classroom_id
+            ? { ...c, student_count: Math.max(0, c.student_count - 1) }
+            : c
         )
       );
     },
@@ -155,8 +169,12 @@ export function useClassrooms(): UseClassroomsReturn {
             return {
               ...c,
               point_total: c.point_total - oldTransaction.points,
-              positive_total: isPositive ? c.positive_total - oldTransaction.points : c.positive_total,
-              negative_total: !isPositive ? c.negative_total - oldTransaction.points : c.negative_total,
+              positive_total: isPositive
+                ? c.positive_total - oldTransaction.points
+                : c.positive_total,
+              negative_total: !isPositive
+                ? c.negative_total - oldTransaction.points
+                : c.negative_total,
             };
           })
         );
@@ -182,7 +200,13 @@ export function useClassrooms(): UseClassroomsReturn {
     }
 
     // New classrooms start with 0 students and 0 points, insert in sorted order
-    const classroomWithCount: ClassroomWithCount = { ...data, student_count: 0, point_total: 0, positive_total: 0, negative_total: 0 };
+    const classroomWithCount: ClassroomWithCount = {
+      ...data,
+      student_count: 0,
+      point_total: 0,
+      positive_total: 0,
+      negative_total: 0,
+    };
     setClassrooms((prev) => {
       // Avoid duplicates if realtime subscription already added this classroom
       if (prev.some((c) => c.id === data.id)) return prev;
@@ -207,7 +231,15 @@ export function useClassrooms(): UseClassroomsReturn {
 
       setClassrooms((prev) =>
         prev.map((c) =>
-          c.id === id ? { ...data, student_count: c.student_count, point_total: c.point_total, positive_total: c.positive_total, negative_total: c.negative_total } : c
+          c.id === id
+            ? {
+                ...data,
+                student_count: c.student_count,
+                point_total: c.point_total,
+                positive_total: c.positive_total,
+                negative_total: c.negative_total,
+              }
+            : c
         )
       );
       return data;
@@ -216,10 +248,7 @@ export function useClassrooms(): UseClassroomsReturn {
   );
 
   const deleteClassroom = useCallback(async (id: string): Promise<boolean> => {
-    const { error: deleteError } = await supabase
-      .from('classrooms')
-      .delete()
-      .eq('id', id);
+    const { error: deleteError } = await supabase.from('classrooms').delete().eq('id', id);
 
     if (deleteError) {
       setError(new Error(deleteError.message));
@@ -231,23 +260,20 @@ export function useClassrooms(): UseClassroomsReturn {
   }, []);
 
   // Optimistically update classroom points before realtime event arrives
-  const updateClassroomPointsOptimistically = useCallback(
-    (classroomId: string, points: number) => {
-      setClassrooms((prev) =>
-        prev.map((c) =>
-          c.id === classroomId
-            ? {
-                ...c,
-                point_total: c.point_total + points,
-                positive_total: points > 0 ? c.positive_total + points : c.positive_total,
-                negative_total: points < 0 ? c.negative_total + points : c.negative_total,
-              }
-            : c
-        )
-      );
-    },
-    []
-  );
+  const updateClassroomPointsOptimistically = useCallback((classroomId: string, points: number) => {
+    setClassrooms((prev) =>
+      prev.map((c) =>
+        c.id === classroomId
+          ? {
+              ...c,
+              point_total: c.point_total + points,
+              positive_total: points > 0 ? c.positive_total + points : c.positive_total,
+              negative_total: points < 0 ? c.negative_total + points : c.negative_total,
+            }
+          : c
+      )
+    );
+  }, []);
 
   return {
     classrooms,

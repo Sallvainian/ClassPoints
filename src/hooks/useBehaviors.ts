@@ -106,10 +106,7 @@ export function useBehaviors(): UseBehaviorsReturn {
   );
 
   const deleteBehavior = useCallback(async (id: string): Promise<boolean> => {
-    const { error: deleteError } = await supabase
-      .from('behaviors')
-      .delete()
-      .eq('id', id);
+    const { error: deleteError } = await supabase.from('behaviors').delete().eq('id', id);
 
     if (deleteError) {
       setError(new Error(deleteError.message));

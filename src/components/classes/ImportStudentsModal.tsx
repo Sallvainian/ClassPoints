@@ -92,9 +92,7 @@ export function ImportStudentsModal({ isOpen, onClose, onImport }: ImportStudent
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-            dragActive
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 hover:border-gray-400'
+            dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
           }`}
         >
           <input
@@ -108,9 +106,7 @@ export function ImportStudentsModal({ isOpen, onClose, onImport }: ImportStudent
             <p className="font-medium">Drop a file here or click to browse</p>
             <p className="text-sm text-gray-500 mt-1">Supports JSON and CSV files</p>
           </div>
-          {filename && (
-            <p className="text-sm text-blue-600 mt-2">Selected: {filename}</p>
-          )}
+          {filename && <p className="text-sm text-blue-600 mt-2">Selected: {filename}</p>}
         </div>
 
         {/* Format guide */}
@@ -121,19 +117,27 @@ export function ImportStudentsModal({ isOpen, onClose, onImport }: ImportStudent
           <div className="px-3 pb-3 text-gray-600 space-y-2">
             <div>
               <span className="font-medium text-gray-700">Plain text</span> - one name per line:
-              <pre className="mt-1 bg-white rounded px-2 py-1 text-xs border">Alice Johnson{'\n'}Bob Smith{'\n'}Carol Davis</pre>
+              <pre className="mt-1 bg-white rounded px-2 py-1 text-xs border">
+                Alice Johnson{'\n'}Bob Smith{'\n'}Carol Davis
+              </pre>
             </div>
             <div>
               <span className="font-medium text-gray-700">JSON array</span> - simple list:
-              <pre className="mt-1 bg-white rounded px-2 py-1 text-xs border">["Alice Johnson", "Bob Smith", "Carol Davis"]</pre>
+              <pre className="mt-1 bg-white rounded px-2 py-1 text-xs border">
+                ["Alice Johnson", "Bob Smith", "Carol Davis"]
+              </pre>
             </div>
             <div>
               <span className="font-medium text-gray-700">JSON objects</span> - with name field:
-              <pre className="mt-1 bg-white rounded px-2 py-1 text-xs border">[{`{"name": "Alice"}`}, {`{"name": "Bob"}`}]</pre>
+              <pre className="mt-1 bg-white rounded px-2 py-1 text-xs border">
+                [{`{"name": "Alice"}`}, {`{"name": "Bob"}`}]
+              </pre>
             </div>
             <div>
               <span className="font-medium text-gray-700">CSV</span> - comma-separated:
-              <pre className="mt-1 bg-white rounded px-2 py-1 text-xs border">name,email,grade{'\n'}Alice,alice@school.edu,5th{'\n'}Bob,bob@school.edu,5th</pre>
+              <pre className="mt-1 bg-white rounded px-2 py-1 text-xs border">
+                name,email,grade{'\n'}Alice,alice@school.edu,5th{'\n'}Bob,bob@school.edu,5th
+              </pre>
             </div>
           </div>
         </details>
@@ -168,9 +172,7 @@ export function ImportStudentsModal({ isOpen, onClose, onImport }: ImportStudent
                   </li>
                 ))}
                 {preview.length > 10 && (
-                  <li className="text-gray-400 pl-7">
-                    ... and {preview.length - 10} more
-                  </li>
+                  <li className="text-gray-400 pl-7">... and {preview.length - 10} more</li>
                 )}
               </ul>
             </div>

@@ -36,13 +36,6 @@ This document provides the complete epic and story breakdown for ClassPoints, de
 - FR6: The system prevents commits that contain linting errors
 - FR7: Developers can see which ESLint rules are configured and why
 
-**Type Safety**
-
-- FR8: TypeScript catches type errors before code is committed
-- FR9: Developers can run a command to check all files for type errors
-- FR10: The system uses strict TypeScript mode to catch more potential issues
-- FR11: All existing type errors are resolved before MVP completion
-
 **Git Workflow Automation**
 
 - FR12: Pre-commit hooks automatically run formatting, linting, and type checks
@@ -120,19 +113,15 @@ This document provides the complete epic and story breakdown for ClassPoints, de
 | FR5  | Epic 1 | Lint check command                          |
 | FR6  | Epic 1 | Commits blocked on lint errors              |
 | FR7  | Epic 1 | ESLint rules visibility                     |
-| FR8  | Epic 2 | Type errors caught before commit            |
-| FR9  | Epic 2 | Type check command                          |
-| FR10 | Epic 2 | TypeScript strict mode                      |
-| FR11 | Epic 2 | All type errors resolved                    |
 | FR12 | Epic 1 | Pre-commit hooks automation                 |
 | FR13 | Epic 1 | Clear rejection messages                    |
 | FR14 | Epic 1 | Emergency bypass flag                       |
-| FR15 | Epic 3 | CLAUDE.md workflow mapping section          |
-| FR16 | Epic 3 | Planning tasks routed to BMAD               |
-| FR17 | Epic 3 | Solutioning tasks routed to BMAD            |
-| FR18 | Epic 3 | Implementation requires sprint-status.yaml  |
-| FR19 | Epic 3 | Code review/retro use BMAD workflows        |
-| FR20 | Epic 3 | bmm-workflow-status.yaml via workflows only |
+| FR15 | Epic 2 | CLAUDE.md workflow mapping section          |
+| FR16 | Epic 2 | Planning tasks routed to BMAD               |
+| FR17 | Epic 2 | Solutioning tasks routed to BMAD            |
+| FR18 | Epic 2 | Implementation requires sprint-status.yaml  |
+| FR19 | Epic 2 | Code review/retro use BMAD workflows        |
+| FR20 | Epic 2 | bmm-workflow-status.yaml via workflows only |
 | FR21 | Epic 1 | Single npm install setup                    |
 | FR22 | Epic 1 | Automatic tooling workflow                  |
 | FR23 | Epic 1 | Actionable error messages                   |
@@ -251,71 +240,7 @@ So that **I can get started quickly and understand issues when they occur**.
 
 ---
 
-### Epic 2: Type-Safe Development Environment
-
-**User Outcome:** Developers can make code changes confidently knowing TypeScript strict mode catches potential type errors before they're committed, with all existing type errors resolved.
-
-**What users can do after this epic:**
-
-- Work in a strict TypeScript environment
-- See type errors caught before commit
-- Trust the type system to catch mistakes
-- Run type checking commands on the full project
-
-**FRs Covered:** FR8, FR9, FR10, FR11
-
-**NFRs Addressed:** NFR3, NFR4
-
-#### Story 2.1: Enable TypeScript Strict Mode
-
-As a **developer**,
-I want **TypeScript configured in strict mode with appropriate compiler options**,
-So that **the type system catches more potential issues before runtime**.
-
-**Acceptance Criteria:**
-
-**Given** the tsconfig.json has strict mode enabled
-**When** I write code with potential type issues (implicit any, null checks, etc.)
-**Then** TypeScript reports these as errors in my editor
-
-**Given** I run `npm run typecheck`
-**When** there are type errors in the codebase
-**Then** the command lists all errors with file locations and descriptions
-**And** the command exits with a non-zero status
-
-**Given** the type checking is running
-**When** it completes on the full project
-**Then** the total execution time is under 60 seconds
-
-**FRs Covered:** FR8, FR9, FR10
-**NFRs Covered:** NFR3
-
-#### Story 2.2: Resolve All Existing Type Errors
-
-As a **developer**,
-I want **all existing type errors in the codebase resolved**,
-So that **the project maintains a clean type-safe baseline**.
-
-**Acceptance Criteria:**
-
-**Given** TypeScript strict mode is enabled
-**When** I run `npm run typecheck`
-**Then** the command exits with zero errors
-
-**Given** I encounter a type error while fixing
-**When** I read the error message
-**Then** it provides enough context to understand and fix the issue
-
-**Given** all type errors are resolved
-**When** pre-commit hooks run on any commit
-**Then** type checking passes without errors
-
-**FRs Covered:** FR11
-**NFRs Covered:** NFR4
-
----
-
-### Epic 3: BMAD Workflow Integration
+### Epic 2: BMAD Workflow Integration
 
 **User Outcome:** AI assistants stay on-workflow during development tasks by following BMAD methodology, ensuring consistent use of planning, solutioning, and implementation workflows with proper status tracking.
 
@@ -332,7 +257,7 @@ So that **the project maintains a clean type-safe baseline**.
 
 **NFRs Addressed:** None
 
-#### Story 3.1: Add BMAD Workflow Mapping to CLAUDE.md
+#### Story 2.1: Add BMAD Workflow Mapping to CLAUDE.md
 
 As a **developer or AI assistant**,
 I want **CLAUDE.md to contain a "Development Workflow" section that maps task types to specific BMAD workflows**,
@@ -356,7 +281,7 @@ So that **I always know which workflow command to use for any development task**
 
 ---
 
-#### Story 3.2: Document Implementation and Review Workflow Requirements
+#### Story 2.2: Document Implementation and Review Workflow Requirements
 
 As a **developer or AI assistant**,
 I want **CLAUDE.md to document that implementation tasks require an active sprint-status.yaml and specific workflows for code review and retrospectives**,
@@ -380,7 +305,7 @@ So that **I follow the correct BMAD process throughout the development lifecycle
 
 ---
 
-#### Story 3.3: Enforce Workflow-Only Status File Updates
+#### Story 2.3: Enforce Workflow-Only Status File Updates
 
 As a **developer or AI assistant**,
 I want **clear guidance that bmm-workflow-status.yaml must only be updated through proper BMAD workflows**,

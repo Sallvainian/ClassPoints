@@ -76,11 +76,13 @@ describe('studentParser', () => {
     });
 
     it('handles complex "LastName, FirstName" names with multiple words', () => {
-      const result = parseCSV('De La Cruz, Carolayn\nHechavarria Matos, Katheryn Alexa\nLagos Morales, Ansel Monserath');
+      const result = parseCSV(
+        'De La Cruz, Carolayn\nHechavarria Matos, Katheryn Alexa\nLagos Morales, Ansel Monserath'
+      );
       expect(result.names).toEqual([
         'De La Cruz, Carolayn',
         'Hechavarria Matos, Katheryn Alexa',
-        'Lagos Morales, Ansel Monserath'
+        'Lagos Morales, Ansel Monserath',
       ]);
     });
 
@@ -154,7 +156,7 @@ describe('studentParser', () => {
         'Smith John',
         'Stevens John',
         'Davis John',
-        'Wilson Jane'
+        'Wilson Jane',
       ]);
       expect(result).toEqual(['John Smith', 'John Stevens', 'John D.', 'Jane']);
     });
@@ -194,10 +196,10 @@ describe('studentParser', () => {
         'Pineda Samaniego, Hally Maya',
         'Reyes Martinez, Bexaida Maidely',
         'Rincon Acta, Jade Sarai',
-        'Rodgers, Brent Te\'nir Jr',
+        "Rodgers, Brent Te'nir Jr",
         'Thalerand, Anne Marly',
         'Velasquez, Josue',
-        'Yuvi Sanchez, Vicky Belen'
+        'Yuvi Sanchez, Vicky Belen',
       ];
       const result = generateDisplayNames(roster);
       // Only first names (middle names dropped, suffixes kept)
@@ -207,18 +209,18 @@ describe('studentParser', () => {
         'Brandon',
         'Carolayn',
         'Keyle',
-        'Katheryn',      // Alexa (middle) dropped
-        'Morgan',        // Amirah (middle) dropped
-        'Ansel',         // Monserath (middle) dropped
+        'Katheryn', // Alexa (middle) dropped
+        'Morgan', // Amirah (middle) dropped
+        'Ansel', // Monserath (middle) dropped
         'Taraji',
         'Isabella',
-        'Hally',         // Maya (middle) dropped
-        'Bexaida',       // Maidely (middle) dropped
-        'Jade',          // Sarai (middle) dropped
-        'Brent Jr',      // Te'nir (middle) dropped, Jr suffix kept
-        'Anne',          // Marly (middle) dropped
+        'Hally', // Maya (middle) dropped
+        'Bexaida', // Maidely (middle) dropped
+        'Jade', // Sarai (middle) dropped
+        'Brent Jr', // Te'nir (middle) dropped, Jr suffix kept
+        'Anne', // Marly (middle) dropped
         'Josue',
-        'Vicky'          // Belen (middle) dropped
+        'Vicky', // Belen (middle) dropped
       ]);
     });
   });

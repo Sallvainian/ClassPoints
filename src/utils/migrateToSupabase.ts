@@ -33,7 +33,16 @@ export interface MigrationResult {
 }
 
 export interface MigrationProgress {
-  phase: 'idle' | 'exporting' | 'classrooms' | 'students' | 'behaviors' | 'transactions' | 'validating' | 'complete' | 'error';
+  phase:
+    | 'idle'
+    | 'exporting'
+    | 'classrooms'
+    | 'students'
+    | 'behaviors'
+    | 'transactions'
+    | 'validating'
+    | 'complete'
+    | 'error';
   current: number;
   total: number;
   message: string;
@@ -160,9 +169,7 @@ function transformTransaction(
 /**
  * Main migration function
  */
-export async function migrateToSupabase(
-  onProgress?: ProgressCallback
-): Promise<MigrationResult> {
+export async function migrateToSupabase(onProgress?: ProgressCallback): Promise<MigrationResult> {
   const result: MigrationResult = {
     success: false,
     classroomsMigrated: 0,
@@ -233,7 +240,8 @@ export async function migrateToSupabase(
     }
 
     // Phase 3: Migrate students (depends on classrooms)
-    const allStudents: Array<{ student: Student; classroomId: string; newClassroomId: string }> = [];
+    const allStudents: Array<{ student: Student; classroomId: string; newClassroomId: string }> =
+      [];
     for (const classroom of data.classrooms) {
       const newClassroomId = classroomIdMap.get(classroom.id);
       if (!newClassroomId) continue;
@@ -292,9 +300,7 @@ export async function migrateToSupabase(
     });
 
     // First, map existing default behaviors by name
-    const { data: existingBehaviors } = await supabase
-      .from('behaviors')
-      .select('id, name');
+    const { data: existingBehaviors } = await supabase.from('behaviors').select('id, name');
 
     if (existingBehaviors) {
       const behaviorList = existingBehaviors as Array<{ id: string; name: string }>;
@@ -368,9 +374,7 @@ export async function migrateToSupabase(
       }
 
       if (transformedBatch.length > 0) {
-        const { error } = await supabase
-          .from('point_transactions')
-          .insert(transformedBatch);
+        const { error } = await supabase.from('point_transactions').insert(transformedBatch);
 
         if (error) {
           result.errors.push(`Failed to migrate batch of transactions: ${error.message}`);
@@ -424,7 +428,9 @@ export async function migrateToSupabase(
 
     return result;
   } catch (error) {
-    result.errors.push(`Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    result.errors.push(
+      `Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
     reportProgress({
       phase: 'error',
       current: 0,

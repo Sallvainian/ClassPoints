@@ -135,32 +135,35 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     }, 100);
   };
 
-  const handleUndo = useCallback(async (transactionId: string) => {
-    // Capture current undoable action at invocation time to prevent race condition
-    // where the action could become null during async execution (near end of undo window)
-    const actionToUndo = undoableAction;
-    if (!actionToUndo) return;
+  const handleUndo = useCallback(
+    async (transactionId: string) => {
+      // Capture current undoable action at invocation time to prevent race condition
+      // where the action could become null during async execution (near end of undo window)
+      const actionToUndo = undoableAction;
+      if (!actionToUndo) return;
 
-    try {
-      // Check if this is a batch undo (class-wide award)
-      if (actionToUndo.isBatch && actionToUndo.batchId) {
-        await undoBatchTransaction(actionToUndo.batchId);
-      } else {
-        await undoTransaction(transactionId);
+      try {
+        // Check if this is a batch undo (class-wide award)
+        if (actionToUndo.isBatch && actionToUndo.batchId) {
+          await undoBatchTransaction(actionToUndo.batchId);
+        } else {
+          await undoTransaction(transactionId);
+        }
+        setUndoableAction(null);
+      } catch (err) {
+        console.error('Failed to undo transaction:', err);
+        setOperationError(ERROR_MESSAGES.UNDO);
       }
-      setUndoableAction(null);
-    } catch (err) {
-      console.error('Failed to undo transaction:', err);
-      setOperationError(ERROR_MESSAGES.UNDO);
-    }
-  }, [undoTransaction, undoBatchTransaction, undoableAction]);
+    },
+    [undoTransaction, undoBatchTransaction, undoableAction]
+  );
 
   // Map database transactions to app format for TodaySummary
   // This useMemo must be called unconditionally (before early returns)
   const transactions: PointTransaction[] = useMemo(() => {
     if (!activeClassroom) return [];
     const dbTransactions = getClassroomTransactions(activeClassroom.id, 20);
-    return dbTransactions.map(t => ({
+    return dbTransactions.map((t) => ({
       id: t.id,
       studentId: t.student_id,
       classroomId: t.classroom_id,
@@ -221,7 +224,8 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
           <div>
             <h1 className="text-xl font-bold text-gray-900">{activeClassroom.name}</h1>
             <p className="text-sm text-gray-500">
-              {activeClassroom.students.length} student{activeClassroom.students.length !== 1 ? 's' : ''}
+              {activeClassroom.students.length} student
+              {activeClassroom.students.length !== 1 ? 's' : ''}
             </p>
           </div>
 
@@ -245,9 +249,10 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
                   onClick={() => setCardSize(size)}
                   className={`
                     px-2 py-1 text-xs font-medium rounded-md transition-colors
-                    ${settings.cardSize === size
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                    ${
+                      settings.cardSize === size
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
                     }
                   `}
                   title={`${size.charAt(0).toUpperCase() + size.slice(1)} cards`}
@@ -262,9 +267,10 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
               onClick={toggleShowPointTotals}
               className={`
                 px-2 py-1 text-xs font-medium rounded-lg transition-colors
-                ${settings.showPointTotals
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-gray-100 text-gray-600 hover:text-gray-900'
+                ${
+                  settings.showPointTotals
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-gray-100 text-gray-600 hover:text-gray-900'
                 }
               `}
               title="Show positive/negative point totals"
@@ -277,16 +283,16 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
               onClick={() => setShowActivity(!showActivity)}
               className={`
                 px-2 py-1 text-xs font-medium rounded-lg transition-colors
-                ${showActivity
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-gray-100 text-gray-600 hover:text-gray-900'
+                ${
+                  showActivity
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-600 hover:text-gray-900'
                 }
               `}
             >
               Activity
             </button>
           </div>
-
         </div>
       </div>
 

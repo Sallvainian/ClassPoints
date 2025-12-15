@@ -70,12 +70,15 @@ function StudentPointCardComponent({
     }
   }, [onSelect, onClickStudent, student]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault();
-      handleClick();
-    }
-  }, [handleClick]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        handleClick();
+      }
+    },
+    [handleClick]
+  );
 
   // Determine ARIA role and state based on mode
   const ariaRole = isSelectable ? 'checkbox' : undefined;
@@ -92,13 +95,13 @@ function StudentPointCardComponent({
         relative flex flex-col items-center ${config.padding} bg-white rounded-xl shadow-sm border
         hover:shadow-md transition-all duration-200 cursor-pointer w-full
         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-        ${isSelected
-          ? 'border-blue-500 border-2 bg-blue-50'
-          : 'border-gray-100 hover:border-blue-200'
+        ${
+          isSelected
+            ? 'border-blue-500 border-2 bg-blue-50'
+            : 'border-gray-100 hover:border-blue-200'
         }
       `}
     >
-
       {/* Point totals badges - only show when not in selection mode */}
       {showPointTotals && !isSelectable && (
         <>
@@ -132,13 +135,15 @@ function StudentPointCardComponent({
 
       {/* Points */}
       <span className={`${config.points} font-bold mt-1 ${pointsColor}`}>
-        {student.pointTotal >= 0 ? '+' : ''}{student.pointTotal}
+        {student.pointTotal >= 0 ? '+' : ''}
+        {student.pointTotal}
       </span>
 
       {/* Today's points (small) */}
       {student.todayTotal !== 0 && (
         <span className={`${config.today} text-gray-500 mt-0.5`}>
-          Today: {student.todayTotal >= 0 ? '+' : ''}{student.todayTotal}
+          Today: {student.todayTotal >= 0 ? '+' : ''}
+          {student.todayTotal}
         </span>
       )}
 
@@ -149,10 +154,7 @@ function StudentPointCardComponent({
           className={`
             mt-2 w-5 h-5 rounded border-2 flex items-center justify-center
             transition-colors duration-150 pointer-events-none
-            ${isSelected
-              ? 'bg-blue-500 border-blue-500 text-white'
-              : 'bg-white border-gray-300'
-            }
+            ${isSelected ? 'bg-blue-500 border-blue-500 text-white' : 'bg-white border-gray-300'}
           `}
         >
           {isSelected && (

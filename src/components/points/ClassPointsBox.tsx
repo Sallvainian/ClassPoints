@@ -27,14 +27,17 @@ export function ClassPointsBox({ classPoints, studentCount, onClick }: ClassPoin
 
         <div className="text-right">
           <div className="text-3xl font-bold">
-            {total >= 0 ? '+' : ''}{total}
+            {total >= 0 ? '+' : ''}
+            {total}
           </div>
           <div className="text-sm flex gap-3 justify-end">
             <span className="text-emerald-300">+{positiveTotal}</span>
             <span className="text-red-300">{negativeTotal}</span>
           </div>
           <div className="text-white/70 text-xs mt-1">
-            Today: {today >= 0 ? '+' : ''}{today} • Week: {thisWeek >= 0 ? '+' : ''}{thisWeek}
+            Today: {today >= 0 ? '+' : ''}
+            {today} • Week: {thisWeek >= 0 ? '+' : ''}
+            {thisWeek}
           </div>
         </div>
       </div>

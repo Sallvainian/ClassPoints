@@ -68,9 +68,18 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
     startOfWeek.setHours(0, 0, 0, 0);
 
     // Calculate point totals per student (total, positive, negative, today, thisWeek)
-    const pointTotals = new Map<string, { total: number; positive: number; negative: number; today: number; thisWeek: number }>();
+    const pointTotals = new Map<
+      string,
+      { total: number; positive: number; negative: number; today: number; thisWeek: number }
+    >();
     (transactionData || []).forEach((t) => {
-      const current = pointTotals.get(t.student_id) || { total: 0, positive: 0, negative: 0, today: 0, thisWeek: 0 };
+      const current = pointTotals.get(t.student_id) || {
+        total: 0,
+        positive: 0,
+        negative: 0,
+        today: 0,
+        thisWeek: 0,
+      };
       current.total += t.points;
       if (t.points > 0) current.positive += t.points;
       if (t.points < 0) current.negative += t.points;
@@ -84,7 +93,13 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
 
     // Map students with point totals
     const studentsWithPoints: StudentWithPoints[] = (data || []).map((s) => {
-      const totals = pointTotals.get(s.id) || { total: 0, positive: 0, negative: 0, today: 0, thisWeek: 0 };
+      const totals = pointTotals.get(s.id) || {
+        total: 0,
+        positive: 0,
+        negative: 0,
+        today: 0,
+        thisWeek: 0,
+      };
       return {
         ...s,
         point_total: totals.total,
@@ -179,10 +194,18 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
               ? {
                   ...s,
                   point_total: s.point_total - oldTransaction.points,
-                  positive_total: oldTransaction.points > 0 ? s.positive_total - oldTransaction.points : s.positive_total,
-                  negative_total: oldTransaction.points < 0 ? s.negative_total - oldTransaction.points : s.negative_total,
+                  positive_total:
+                    oldTransaction.points > 0
+                      ? s.positive_total - oldTransaction.points
+                      : s.positive_total,
+                  negative_total:
+                    oldTransaction.points < 0
+                      ? s.negative_total - oldTransaction.points
+                      : s.negative_total,
                   today_total: wasToday ? s.today_total - oldTransaction.points : s.today_total,
-                  this_week_total: wasThisWeek ? s.this_week_total - oldTransaction.points : s.this_week_total,
+                  this_week_total: wasThisWeek
+                    ? s.this_week_total - oldTransaction.points
+                    : s.this_week_total,
                 }
               : s
           )
@@ -307,10 +330,7 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
   );
 
   const removeStudent = useCallback(async (id: string): Promise<boolean> => {
-    const { error: deleteError } = await supabase
-      .from('students')
-      .delete()
-      .eq('id', id);
+    const { error: deleteError } = await supabase.from('students').delete().eq('id', id);
 
     if (deleteError) {
       setError(new Error(deleteError.message));
@@ -322,25 +342,22 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
   }, []);
 
   // Optimistically update student points before realtime event arrives
-  const updateStudentPointsOptimistically = useCallback(
-    (studentId: string, points: number) => {
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === studentId
-            ? {
-                ...s,
-                point_total: s.point_total + points,
-                positive_total: points > 0 ? s.positive_total + points : s.positive_total,
-                negative_total: points < 0 ? s.negative_total + points : s.negative_total,
-                today_total: s.today_total + points,
-                this_week_total: s.this_week_total + points,
-              }
-            : s
-        )
-      );
-    },
-    []
-  );
+  const updateStudentPointsOptimistically = useCallback((studentId: string, points: number) => {
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.id === studentId
+          ? {
+              ...s,
+              point_total: s.point_total + points,
+              positive_total: points > 0 ? s.positive_total + points : s.positive_total,
+              negative_total: points < 0 ? s.negative_total + points : s.negative_total,
+              today_total: s.today_total + points,
+              this_week_total: s.this_week_total + points,
+            }
+          : s
+      )
+    );
+  }, []);
 
   return {
     students,

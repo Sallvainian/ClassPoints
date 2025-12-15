@@ -105,10 +105,7 @@ export function MigrationWizard({ onComplete, onSkip }: MigrationWizardProps) {
           <Button onClick={() => setStep('preview')} className="w-full mb-3">
             Review & Migrate
           </Button>
-          <button
-            onClick={onSkip}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
+          <button onClick={onSkip} className="text-sm text-gray-500 hover:text-gray-700">
             Skip (keep using local storage)
           </button>
         </div>
@@ -146,8 +143,8 @@ export function MigrationWizard({ onComplete, onSkip }: MigrationWizardProps) {
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6">
           <p className="text-sm text-yellow-800">
-            <strong>Note:</strong> After migration, your data will sync across all your devices.
-            A backup of your local data will be kept just in case.
+            <strong>Note:</strong> After migration, your data will sync across all your devices. A
+            backup of your local data will be kept just in case.
           </p>
         </div>
 
@@ -186,9 +183,7 @@ export function MigrationWizard({ onComplete, onSkip }: MigrationWizardProps) {
           <p className="text-sm text-gray-500 mt-2">{progress.message}</p>
         </div>
 
-        <div className="text-center text-gray-500 text-sm">
-          Please don't close this window...
-        </div>
+        <div className="text-center text-gray-500 text-sm">Please don't close this window...</div>
       </div>
     );
   }
@@ -234,9 +229,7 @@ export function MigrationWizard({ onComplete, onSkip }: MigrationWizardProps) {
                 <li key={i}>• {warning}</li>
               ))}
               {result.warnings.length > 3 && (
-                <li className="text-yellow-600">
-                  ...and {result.warnings.length - 3} more
-                </li>
+                <li className="text-yellow-600">...and {result.warnings.length - 3} more</li>
               )}
             </ul>
           </div>
@@ -288,10 +281,7 @@ export function MigrationWizard({ onComplete, onSkip }: MigrationWizardProps) {
           <Button onClick={handleStartMigration} className="w-full">
             Retry Migration
           </Button>
-          <button
-            onClick={onSkip}
-            className="w-full text-sm text-gray-500 hover:text-gray-700"
-          >
+          <button onClick={onSkip} className="w-full text-sm text-gray-500 hover:text-gray-700">
             Continue without migration
           </button>
         </div>

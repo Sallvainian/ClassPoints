@@ -73,8 +73,18 @@ function BottomToolbarComponent({
             onClick={onEnterSelectionMode}
             className="flex flex-col items-center gap-1.5 w-20 py-3 rounded-2xl bg-white shadow-md hover:shadow-lg text-blue-600 hover:bg-blue-50 transition-all hover:scale-105 active:scale-95"
           >
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-8 h-8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             <span className="text-xs font-semibold tracking-wide">Select</span>
           </button>

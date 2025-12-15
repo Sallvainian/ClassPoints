@@ -53,40 +53,39 @@ export function ClassAwardModal({
     }
   }, [isOpen]);
 
-  const handleBehaviorSelect = useCallback(async (behavior: Behavior) => {
-    if (isAwarding) return;
+  const handleBehaviorSelect = useCallback(
+    async (behavior: Behavior) => {
+      if (isAwarding) return;
 
-    setIsAwarding(true);
-    setAwardError(null);
+      setIsAwarding(true);
+      setAwardError(null);
 
-    try {
-      // awardClassPoints throws on error with automatic rollback
-      await awardClassPoints(classroomId, behavior.id);
+      try {
+        // awardClassPoints throws on error with automatic rollback
+        await awardClassPoints(classroomId, behavior.id);
 
-      // Only play sound on success
-      if (behavior.category === 'positive') {
-        playPositive();
-      } else {
-        playNegative();
+        // Only play sound on success
+        if (behavior.category === 'positive') {
+          playPositive();
+        } else {
+          playNegative();
+        }
+        onClose();
+      } catch (err) {
+        console.error('Failed to award class points:', err);
+        setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_CLASS);
+        setIsAwarding(false);
       }
-      onClose();
-    } catch (err) {
-      console.error('Failed to award class points:', err);
-      setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_CLASS);
-      setIsAwarding(false);
-    }
-  }, [classroomId, isAwarding, awardClassPoints, playPositive, playNegative, onClose]);
+    },
+    [classroomId, isAwarding, awardClassPoints, playPositive, playNegative, onClose]
+  );
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
 
       {/* Modal */}
       <div
@@ -119,7 +118,12 @@ export function ClassAwardModal({
                 {classroomName} • {studentCount} student{studentCount !== 1 ? 's' : ''}
               </p>
               <p className="text-white/80 text-sm">
-                Class Total: <span className="font-semibold">{classPoints.total >= 0 ? '+' : ''}{classPoints.total}</span> points
+                Class Total:{' '}
+                <span className="font-semibold">
+                  {classPoints.total >= 0 ? '+' : ''}
+                  {classPoints.total}
+                </span>{' '}
+                points
               </p>
             </div>
           </div>

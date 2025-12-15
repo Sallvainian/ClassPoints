@@ -120,8 +120,8 @@ workflow_status:
 # Next action
 next_workflow:
   id: "test-design"
-  name: "Test Design (Epic 3)"
+  name: "Test Design (Epic 2)"
   agent: "tea"
   command: "/bmad:bmm:workflows:testarch-test-design"
-  reason: "Sprint plan created - test-design runs per-epic before stories. Starting with Epic 3 for process guardrails."
-  output: "test-design-epic-3.md"
+  reason: "Sprint plan created - test-design runs per-epic before stories. Starting with Epic 2 for process guardrails."
+  output: "test-design-epic-2.md"

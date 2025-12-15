@@ -13,12 +13,7 @@ interface AwardPointsModalProps {
   classroomId: string;
 }
 
-export function AwardPointsModal({
-  isOpen,
-  onClose,
-  student,
-  classroomId,
-}: AwardPointsModalProps) {
+export function AwardPointsModal({ isOpen, onClose, student, classroomId }: AwardPointsModalProps) {
   const { behaviors, awardPoints, getStudentPoints } = useApp();
   const { playPositive, playNegative } = useSoundEffects();
   const [isAwarding, setIsAwarding] = useState(false);
@@ -49,26 +44,29 @@ export function AwardPointsModal({
     }
   }, [isOpen]);
 
-  const handleBehaviorSelect = useCallback(async (behavior: Behavior) => {
-    if (!student || isAwarding) return;
+  const handleBehaviorSelect = useCallback(
+    async (behavior: Behavior) => {
+      if (!student || isAwarding) return;
 
-    setIsAwarding(true);
-    setAwardError(null);
+      setIsAwarding(true);
+      setAwardError(null);
 
-    try {
-      await awardPoints(classroomId, student.id, behavior.id);
-      // Play sound based on behavior category (before closing for celebration moment)
-      if (behavior.category === 'positive') {
-        playPositive();
-      } else {
-        playNegative();
+      try {
+        await awardPoints(classroomId, student.id, behavior.id);
+        // Play sound based on behavior category (before closing for celebration moment)
+        if (behavior.category === 'positive') {
+          playPositive();
+        } else {
+          playNegative();
+        }
+        onClose();
+      } catch (err) {
+        setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_POINTS);
+        setIsAwarding(false);
       }
-      onClose();
-    } catch (err) {
-      setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_POINTS);
-      setIsAwarding(false);
-    }
-  }, [classroomId, student, isAwarding, awardPoints, playPositive, playNegative, onClose]);
+    },
+    [classroomId, student, isAwarding, awardPoints, playPositive, playNegative, onClose]
+  );
 
   if (!isOpen || !student) return null;
 
@@ -77,11 +75,7 @@ export function AwardPointsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
 
       {/* Modal */}
       <div
@@ -104,7 +98,9 @@ export function AwardPointsModal({
             {/* Avatar */}
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg"
-              style={{ backgroundColor: student.avatarColor || getAvatarColorForName(student.name) }}
+              style={{
+                backgroundColor: student.avatarColor || getAvatarColorForName(student.name),
+              }}
             >
               {student.name.charAt(0).toUpperCase()}
             </div>
@@ -114,7 +110,12 @@ export function AwardPointsModal({
                 {student.name}
               </h2>
               <p className="text-white/80 text-sm">
-                Total: <span className="font-semibold">{points.total >= 0 ? '+' : ''}{points.total}</span> points
+                Total:{' '}
+                <span className="font-semibold">
+                  {points.total >= 0 ? '+' : ''}
+                  {points.total}
+                </span>{' '}
+                points
               </p>
             </div>
           </div>
