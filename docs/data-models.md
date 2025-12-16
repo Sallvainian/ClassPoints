@@ -2,7 +2,7 @@
 
 ## Overview
 
-ClassPoints uses a relational data model stored in Supabase (PostgreSQL). All tables have Row Level Security (RLS) enabled for multi-tenant isolation.
+ClassPoints uses a relational data model stored in Supabase (PostgreSQL). All 5 tables have Row Level Security (RLS) enabled for multi-tenant isolation.
 
 ## Entity Relationship Diagram
 
@@ -38,6 +38,19 @@ ClassPoints uses a relational data model stored in Supabase (PostgreSQL). All ta
 │    │ batch_id          (for class-wide undo)                      │    │
 │    │ created_at                                                   │    │
 │    └──────────────────────────────────────────────────────────────┘    │
+│                                                                         │
+│    ┌──────────────────────┐                                            │
+│    │  UserSoundSettings   │                                            │
+│    ├──────────────────────┤                                            │
+│    │ id (PK)              │                                            │
+│    │ user_id (FK, UNIQUE) │                                            │
+│    │ enabled              │                                            │
+│    │ volume               │                                            │
+│    │ positive_sound_url   │                                            │
+│    │ negative_sound_url   │                                            │
+│    │ created_at           │                                            │
+│    │ updated_at           │                                            │
+│    └──────────────────────┘                                            │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -119,6 +132,29 @@ Records each point award/deduction event.
 
 **RLS Policies:**
 - SELECT/INSERT/UPDATE/DELETE: via classroom ownership check
+
+### user_sound_settings
+
+Stores user preferences for sound effects (added in migration 007).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `uuid` | PRIMARY KEY, DEFAULT uuid_generate_v4() | Unique identifier |
+| `user_id` | `uuid` | NOT NULL UNIQUE, FK → auth.users | User this setting belongs to |
+| `enabled` | `boolean` | DEFAULT true | Master sound toggle |
+| `volume` | `numeric` | DEFAULT 0.7 | Volume level (0.0 to 1.0) |
+| `positive_sound_url` | `text` | | Custom URL for positive sound |
+| `negative_sound_url` | `text` | | Custom URL for negative sound |
+| `created_at` | `timestamptz` | DEFAULT now() | Creation timestamp |
+| `updated_at` | `timestamptz` | DEFAULT now() | Last update timestamp |
+
+**RLS Policies:**
+- SELECT/INSERT/UPDATE/DELETE: `user_id = auth.uid()`
+
+**Notes:**
+- One row per user (enforced by UNIQUE constraint on user_id)
+- Sound URLs are validated on the client side for safety
+- Default sounds are Web Audio API synthesized (no external URLs needed)
 
 ## TypeScript Types
 

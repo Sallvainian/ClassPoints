@@ -1,0 +1,204 @@
+# Workflow Status Template
+# This tracks progress through BMM methodology Analysis, Planning, and Solutioning phases.
+# Implementation phase is tracked separately in sprint-status.yaml
+
+# STATUS DEFINITIONS:
+# ==================
+# Initial Status (before completion):
+#   - required: Must be completed to progress
+#   - optional: Can be completed but not required
+#   - recommended: Strongly suggested but not required
+#   - skipped: Optional workflow that was skipped
+#
+# Completion Status:
+#   - {file-path}: File created/found (e.g., "docs/product-brief.md")
+#   - skipped: Optional/conditional workflow that was skipped
+
+generated: "2025-12-15"
+project: "ClassPoints"
+project_type: "web-app"
+selected_track: "bmad-method"
+field_type: "brownfield"
+workflow_path: "method-brownfield"
+
+workflow_status:
+  # ═══════════════════════════════════════════════════════════════════
+  # PREREQUISITE PHASE
+  # ═══════════════════════════════════════════════════════════════════
+  - id: document-project
+    phase: prerequisite
+    name: "Document Project"
+    agent: analyst
+    command: document-project
+    status: "docs/project-context.md"
+    note: "Brownfield documentation complete"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # DISCOVERY PHASE (Optional)
+  # ═══════════════════════════════════════════════════════════════════
+  - id: brainstorm
+    phase: discovery
+    name: "Brainstorm"
+    agent: analyst
+    command: brainstorm-project
+    status: skipped
+
+  - id: research
+    phase: discovery
+    name: "Research"
+    agent: analyst
+    command: research
+    status: skipped
+
+  - id: product-brief
+    phase: discovery
+    name: "Product Brief"
+    agent: analyst
+    command: create-product-brief
+    status: skipped
+
+  # ═══════════════════════════════════════════════════════════════════
+  # PLANNING PHASE (Phase 1)
+  # ═══════════════════════════════════════════════════════════════════
+  - id: prd
+    phase: planning
+    name: "Product Requirements Document"
+    agent: pm
+    command: create-prd
+    status: required
+    note: "Next workflow to execute"
+
+  - id: create-ux-design
+    phase: planning
+    name: "UX Design"
+    agent: ux-designer
+    command: create-ux-design
+    status: skipped
+
+  # ═══════════════════════════════════════════════════════════════════
+  # SOLUTIONING PHASE (Phase 2-3)
+  # ═══════════════════════════════════════════════════════════════════
+  - id: create-architecture
+    phase: solutioning
+    name: "Architecture Design"
+    agent: architect
+    command: create-architecture
+    status: recommended
+    note: "Solution design for new PRD"
+
+  - id: create-epics-and-stories
+    phase: solutioning
+    name: "Create Epics and Stories"
+    agent: pm
+    command: create-epics-stories
+    status: required
+
+  - id: test-design-system
+    phase: solutioning
+    name: "Test Design (System-Level)"
+    agent: tea
+    command: testarch-test-design
+    status: recommended
+    note: "Phase 3: System-level testability review BEFORE gate check"
+
+  - id: validate-architecture
+    phase: solutioning
+    name: "Validate Architecture"
+    agent: architect
+    command: validate-architecture
+    status: recommended
+
+  - id: implementation-readiness
+    phase: solutioning
+    name: "Implementation Readiness"
+    agent: architect
+    command: check-implementation-readiness
+    status: required
+    note: "Gate check - validates PRD + Architecture + Epics"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # IMPLEMENTATION PHASE (Phase 4)
+  # ═══════════════════════════════════════════════════════════════════
+  - id: sprint-planning
+    phase: implementation
+    name: "Sprint Planning"
+    agent: sm
+    command: sprint-planning
+    status: required
+    note: "Creates sprint-status.yaml"
+
+  - id: testarch-framework
+    phase: implementation
+    name: "Test Framework Setup"
+    agent: tea
+    command: testarch-framework
+    status: recommended
+    note: "Initialize Playwright/Cypress framework AFTER gate passes"
+
+  - id: testarch-ci
+    phase: implementation
+    name: "CI/CD Quality Pipeline"
+    agent: tea
+    command: testarch-ci
+    status: recommended
+    note: "Scaffold CI/CD pipeline AFTER gate passes"
+
+  # Per-Epic/Story TEA workflows (run during implementation)
+  - id: test-design-epic
+    phase: implementation
+    name: "Test Design (Epic-Level)"
+    agent: tea
+    command: testarch-test-design
+    status: recommended
+    note: "Phase 4: Epic-level test planning - run per epic"
+
+  - id: testarch-atdd
+    phase: implementation
+    name: "Acceptance Test-Driven Development"
+    agent: tea
+    command: testarch-atdd
+    status: recommended
+    note: "Generate failing acceptance tests BEFORE implementation - run per story"
+
+  - id: testarch-automate
+    phase: implementation
+    name: "Test Automation"
+    agent: tea
+    command: testarch-automate
+    status: recommended
+    note: "Expand test automation coverage AFTER implementation"
+
+  - id: testarch-test-review
+    phase: implementation
+    name: "Test Quality Review"
+    agent: tea
+    command: testarch-test-review
+    status: recommended
+    note: "Review test quality - run per story/epic as needed"
+
+  - id: testarch-trace-story
+    phase: implementation
+    name: "Requirements Traceability (Story/Epic)"
+    agent: tea
+    command: testarch-trace
+    status: recommended
+    note: "Traceability matrix - gate_type: story or epic"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # PRE-RELEASE PHASE
+  # ═══════════════════════════════════════════════════════════════════
+  - id: testarch-trace-release
+    phase: pre-release
+    name: "Requirements Traceability (Release Gate)"
+    agent: tea
+    command: testarch-trace
+    status: recommended
+    note: "Release-level traceability - gate_type: release"
+
+  - id: testarch-nfr
+    phase: pre-release
+    name: "Non-Functional Requirements Assessment"
+    agent: tea
+    command: testarch-nfr
+    status: recommended
+    note: "Performance, security, reliability assessment before release"

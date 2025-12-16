@@ -2,7 +2,7 @@
 
 > A classroom behavior management application for tracking student points and behaviors.
 
-**Generated:** December 12, 2025
+**Generated:** December 15, 2025 (Exhaustive rescan)
 **Project Type:** Web Application (React + Supabase)
 **Scan Level:** Exhaustive
 
@@ -17,8 +17,8 @@
 | [Data Models](./data-models.md)                   | Database schema and TypeScript types                  |
 | [Tech Stack](./tech-stack.md)                     | Technologies, dependencies, and configuration         |
 | [Source Tree](./source-tree.md)                   | File structure and component hierarchy                |
+| [CI/CD Pipeline](./ci.md)                         | GitHub Actions, testing, and deployment               |
 | [UX Design](./ux-design-specification/index.md)   | UX specification and design system                    |
-| [PRD](./prd.md)                                   | Product requirements document                         |
 
 ---
 
@@ -42,13 +42,20 @@
 UI Components → React Context → Custom Hooks → Supabase Client → PostgreSQL
 ```
 
+**Provider Hierarchy:**
+```
+AuthProvider → AuthGuard → SoundProvider → HybridAppProvider → AppContent
+```
+
 **Key Patterns:**
 
 - Layered architecture with clear separation of concerns
-- React Context for state management
-- Custom hooks for data operations
+- React Context for state management (5 contexts)
+- Custom hooks for data operations (9 hooks)
 - Supabase for backend (auth, database, realtime)
 - Row Level Security for multi-tenant isolation
+- Optimistic UI with rollback on error
+- Offline queue with last-write-wins sync
 
 ---
 
@@ -66,12 +73,13 @@ UI Components → React Context → Custom Hooks → Supabase Client → Postgre
 
 ## Core Entities
 
-| Entity               | Description                         |
-| -------------------- | ----------------------------------- |
-| **Classroom**        | A class period with students        |
-| **Student**          | A student within a classroom        |
-| **Behavior**         | Positive/negative behavior template |
-| **PointTransaction** | Record of points awarded            |
+| Entity                 | Description                         |
+| ---------------------- | ----------------------------------- |
+| **Classroom**          | A class period with students        |
+| **Student**            | A student within a classroom        |
+| **Behavior**           | Positive/negative behavior template |
+| **PointTransaction**   | Record of points awarded            |
+| **UserSoundSettings**  | User sound preferences (5th table)  |
 
 ---
 
@@ -132,14 +140,18 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ## Scripts
 
-| Command            | Description          |
-| ------------------ | -------------------- |
-| `npm run dev`      | Start dev server     |
-| `npm run build`    | Production build     |
-| `npm run preview`  | Preview build        |
-| `npm run lint`     | Run ESLint           |
-| `npm run test`     | Run unit tests       |
-| `npm run test:e2e` | Run Playwright tests |
+| Command              | Description               |
+| -------------------- | ------------------------- |
+| `npm run dev`        | Start dev server          |
+| `npm run dev:host`   | Dev server on network     |
+| `npm run build`      | Production build          |
+| `npm run lint`       | Run ESLint                |
+| `npm run lint:fix`   | ESLint with auto-fix      |
+| `npm run format`     | Format with Prettier      |
+| `npm run typecheck`  | TypeScript check only     |
+| `npm run test`       | Run unit tests (Vitest)   |
+| `npm run test:e2e`   | Run Playwright tests      |
+| `npm run test:e2e:ui`| E2E tests with UI         |
 
 ---
 
@@ -152,30 +164,28 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 - [Patterns & Rules](./patterns-and-rules/index.md) - **Authoritative guide for code patterns and conventions**
 - [Data Models](./data-models.md) - Database schema, types, and relationships
 
-### UX & Product
-
-- [PRD](./prd.md) - Product requirements document
-- [UX Design Specification](./ux-design-specification/index.md) - Complete UX design system
-- [Project Context](./project_context.md) - AI agent context with 42 rules
-
 ### Technical Reference
 
 - [Tech Stack](./tech-stack.md) - Dependencies, configuration, and tooling
 - [Source Tree](./source-tree.md) - File structure and component hierarchy
+- [CI/CD Pipeline](./ci.md) - GitHub Actions workflows and testing strategy
+- [CI Secrets Checklist](./ci-secrets-checklist.md) - Required secrets for CI
+
+### UX & Product
+
+- [UX Design Specification](./ux-design-specification/index.md) - Complete UX design system
+- [Project Context](./project-context.md) - AI agent context and project rules
 
 ### Plans & Specs
 
 - [Seating Chart Design](./plans/2025-01-22-seating-chart-design/index.md) - Feature design specification
 - [Seating Chart Implementation](./plans/2025-01-22-seating-chart-implementation.md) - Implementation plan
 
-### Sprint Artifacts
+### Archived Sprint Artifacts
 
-- [Sound Effects Tech Spec](./sprint-artifacts/tech-spec-sound-effects.md) - Audio feedback system
-- [Student Grid Enhancements](./sprint-artifacts/tech-spec-student-grid-enhancements.md) - Multi-select, card sizes
+Sprint artifacts from PRD-1 (Code Quality & BMAD Integration) are archived:
 
-### Diagrams
-
-- `diagrams/wireframe-classpoints.excalidraw` - App wireframe (8 screens)
+- [Archive Index](./archive/prd-1-code-quality-bmad/) - Contains PRD, epics, stories, tech specs, and retrospectives
 
 ---
 
@@ -234,4 +244,4 @@ Row Level Security ensures data isolation:
 
 ---
 
-_Documentation generated by BMAD Document Project workflow_
+_Documentation generated by BMAD Document Project workflow (December 15, 2025)_

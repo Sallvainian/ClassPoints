@@ -71,14 +71,22 @@ ClassPoints is a classroom behavior management application built with a modern R
 The app uses a nested provider pattern where each layer adds specific functionality:
 
 ```tsx
-<AuthProvider>          // Authentication state
-  <AuthGuard>           // Route protection
-    <HybridAppProvider> // Online/Offline mode selection
-      <AppContent />    // Main app with unified context
-    </HybridAppProvider>
+<AuthProvider>          // Authentication state (Supabase Auth)
+  <AuthGuard>           // Route protection (redirects unauthenticated users)
+    <SoundProvider>     // Sound effects settings (Web Audio API)
+      <HybridAppProvider> // Online/Offline mode selection
+        <AppContent />    // Main app with unified context via useApp()
+      </HybridAppProvider>
+    </SoundProvider>
   </AuthGuard>
 </AuthProvider>
 ```
+
+**Provider Responsibilities:**
+- **AuthProvider**: Manages Supabase session, user state, login/logout
+- **AuthGuard**: Renders AuthPage for unauthenticated users, app for authenticated
+- **SoundProvider**: Manages sound on/off, volume, custom sound URLs
+- **HybridAppProvider**: Wraps SupabaseAppContext with SyncManager for offline
 
 ### 2. Hybrid Online/Offline Architecture
 
@@ -168,9 +176,10 @@ SupabaseAppContext.undoTransaction()
 | Context | Purpose | Key State |
 |---------|---------|-----------|
 | `AuthContext` | User authentication | `user`, `loading`, `session` |
+| `SoundContext` | Sound effects | `enabled`, `volume`, `positiveUrl`, `negativeUrl` |
 | `AppContext` | Unified API facade | Delegates to HybridAppContext |
-| `HybridAppContext` | Mode switching | `isOnline`, `mode` |
-| `SupabaseAppContext` | Cloud data layer | `classrooms`, `behaviors`, `transactions` |
+| `HybridAppContext` | Mode switching | `isOnline`, `mode`, wraps SupabaseAppContext |
+| `SupabaseAppContext` | Cloud data layer | `classrooms`, `behaviors`, `transactions`, `students` |
 
 ### Hook Responsibilities
 
@@ -179,8 +188,11 @@ SupabaseAppContext.undoTransaction()
 | `useClassrooms` | Classroom CRUD with realtime sync |
 | `useStudents` | Student management within classrooms |
 | `useBehaviors` | Behavior templates (positive/negative) |
-| `useTransactions` | Point transaction history |
+| `useTransactions` | Point transaction history with undo support |
 | `useRealtimeSubscription` | Generic realtime postgres_changes |
+| `useSoundEffects` | Play positive/negative sounds via Web Audio API |
+| `useDisplaySettings` | Student card size preferences (localStorage) |
+| `usePersistedState` | Generic localStorage persistence hook |
 
 ## Security Architecture
 
