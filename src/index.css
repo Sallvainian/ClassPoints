@@ -1,6 +1,47 @@
 @import "tailwindcss";
 
-/* Custom animations */
+/* ===== THEME VARIABLES ===== */
+:root {
+  /* Default Theme Colors */
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-primary-light: #3b82f6;
+  --color-sidebar-from: #2563eb;
+  --color-sidebar-to: #1d4ed8;
+  --color-accent: #6366f1;
+  --color-accent-light: #818cf8;
+  --color-positive: #10b981;
+  --color-positive-light: #34d399;
+  --color-negative: #ef4444;
+  --color-class-from: #6366f1;
+  --color-class-to: #9333ea;
+
+  /* Decoration visibility */
+  --snow-opacity: 0;
+  --lights-opacity: 0;
+}
+
+:root.christmas {
+  /* Christmas Theme Colors */
+  --color-primary: #c62828;
+  --color-primary-dark: #b71c1c;
+  --color-primary-light: #e53935;
+  --color-sidebar-from: #c62828;
+  --color-sidebar-to: #1b5e20;
+  --color-accent: #ffd700;
+  --color-accent-light: #ffeb3b;
+  --color-positive: #2e7d32;
+  --color-positive-light: #4caf50;
+  --color-negative: #c62828;
+  --color-class-from: #ffd700;
+  --color-class-to: #c62828;
+
+  /* Decoration visibility */
+  --snow-opacity: 1;
+  --lights-opacity: 1;
+}
+
+/* ===== EXISTING ANIMATIONS ===== */
 @keyframes slide-up {
   from {
     opacity: 0;
@@ -42,7 +83,279 @@
   animation: pulse-red 1s ease-in-out;
 }
 
-/* Utility for line clamping */
+/* ===== CHRISTMAS ANIMATIONS ===== */
+
+/* Snowfall animation */
+@keyframes snowfall {
+  0% {
+    transform: translateY(-10vh) translateX(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) translateX(30px) rotate(360deg);
+    opacity: 0.3;
+  }
+}
+
+/* Twinkling lights */
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1.2);
+  }
+  50% {
+    opacity: 0.5;
+    filter: brightness(0.8);
+  }
+}
+
+/* Gift unwrap bounce */
+@keyframes unwrap {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.15) rotate(-3deg);
+  }
+  50% {
+    transform: scale(1.2) rotate(3deg);
+  }
+  75% {
+    transform: scale(1.1) rotate(-1deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Jingle shake */
+@keyframes jingle {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(15deg);
+  }
+  40% {
+    transform: rotate(-15deg);
+  }
+  60% {
+    transform: rotate(10deg);
+  }
+  80% {
+    transform: rotate(-10deg);
+  }
+}
+
+/* Shimmer effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Gentle glow pulse */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(255, 215, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+  }
+}
+
+/* Ornament swing */
+@keyframes ornament-swing {
+  0%, 100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+/* Star sparkle */
+@keyframes star-sparkle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+}
+
+/* Light string wave */
+@keyframes light-wave {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+/* ===== CHRISTMAS UTILITY CLASSES ===== */
+
+.animate-snowfall {
+  animation: snowfall linear infinite;
+}
+
+.animate-twinkle {
+  animation: twinkle 1.5s ease-in-out infinite;
+}
+
+.animate-unwrap {
+  animation: unwrap 0.5s ease-out;
+}
+
+.animate-jingle {
+  animation: jingle 0.6s ease-in-out;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-ornament-swing {
+  animation: ornament-swing 3s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+.animate-star-sparkle {
+  animation: star-sparkle 2s ease-in-out infinite;
+}
+
+.animate-light-wave {
+  animation: light-wave 2s ease-in-out infinite;
+}
+
+/* ===== CHRISTMAS THEME CLASSES ===== */
+
+/* Christmas gradient backgrounds */
+.christmas-gradient-sidebar {
+  background: linear-gradient(to bottom, var(--color-sidebar-from), var(--color-sidebar-to));
+}
+
+.christmas-gradient-primary {
+  background: linear-gradient(to right, #c62828, #1b5e20);
+}
+
+.christmas-gradient-gold {
+  background: linear-gradient(to right, #ffd700, #c62828);
+}
+
+/* Candy cane stripe pattern */
+.candy-cane-border {
+  background: repeating-linear-gradient(
+    45deg,
+    #c62828,
+    #c62828 10px,
+    #ffffff 10px,
+    #ffffff 20px
+  );
+}
+
+.candy-cane-border-thin {
+  background: repeating-linear-gradient(
+    45deg,
+    #c62828,
+    #c62828 5px,
+    #ffffff 5px,
+    #ffffff 10px
+  );
+}
+
+/* Festive border glow */
+.festive-glow {
+  box-shadow:
+    0 0 10px rgba(198, 40, 40, 0.3),
+    0 0 20px rgba(27, 94, 32, 0.2);
+}
+
+.festive-glow-gold {
+  box-shadow:
+    0 0 10px rgba(255, 215, 0, 0.4),
+    0 0 20px rgba(255, 215, 0, 0.2);
+}
+
+/* Snow-capped effect */
+.snow-cap::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.3));
+  border-radius: 3px 3px 0 0;
+}
+
+/* Holly decoration */
+.holly-corner::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='8' r='3' fill='%23c62828'/%3E%3Ccircle cx='8' cy='10' r='2' fill='%23c62828'/%3E%3Cpath d='M6 12c2-4 8-4 10 0' fill='%231b5e20'/%3E%3Cpath d='M4 14c2-5 10-5 12 0' fill='%232e7d32'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+/* Gift ribbon effect */
+.gift-ribbon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 100%;
+  background: linear-gradient(to right, #ffd700 0%, #ffeb3b 50%, #ffd700 100%);
+}
+
+.gift-ribbon::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: 100%;
+  height: 12px;
+  background: linear-gradient(to bottom, #ffd700 0%, #ffeb3b 50%, #ffd700 100%);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-snowfall,
+  .animate-twinkle,
+  .animate-shimmer,
+  .animate-glow-pulse,
+  .animate-ornament-swing,
+  .animate-star-sparkle,
+  .animate-light-wave {
+    animation: none;
+  }
+}
+
+/* ===== EXISTING UTILITIES ===== */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;

@@ -5,7 +5,7 @@
  * Handles browser autoplay restrictions gracefully.
  */
 
-import { useCallback, useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { useSoundContext } from '../contexts/SoundContext';
 import type { SoundId } from '../assets/sounds';
 import { loadAudioFromUrl } from '../utils/validateAudioUrl';
@@ -83,107 +83,79 @@ export function useSoundEffects(
     settings.customNegativeUrl,
   ]);
 
-  // Play a sound buffer
-  const playBuffer = useCallback(
-    (buffer: AudioBuffer) => {
-      if (!audioContext || !buffer) return;
+  // FIX: Use plain functions instead of useCallback to avoid stale closures
+  // The soundBuffers Map reference is stable but its contents change after initialization
+  // Using useCallback captured the empty Map before it was populated
 
-      try {
-        // Resume context if suspended (autoplay policy)
-        if (audioContext.state === 'suspended') {
-          audioContext.resume().catch((err) => {
-            console.warn('Failed to resume audio context:', err);
-          });
-        }
-
-        // Create gain node for volume control
-        const gainNode = audioContext.createGain();
-        gainNode.gain.value = settings.volume;
-        gainNode.connect(audioContext.destination);
-
-        // Create and play source
-        const source = audioContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(gainNode);
-        source.start(0);
-      } catch (err) {
-        // Distinguish between autoplay restrictions and real errors
-        const isAutoplayRestriction =
-          err instanceof DOMException && err.name === 'NotAllowedError';
-
-        if (isAutoplayRestriction) {
-          // Browser autoplay policy - will work after user interaction
-          console.warn('Sound blocked by autoplay policy - will work after user interaction');
-        } else {
-          // Real playback error
-          console.error('Sound playback failed:', err);
-        }
-      }
-    },
-    [audioContext, settings.volume]
-  );
-
-  // Get the appropriate buffer for a sound
-  const getBuffer = useCallback(
-    (soundId: SoundId, customUrl: string | null): AudioBuffer | null => {
-      // Try custom URL first
-      if (customUrl) {
-        const customBuffer = customBuffersRef.current.get(customUrl);
-        if (customBuffer) return customBuffer;
-        // Fall through to default if custom not loaded
-      }
-
-      // Use built-in sound
-      return soundBuffers.get(soundId) || null;
-    },
-    [soundBuffers]
-  );
-
-  const playPositive = useCallback(() => {
-    if (!settings.enabled) return;
-
-    if (testMode) {
-      return;
+  function getBuffer(soundId: SoundId, customUrl: string | null): AudioBuffer | null {
+    // Try custom URL first
+    if (customUrl) {
+      const customBuffer = customBuffersRef.current.get(customUrl);
+      if (customBuffer) return customBuffer;
+      // Fall through to default if custom not loaded
     }
 
-    const buffer = getBuffer(
-      settings.positiveSound,
-      settings.customPositiveUrl
-    );
+    // Use built-in sound - access soundBuffers directly (not via closure)
+    return soundBuffers.get(soundId) ?? null;
+  }
+
+  function playBuffer(buffer: AudioBuffer) {
+    if (!audioContext || !buffer) return;
+
+    try {
+      // Resume context if suspended (autoplay policy)
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch((err) => {
+          console.warn('Failed to resume audio context:', err);
+        });
+      }
+
+      // Create gain node for volume control
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = settings.volume;
+      gainNode.connect(audioContext.destination);
+
+      // Create and play source
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(gainNode);
+      source.start(0);
+    } catch (err) {
+      // Distinguish between autoplay restrictions and real errors
+      const isAutoplayRestriction =
+        err instanceof DOMException && err.name === 'NotAllowedError';
+
+      if (isAutoplayRestriction) {
+        // Browser autoplay policy - will work after user interaction
+        console.warn('Sound blocked by autoplay policy - will work after user interaction');
+      } else {
+        // Real playback error
+        console.error('Sound playback failed:', err);
+      }
+    }
+  }
+
+  function playPositive() {
+    if (!settings.enabled) return;
+    if (testMode) return;
+
+    // Play the user's selected positive sound (Christmas sounds available as options)
+    const buffer = getBuffer(settings.positiveSound, settings.customPositiveUrl);
     if (buffer) {
       playBuffer(buffer);
     }
-  }, [
-    settings.enabled,
-    settings.positiveSound,
-    settings.customPositiveUrl,
-    testMode,
-    getBuffer,
-    playBuffer,
-  ]);
+  }
 
-  const playNegative = useCallback(() => {
+  function playNegative() {
     if (!settings.enabled) return;
+    if (testMode) return;
 
-    if (testMode) {
-      return;
-    }
-
-    const buffer = getBuffer(
-      settings.negativeSound,
-      settings.customNegativeUrl
-    );
+    // Play the user's selected negative sound (Christmas sounds available as options)
+    const buffer = getBuffer(settings.negativeSound, settings.customNegativeUrl);
     if (buffer) {
       playBuffer(buffer);
     }
-  }, [
-    settings.enabled,
-    settings.negativeSound,
-    settings.customNegativeUrl,
-    testMode,
-    getBuffer,
-    playBuffer,
-  ]);
+  }
 
   const setVolume = useCallback(
     (percent: number) => {

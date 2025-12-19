@@ -1,6 +1,7 @@
 import { memo, useCallback } from 'react';
 import type { Student } from '../../types';
 import type { CardSize } from '../../hooks/useDisplaySettings';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getAvatarColorForName, needsDarkText } from '../../utils';
 
 interface StudentPointCardProps {
@@ -52,8 +53,11 @@ function StudentPointCardComponent({
   isSelected = false,
   onSelect,
 }: StudentPointCardProps) {
+  const { isChristmas } = useTheme();
   const config = SIZE_CONFIG[size];
-  const pointsColor = student.pointTotal >= 0 ? 'text-emerald-600' : 'text-red-600';
+  const pointsColor = isChristmas
+    ? student.pointTotal >= 0 ? 'text-green-600' : 'text-red-600'
+    : student.pointTotal >= 0 ? 'text-emerald-600' : 'text-red-600';
   const bgColor = student.avatarColor || getAvatarColorForName(student.name);
   const avatarTextColor = needsDarkText(bgColor) ? 'text-gray-800' : 'text-white';
 
@@ -89,22 +93,37 @@ function StudentPointCardComponent({
       aria-checked={ariaChecked}
       aria-label={`${student.name}, ${student.pointTotal} points${isSelectable ? (isSelected ? ', selected' : ', not selected') : ''}`}
       className={`
-        relative flex flex-col items-center ${config.padding} bg-white rounded-xl shadow-sm border
+        relative flex flex-col items-center ${config.padding} rounded-xl shadow-sm border
         hover:shadow-md transition-all duration-200 cursor-pointer w-full
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+        focus:outline-none focus:ring-2 focus:ring-offset-2
+        ${isChristmas ? 'focus:ring-red-500' : 'focus:ring-blue-500'}
         ${isSelected
-          ? 'border-blue-500 border-2 bg-blue-50'
-          : 'border-gray-100 hover:border-blue-200'
+          ? isChristmas
+            ? 'border-red-500 border-2 bg-red-50'
+            : 'border-blue-500 border-2 bg-blue-50'
+          : isChristmas
+            ? 'bg-white border-green-200 hover:border-red-300 hover:shadow-lg'
+            : 'bg-white border-gray-100 hover:border-blue-200'
         }
       `}
     >
+      {/* Christmas decorations on hover */}
+      {isChristmas && !isSelectable && (
+        <div className="absolute -top-1 -right-1 text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+          ⭐
+        </div>
+      )}
 
       {/* Point totals badges - only show when not in selection mode */}
       {showPointTotals && !isSelectable && (
         <>
           {/* Positive points - top left */}
           <div
-            className={`absolute top-1 left-1 bg-emerald-100 text-emerald-700 ${config.badge} rounded-full font-medium`}
+            className={`absolute top-1 left-1 ${config.badge} rounded-full font-medium ${
+              isChristmas
+                ? 'bg-green-100 text-green-700'
+                : 'bg-emerald-100 text-emerald-700'
+            }`}
           >
             +{student.positiveTotal}
           </div>
@@ -150,19 +169,27 @@ function StudentPointCardComponent({
             mt-2 w-5 h-5 rounded border-2 flex items-center justify-center
             transition-colors duration-150 pointer-events-none
             ${isSelected
-              ? 'bg-blue-500 border-blue-500 text-white'
-              : 'bg-white border-gray-300'
+              ? isChristmas
+                ? 'bg-red-500 border-red-500 text-white'
+                : 'bg-blue-500 border-blue-500 text-white'
+              : isChristmas
+                ? 'bg-white border-green-400'
+                : 'bg-white border-gray-300'
             }
           `}
         >
           {isSelected && (
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                clipRule="evenodd"
-              />
-            </svg>
+            isChristmas ? (
+              <span className="text-xs">🎁</span>
+            ) : (
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )
           )}
         </div>
       )}

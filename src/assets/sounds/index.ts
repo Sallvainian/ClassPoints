@@ -9,8 +9,8 @@
  */
 
 // Category-aware sound ID types for type-safe validation
-export type PositiveSoundId = 'chime' | 'bell' | 'sparkle';
-export type NegativeSoundId = 'soft-buzz' | 'low-tone' | 'gentle-womp';
+export type PositiveSoundId = 'chime' | 'bell' | 'sparkle' | 'jingle-bells' | 'sleigh-bells';
+export type NegativeSoundId = 'soft-buzz' | 'low-tone' | 'gentle-womp' | 'coal-thud' | 'winter-wind';
 export type SoundId = PositiveSoundId | NegativeSoundId;
 
 export type SoundCategory = 'positive' | 'negative';
@@ -20,11 +20,15 @@ export const POSITIVE_SOUND_IDS: readonly PositiveSoundId[] = [
   'chime',
   'bell',
   'sparkle',
+  'jingle-bells',
+  'sleigh-bells',
 ] as const;
 export const NEGATIVE_SOUND_IDS: readonly NegativeSoundId[] = [
   'soft-buzz',
   'low-tone',
   'gentle-womp',
+  'coal-thud',
+  'winter-wind',
 ] as const;
 export const ALL_SOUND_IDS: readonly SoundId[] = [
   ...POSITIVE_SOUND_IDS,
@@ -73,6 +77,27 @@ export const SOUND_DEFINITIONS: Record<SoundId, SoundDefinition> = {
     duration: 0.35,
     waveType: 'sine',
   },
+  // Christmas positive sounds
+  'jingle-bells': {
+    id: 'jingle-bells',
+    name: 'Jingle Bells',
+    category: 'positive',
+    description: 'Festive jingle bell melody',
+    // Classic "Jingle Bells" melody: E-E-E, E-E-E, E-G-C-D-E
+    frequencies: [659.25, 659.25, 659.25, 659.25, 659.25, 659.25, 659.25, 783.99, 523.25, 587.33, 659.25],
+    duration: 0.9,
+    waveType: 'triangle', // Bell-like overtones
+  },
+  'sleigh-bells': {
+    id: 'sleigh-bells',
+    name: 'Sleigh Bells',
+    category: 'positive',
+    description: 'Sparkling sleigh bells shimmer',
+    // Quick alternating high notes like bells jingling
+    frequencies: [2093, 2637, 2093, 2637, 2093, 2637, 2349, 2793],
+    duration: 0.5,
+    waveType: 'sine',
+  },
   // Negative sounds - gentle, corrective
   'soft-buzz': {
     id: 'soft-buzz',
@@ -100,6 +125,27 @@ export const SOUND_DEFINITIONS: Record<SoundId, SoundDefinition> = {
     frequencies: [329.63, 261.63, 220], // E4, C4, A3 - descending thirds
     duration: 0.4,
     waveType: 'triangle',
+  },
+  // Christmas negative sounds
+  'coal-thud': {
+    id: 'coal-thud',
+    name: 'Coal Thud',
+    category: 'negative',
+    description: 'Heavy lump of coal dropping',
+    // Low impact thud - starts with attack then drops
+    frequencies: [150, 100, 65],
+    duration: 0.3,
+    waveType: 'triangle', // Softer thud
+  },
+  'winter-wind': {
+    id: 'winter-wind',
+    name: 'Winter Wind',
+    category: 'negative',
+    description: 'Cold winter breeze whoosh',
+    // Descending whoosh like cold wind
+    frequencies: [400, 350, 300, 250, 200, 150],
+    duration: 0.6,
+    waveType: 'sawtooth', // Breathy/airy quality
   },
 };
 
@@ -130,28 +176,33 @@ export function synthesizeSound(
 
   const noteLength = length / frequencies.length;
 
+  // FIX: Use phase accumulation to prevent discontinuities when frequency changes
+  let currentPhase = 0;
+
   for (let i = 0; i < length; i++) {
     const noteIndex = Math.min(Math.floor(i / noteLength), frequencies.length - 1);
     const frequency = frequencies[noteIndex];
-    const t = i / sampleRate;
 
-    // Generate waveform based on type
+    // FIX: Calculate phase increment for this sample step (prevents clicks/pops)
+    const phaseIncrement = (2 * Math.PI * frequency) / sampleRate;
+    currentPhase += phaseIncrement;
+
+    // Generate waveform based on type using accumulated phase
     let sample: number;
-    const phase = 2 * Math.PI * frequency * t;
 
     switch (waveType) {
       case 'triangle':
-        sample = (2 / Math.PI) * Math.asin(Math.sin(phase));
+        sample = (2 / Math.PI) * Math.asin(Math.sin(currentPhase));
         break;
       case 'square':
-        sample = Math.sin(phase) >= 0 ? 0.5 : -0.5;
+        sample = Math.sin(currentPhase) >= 0 ? 0.5 : -0.5;
         break;
       case 'sawtooth':
-        sample = 2 * ((frequency * t) % 1) - 1;
+        sample = 2 * ((currentPhase / (2 * Math.PI)) % 1) - 1;
         break;
       case 'sine':
       default:
-        sample = Math.sin(phase);
+        sample = Math.sin(currentPhase);
     }
 
     // Apply envelope (attack-decay) for smooth sound

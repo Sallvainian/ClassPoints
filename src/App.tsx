@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { SoundProvider } from './contexts/SoundContext';
 import { HybridAppProvider } from './contexts/HybridAppContext';
 import { AuthGuard } from './components/auth/AuthGuard';
@@ -8,6 +9,8 @@ import { MigrationWizard } from './components/migration/MigrationWizard';
 import { Layout } from './components/layout';
 import { DashboardView } from './components/dashboard';
 import { ClassSettingsView } from './components/settings';
+import { Snowfall } from './components/decorations/Snowfall';
+import { ChristmasLights } from './components/decorations/ChristmasLights';
 import { hasLocalStorageData } from './utils/migrateToSupabase';
 
 type View = "dashboard" | "settings" | "migration";
@@ -35,6 +38,8 @@ function AppContent() {
 
   return (
     <>
+      <Snowfall />
+      <ChristmasLights />
       <Layout>
         {view === "dashboard" ? (
           <DashboardView onOpenSettings={() => setView("settings")} />
@@ -49,14 +54,16 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AuthGuard>
-        <SoundProvider>
-          <HybridAppProvider>
-            <AppContent />
-          </HybridAppProvider>
-        </SoundProvider>
-      </AuthGuard>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AuthGuard>
+          <SoundProvider>
+            <HybridAppProvider>
+              <AppContent />
+            </HybridAppProvider>
+          </SoundProvider>
+        </AuthGuard>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

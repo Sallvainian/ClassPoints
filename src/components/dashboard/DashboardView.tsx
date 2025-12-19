@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Student, PointTransaction } from '../../types';
 import type { CardSize } from '../../hooks/useDisplaySettings';
 import { useApp } from '../../contexts/AppContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useDisplaySettings } from '../../hooks/useDisplaySettings';
 import { StudentGrid } from '../students/StudentGrid';
 import { AwardPointsModal } from '../points/AwardPointsModal';
@@ -29,6 +30,9 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     loading,
     error,
   } = useApp();
+
+  // Theme
+  const { isChristmas, toggleTheme } = useTheme();
 
   // Display settings
   const { settings, setCardSize, toggleShowPointTotals } = useDisplaySettings();
@@ -212,6 +216,26 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Christmas Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className={`
+                px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-300
+                flex items-center gap-1.5
+                ${isChristmas
+                  ? 'bg-gradient-to-r from-red-500 to-green-600 text-white shadow-md hover:shadow-lg animate-glow-pulse'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }
+              `}
+              title={isChristmas ? 'Disable Christmas Mode' : 'Enable Christmas Mode'}
+            >
+              <span className={isChristmas ? 'animate-jingle' : ''}>
+                {isChristmas ? '🎄' : '❄️'}
+              </span>
+              <span className="hidden sm:inline">
+                {isChristmas ? 'Holiday Mode' : 'Holiday Mode'}
+              </span>
+            </button>
             <SoundSettingsModal />
             <Button variant="ghost" size="sm" onClick={onOpenSettings}>
               ⚙️ Settings
