@@ -580,7 +580,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       // No studentIds provided - return zeros (sidebar uses stored classroom totals)
       return { total: 0, positiveTotal: 0, negativeTotal: 0, today: 0, thisWeek: 0 };
     },
-    [getStudentPointsStored]
+    [getStudentPointsStored, students]
   );
 
   const getRecentUndoableAction = useCallback((): UndoableAction | null => {
@@ -642,8 +642,9 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
   // Map classrooms to app format
   // Always use student_count for the students array length (used by sidebar)
-  // Uses stored point totals from database - no transaction recalculation to avoid flicker
-  // Only provide positive/negative breakdown for the active classroom (sidebar design)
+  // SINGLE SOURCE OF TRUTH: For active classroom, calculate totals from students[]
+  // This ensures sidebar matches ClassPointsBox (both use same student data)
+  // For inactive classrooms, use stored totals (user can't compare them to anything)
   const mappedClassrooms: AppClassroom[] = useMemo(() => {
     return classrooms.map((c) => {
       // Create placeholder array matching student_count for consistent display
@@ -653,19 +654,37 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       );
 
       const isActive = c.id === activeClassroomId;
+
+      // For active classroom: calculate from students[] (single source of truth)
+      // This matches getClassPoints() calculation exactly, ensuring consistency
+      let pointTotal: number;
+      let positiveTotal: number | undefined;
+      let negativeTotal: number | undefined;
+
+      if (isActive && students.length > 0) {
+        // Sum from students - same calculation as getClassPoints()
+        pointTotal = students.reduce((sum, s) => sum + s.point_total, 0);
+        positiveTotal = students.reduce((sum, s) => sum + s.positive_total, 0);
+        negativeTotal = students.reduce((sum, s) => sum + s.negative_total, 0);
+      } else {
+        // Inactive classrooms or empty active classroom: use stored totals
+        pointTotal = c.point_total;
+        positiveTotal = isActive ? c.positive_total : undefined;
+        negativeTotal = isActive ? c.negative_total : undefined;
+      }
+
       return {
         id: c.id,
         name: c.name,
         students: placeholderStudents,
         createdAt: new Date(c.created_at).getTime(),
         updatedAt: new Date(c.updated_at).getTime(),
-        pointTotal: c.point_total,
-        // Only provide breakdown for active classroom
-        positiveTotal: isActive ? c.positive_total : undefined,
-        negativeTotal: isActive ? c.negative_total : undefined,
+        pointTotal,
+        positiveTotal,
+        negativeTotal,
       };
     });
-  }, [classrooms, activeClassroomId]);
+  }, [classrooms, activeClassroomId, students]);
 
   // Map behaviors to app format
   const mappedBehaviors: AppBehavior[] = useMemo(() => {
