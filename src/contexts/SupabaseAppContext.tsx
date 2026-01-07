@@ -665,7 +665,11 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       let todayTotal: number | undefined;
       let thisWeekTotal: number | undefined;
 
-      if (isActive && students.length > 0) {
+      // CRITICAL: Verify students actually belong to THIS classroom before using them
+      // During classroom switch, activeClassroomId changes before students refetches
+      const studentsMatchClassroom = students.length > 0 && students[0]?.classroom_id === c.id;
+
+      if (isActive && studentsMatchClassroom) {
         // Sum from students - single source of truth for all displays
         pointTotal = students.reduce((sum, s) => sum + s.point_total, 0);
         positiveTotal = students.reduce((sum, s) => sum + s.positive_total, 0);
@@ -673,10 +677,10 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
         todayTotal = students.reduce((sum, s) => sum + s.today_total, 0);
         thisWeekTotal = students.reduce((sum, s) => sum + s.this_week_total, 0);
       } else {
-        // Inactive classrooms: use stored totals from useClassrooms
+        // Use stored totals: either inactive classroom OR active but students not loaded yet
         pointTotal = c.point_total;
-        positiveTotal = undefined;
-        negativeTotal = undefined;
+        positiveTotal = c.positive_total;
+        negativeTotal = c.negative_total;
         todayTotal = undefined;
         thisWeekTotal = undefined;
       }
