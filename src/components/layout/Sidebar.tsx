@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input, Modal } from '../ui';
 
 export function Sidebar() {
-  const { classrooms, activeClassroomId, activeClassroom, setActiveClassroom, createClassroom, getClassPoints } = useApp();
+  const { classrooms, activeClassroomId, setActiveClassroom, createClassroom } = useApp();
   const { user, signOut } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newClassroomName, setNewClassroomName] = useState('');
@@ -52,28 +52,11 @@ export function Sidebar() {
         ) : (
           <ul className="space-y-1">
             {classrooms.map((classroom) => {
-              // SINGLE SOURCE OF TRUTH: For active classroom, use getClassPoints (same as ClassPointsBox)
-              // This guarantees sidebar matches the class total display exactly
+              // Use pre-calculated values from mappedClassrooms (single source of truth)
               const isActive = classroom.id === activeClassroomId;
-              let pointTotal: number;
-              let positiveTotal: number | undefined;
-              let negativeTotal: number | undefined;
-
-              if (isActive && activeClassroom && activeClassroom.students.length > 0) {
-                // Use exact same function as ClassPointsBox
-                const studentIds = activeClassroom.students.map(s => s.id);
-                const classPoints = getClassPoints(classroom.id, studentIds);
-                pointTotal = classPoints.total;
-                positiveTotal = classPoints.positiveTotal;
-                negativeTotal = classPoints.negativeTotal;
-
-              } else {
-                // Inactive classrooms: use stored totals
-                pointTotal = classroom.pointTotal ?? 0;
-                positiveTotal = classroom.positiveTotal;
-                negativeTotal = classroom.negativeTotal;
-              }
-
+              const pointTotal = classroom.pointTotal ?? 0;
+              const positiveTotal = classroom.positiveTotal;
+              const negativeTotal = classroom.negativeTotal;
               const hasBreakdown = positiveTotal !== undefined && negativeTotal !== undefined;
               return (
                 <li key={classroom.id}>

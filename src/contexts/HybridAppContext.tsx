@@ -66,6 +66,8 @@ interface AppClassroom {
   pointTotal?: number; // Pre-fetched total points for sidebar display
   positiveTotal?: number; // Total positive points
   negativeTotal?: number; // Total negative points
+  todayTotal?: number; // Points awarded today
+  thisWeekTotal?: number; // Points awarded this week
 }
 
 interface AppBehavior {

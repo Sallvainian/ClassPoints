@@ -24,7 +24,6 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const {
     activeClassroom,
     getClassroomTransactions,
-    getClassPoints,
     getRecentUndoableAction,
     undoTransaction,
     undoBatchTransaction,
@@ -294,14 +293,17 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       <div className="flex-1 overflow-hidden flex">
         {/* Student Grid */}
         <div className={`flex-1 overflow-y-auto bg-gray-50 ${showActivity ? 'border-r' : ''}`}>
-          {/* Class Points Box */}
+          {/* Class Points Box - uses pre-calculated values from activeClassroom (single source of truth) */}
           {activeClassroom.students.length > 0 && (
             <div className="p-4 pb-0">
               <ClassPointsBox
-                classPoints={getClassPoints(
-                  activeClassroom.id,
-                  activeClassroom.students.map((s) => s.id)
-                )}
+                classPoints={{
+                  total: activeClassroom.pointTotal ?? 0,
+                  positiveTotal: activeClassroom.positiveTotal ?? 0,
+                  negativeTotal: activeClassroom.negativeTotal ?? 0,
+                  today: activeClassroom.todayTotal ?? 0,
+                  thisWeek: activeClassroom.thisWeekTotal ?? 0,
+                }}
                 studentCount={activeClassroom.students.length}
                 onClick={() => setIsClassAwardModalOpen(true)}
               />
@@ -360,10 +362,13 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
         classroomId={activeClassroom.id}
         classroomName={activeClassroom.name}
         studentCount={activeClassroom.students.length}
-        classPoints={getClassPoints(
-          activeClassroom.id,
-          activeClassroom.students.map((s) => s.id)
-        )}
+        classPoints={{
+          total: activeClassroom.pointTotal ?? 0,
+          positiveTotal: activeClassroom.positiveTotal ?? 0,
+          negativeTotal: activeClassroom.negativeTotal ?? 0,
+          today: activeClassroom.todayTotal ?? 0,
+          thisWeek: activeClassroom.thisWeekTotal ?? 0,
+        }}
       />
 
       {/* Multi Award Modal (selected students) */}

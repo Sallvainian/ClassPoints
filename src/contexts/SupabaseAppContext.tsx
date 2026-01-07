@@ -54,6 +54,8 @@ interface AppClassroom {
   pointTotal?: number; // Pre-fetched total points for sidebar display
   positiveTotal?: number; // Total positive points
   negativeTotal?: number; // Total negative points
+  todayTotal?: number; // Points awarded today
+  thisWeekTotal?: number; // Points awarded this week
 }
 
 interface AppBehavior {
@@ -655,22 +657,28 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       const isActive = c.id === activeClassroomId;
 
-      // For active classroom: calculate from students[] (single source of truth)
-      // This matches getClassPoints() calculation exactly, ensuring consistency
+      // For active classroom: calculate ALL totals from students[] (single source of truth)
+      // This ensures Sidebar and ClassPointsBox always show identical values
       let pointTotal: number;
       let positiveTotal: number | undefined;
       let negativeTotal: number | undefined;
+      let todayTotal: number | undefined;
+      let thisWeekTotal: number | undefined;
 
       if (isActive && students.length > 0) {
-        // Sum from students - same calculation as getClassPoints()
+        // Sum from students - single source of truth for all displays
         pointTotal = students.reduce((sum, s) => sum + s.point_total, 0);
         positiveTotal = students.reduce((sum, s) => sum + s.positive_total, 0);
         negativeTotal = students.reduce((sum, s) => sum + s.negative_total, 0);
+        todayTotal = students.reduce((sum, s) => sum + s.today_total, 0);
+        thisWeekTotal = students.reduce((sum, s) => sum + s.this_week_total, 0);
       } else {
-        // Inactive classrooms or empty active classroom: use stored totals
+        // Inactive classrooms: use stored totals from useClassrooms
         pointTotal = c.point_total;
-        positiveTotal = isActive ? c.positive_total : undefined;
-        negativeTotal = isActive ? c.negative_total : undefined;
+        positiveTotal = undefined;
+        negativeTotal = undefined;
+        todayTotal = undefined;
+        thisWeekTotal = undefined;
       }
 
       return {
@@ -682,6 +690,8 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
         pointTotal,
         positiveTotal,
         negativeTotal,
+        todayTotal,
+        thisWeekTotal,
       };
     });
   }, [classrooms, activeClassroomId, students]);
