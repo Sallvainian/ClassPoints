@@ -19,6 +19,7 @@ interface UseClassroomsReturn {
   updateClassroom: (id: string, updates: Partial<Classroom>) => Promise<Classroom | null>;
   deleteClassroom: (id: string) => Promise<boolean>;
   updateClassroomPointsOptimistically: (classroomId: string, points: number) => void;
+  setClassroomTotals: (classroomId: string, totals: { pointTotal: number; positiveTotal: number; negativeTotal: number }) => void;
   refetch: () => Promise<void>;
 }
 
@@ -249,6 +250,25 @@ export function useClassrooms(): UseClassroomsReturn {
     []
   );
 
+  // Set absolute totals for a classroom (used to sync stale stored values with calculated values)
+  const setClassroomTotals = useCallback(
+    (classroomId: string, totals: { pointTotal: number; positiveTotal: number; negativeTotal: number }) => {
+      setClassrooms((prev) =>
+        prev.map((c) =>
+          c.id === classroomId
+            ? {
+                ...c,
+                point_total: totals.pointTotal,
+                positive_total: totals.positiveTotal,
+                negative_total: totals.negativeTotal,
+              }
+            : c
+        )
+      );
+    },
+    []
+  );
+
   return {
     classrooms,
     loading,
@@ -257,6 +277,7 @@ export function useClassrooms(): UseClassroomsReturn {
     updateClassroom,
     deleteClassroom,
     updateClassroomPointsOptimistically,
+    setClassroomTotals,
     refetch: fetchClassrooms,
   };
 }

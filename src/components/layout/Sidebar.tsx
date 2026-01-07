@@ -71,19 +71,25 @@ export function Sidebar() {
                     <div className="flex items-center justify-between">
                       <span className="truncate">{classroom.name}</span>
                       <div className="flex flex-col items-end ml-2">
-                        <span
-                          className={`text-xs font-medium ${
-                            pointTotal >= 0 ? 'text-emerald-300' : 'text-red-300'
-                          }`}
-                        >
-                          {pointTotal >= 0 ? '+' : ''}{pointTotal}
-                        </span>
-                        {hasBreakdown && (
-                          <span className="text-[10px] text-blue-200">
-                            <span className="text-emerald-300/80">+{positiveTotal}</span>
-                            {' / '}
-                            <span className="text-red-300/80">{negativeTotal}</span>
-                          </span>
+                        {Number.isNaN(pointTotal) ? (
+                          <span className="text-xs text-blue-200">...</span>
+                        ) : (
+                          <>
+                            <span
+                              className={`text-xs font-medium ${
+                                pointTotal >= 0 ? 'text-emerald-300' : 'text-red-300'
+                              }`}
+                            >
+                              {pointTotal >= 0 ? '+' : ''}{pointTotal}
+                            </span>
+                            {hasBreakdown && (
+                              <span className="text-[10px] text-blue-200">
+                                <span className="text-emerald-300/80">+{positiveTotal}</span>
+                                {' / '}
+                                <span className="text-red-300/80">{negativeTotal}</span>
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

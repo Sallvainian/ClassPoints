@@ -294,7 +294,8 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
         {/* Student Grid */}
         <div className={`flex-1 overflow-y-auto bg-gray-50 ${showActivity ? 'border-r' : ''}`}>
           {/* Class Points Box - uses pre-calculated values from activeClassroom (single source of truth) */}
-          {activeClassroom.students.length > 0 && (
+          {/* Show loading state if pointTotal is NaN (students still loading) */}
+          {activeClassroom.students.length > 0 && !Number.isNaN(activeClassroom.pointTotal) && (
             <div className="p-4 pb-0">
               <ClassPointsBox
                 classPoints={{

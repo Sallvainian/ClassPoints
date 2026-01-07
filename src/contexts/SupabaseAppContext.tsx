@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { useClassrooms } from '../hooks/useClassrooms';
 import { useStudents } from '../hooks/useStudents';
@@ -157,6 +157,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     updateClassroom: updateClassroomHook,
     deleteClassroom: deleteClassroomHook,
     updateClassroomPointsOptimistically,
+    setClassroomTotals,
   } = useClassrooms();
 
   const {
@@ -196,30 +197,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   const error = classroomsError || studentsError || behaviorsError || transactionsError;
 
   // Active classroom with embedded students (matching old interface)
-  const activeClassroom = useMemo(() => {
-    const classroom = classrooms.find((c) => c.id === activeClassroomId);
-    if (!classroom) return null;
-
-    // Map Supabase students to old format with point totals and embed in classroom
-    const mappedStudentsWithPoints: AppStudent[] = students.map((s) => ({
-      id: s.id,
-      name: s.name,
-      avatarColor: s.avatar_color || undefined,
-      pointTotal: s.point_total,
-      positiveTotal: s.positive_total,
-      negativeTotal: s.negative_total,
-      todayTotal: s.today_total,
-      thisWeekTotal: s.this_week_total,
-    }));
-
-    return {
-      id: classroom.id,
-      name: classroom.name,
-      students: mappedStudentsWithPoints,
-      createdAt: new Date(classroom.created_at).getTime(),
-      updatedAt: new Date(classroom.updated_at).getTime(),
-    };
-  }, [classrooms, activeClassroomId, students]);
+  // activeClassroom is derived AFTER mappedClassrooms - see below
 
   // ============================================
   // Classroom Operations
@@ -642,6 +620,9 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   // Mapped values for backwards compatibility
   // ============================================
 
+  // Track last valid totals per classroom to prevent flash during transitions
+  const lastValidTotalsRef = useRef<Map<string, { pointTotal: number; positiveTotal: number; negativeTotal: number }>>(new Map());
+
   // Map classrooms to app format
   // Always use student_count for the students array length (used by sidebar)
   // SINGLE SOURCE OF TRUTH: For active classroom, calculate totals from students[]
@@ -676,8 +657,39 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
         negativeTotal = students.reduce((sum, s) => sum + s.negative_total, 0);
         todayTotal = students.reduce((sum, s) => sum + s.today_total, 0);
         thisWeekTotal = students.reduce((sum, s) => sum + s.this_week_total, 0);
+
+        // Cache this as the valid value for this classroom
+        lastValidTotalsRef.current.set(c.id, { pointTotal, positiveTotal, negativeTotal });
+
+        // SYNC: Update stored totals if they don't match calculated totals
+        // This prevents flash on subsequent visits to this classroom
+        if (c.point_total !== pointTotal || c.positive_total !== positiveTotal || c.negative_total !== negativeTotal) {
+          // Use setTimeout to avoid updating state during render
+          const syncTotals = { pointTotal, positiveTotal: positiveTotal ?? 0, negativeTotal: negativeTotal ?? 0 };
+          setTimeout(() => {
+            setClassroomTotals(c.id, syncTotals);
+          }, 0);
+        }
+      } else if (isActive && !studentsMatchClassroom) {
+        // TRANSITION STATE: Students haven't loaded yet for this classroom
+        // Use the LAST VALID totals for this classroom to prevent flash
+        const lastValid = lastValidTotalsRef.current.get(c.id);
+        if (lastValid) {
+          // We have cached values from when this classroom was last active - use them
+          pointTotal = lastValid.pointTotal;
+          positiveTotal = lastValid.positiveTotal;
+          negativeTotal = lastValid.negativeTotal;
+        } else {
+          // First time viewing this classroom - show loading indicator instead of stale values
+          // Use NaN as sentinel value to indicate "loading" state
+          pointTotal = NaN;
+          positiveTotal = undefined;
+          negativeTotal = undefined;
+        }
+        todayTotal = undefined;
+        thisWeekTotal = undefined;
       } else {
-        // Use stored totals: either inactive classroom OR active but students not loaded yet
+        // Inactive classroom - use stored totals
         pointTotal = c.point_total;
         positiveTotal = c.positive_total;
         negativeTotal = c.negative_total;
@@ -726,6 +738,25 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       thisWeekTotal: s.this_week_total,
     }));
   }, [students]);
+
+  // Active classroom - derived from mappedClassrooms with actual students
+  // This ensures activeClassroom has the same point totals as sidebar (single source of truth)
+  const activeClassroom: AppClassroom | null = useMemo(() => {
+    const classroom = mappedClassrooms.find((c) => c.id === activeClassroomId);
+    if (!classroom) return null;
+
+    // CRITICAL: Verify students actually belong to THIS classroom
+    // During classroom switch, activeClassroomId changes before students refetches
+    const studentsMatchClassroom = students.length === 0 || students[0]?.classroom_id === activeClassroomId;
+
+    // Only use mappedStudents if they belong to this classroom
+    const actualStudents = studentsMatchClassroom ? mappedStudents : [];
+
+    return {
+      ...classroom,
+      students: actualStudents,
+    };
+  }, [mappedClassrooms, activeClassroomId, students, mappedStudents]);
 
   // ============================================
   // Context Value
