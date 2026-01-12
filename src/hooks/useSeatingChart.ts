@@ -311,14 +311,21 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
 
       const letter = getNextGroupLetter(chart.groups);
 
+      // Table group size is 160x160 (2x2 seats at 80px each)
+      const GROUP_SIZE = 160;
+
+      // Clamp position to keep group within canvas bounds
+      const clampedX = Math.max(0, Math.min(x, chart.canvasWidth - GROUP_SIZE));
+      const clampedY = Math.max(0, Math.min(y, chart.canvasHeight - GROUP_SIZE));
+
       try {
         const { data, error: insertError } = await supabase
           .from('seating_groups')
           .insert({
             seating_chart_id: chart.id,
             letter,
-            position_x: x,
-            position_y: y,
+            position_x: clampedX,
+            position_y: clampedY,
             rotation: 0,
           })
           .select()
@@ -375,12 +382,21 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       const oldGroup = chart.groups.find((g) => g.id === groupId);
       if (!oldGroup) return;
 
+      // Table group size is 160x160 (2x2 seats at 80px each)
+      const GROUP_SIZE = 160;
+
+      // Clamp position to keep group within canvas bounds
+      const clampedX = Math.max(0, Math.min(x, chart.canvasWidth - GROUP_SIZE));
+      const clampedY = Math.max(0, Math.min(y, chart.canvasHeight - GROUP_SIZE));
+
       // Optimistic update FIRST (prevents flicker)
       setChart((prev) =>
         prev
           ? {
               ...prev,
-              groups: prev.groups.map((g) => (g.id === groupId ? { ...g, x, y } : g)),
+              groups: prev.groups.map((g) =>
+                g.id === groupId ? { ...g, x: clampedX, y: clampedY } : g
+              ),
               updatedAt: Date.now(),
             }
           : null
@@ -389,7 +405,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       // Then update database
       const { error: updateError } = await supabase
         .from('seating_groups')
-        .update({ position_x: x, position_y: y })
+        .update({ position_x: clampedX, position_y: clampedY })
         .eq('id', groupId);
 
       if (updateError) {
@@ -655,6 +671,10 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
 
       const config = defaults[type];
 
+      // Clamp position to keep element within canvas bounds
+      const clampedX = Math.max(0, Math.min(x, chart.canvasWidth - config.width));
+      const clampedY = Math.max(0, Math.min(y, chart.canvasHeight - config.height));
+
       try {
         const { data, error: insertError } = await supabase
           .from('room_elements')
@@ -662,8 +682,8 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
             seating_chart_id: chart.id,
             element_type: type,
             label: config.label,
-            position_x: x,
-            position_y: y,
+            position_x: clampedX,
+            position_y: clampedY,
             width: config.width,
             height: config.height,
             rotation: 0,
@@ -713,12 +733,18 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       const oldElement = chart.roomElements.find((e) => e.id === id);
       if (!oldElement) return;
 
+      // Clamp position to keep element within canvas bounds
+      const clampedX = Math.max(0, Math.min(x, chart.canvasWidth - oldElement.width));
+      const clampedY = Math.max(0, Math.min(y, chart.canvasHeight - oldElement.height));
+
       // Optimistic update FIRST (prevents flicker)
       setChart((prev) =>
         prev
           ? {
               ...prev,
-              roomElements: prev.roomElements.map((e) => (e.id === id ? { ...e, x, y } : e)),
+              roomElements: prev.roomElements.map((e) =>
+                e.id === id ? { ...e, x: clampedX, y: clampedY } : e
+              ),
               updatedAt: Date.now(),
             }
           : null
@@ -727,7 +753,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       // Then update database
       const { error: updateError } = await supabase
         .from('room_elements')
-        .update({ position_x: x, position_y: y })
+        .update({ position_x: clampedX, position_y: clampedY })
         .eq('id', id);
 
       if (updateError) {
