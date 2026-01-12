@@ -110,7 +110,7 @@ function DraggableGroup({
     data: { type: 'group', groupId: group.id },
   });
 
-  // Use local state for position to prevent flicker
+  // Use local state for final snapped position (for after drag ends)
   const [localPos, setLocalPos] = useState({ x: group.x, y: group.y });
   const wasDragging = useRef(false);
 
@@ -127,46 +127,70 @@ function DraggableGroup({
     }
   }, [group.x, group.y, isDragging, localPos.x, localPos.y]);
 
-  // Track dragging state
+  // Track dragging state and update final position when drag ends
   useLayoutEffect(() => {
     if (isDragging) {
       wasDragging.current = true;
     }
   }, [isDragging]);
 
-  // Update local position during drag
+  // Update local position to snapped position during drag (for when drag ends)
   useLayoutEffect(() => {
     if (isDragging && transform) {
-      const newX = snapToGrid(group.x + transform.x);
-      const newY = snapToGrid(group.y + transform.y);
-      setLocalPos({ x: newX, y: newY });
+      const snappedX = snapToGrid(group.x + transform.x);
+      const snappedY = snapToGrid(group.y + transform.y);
+      setLocalPos({ x: snappedX, y: snappedY });
     }
   }, [isDragging, transform, group.x, group.y, snapToGrid]);
 
+  // Calculate positions: free movement for element, snapped for indicator
+  const freeX = isDragging && transform ? group.x + transform.x : localPos.x;
+  const freeY = isDragging && transform ? group.y + transform.y : localPos.y;
+  const snappedX = snapToGrid(freeX);
+  const snappedY = snapToGrid(freeY);
+
   const style: React.CSSProperties = {
     position: 'absolute',
-    left: localPos.x,
-    top: localPos.y,
+    left: freeX,
+    top: freeY,
     zIndex: isDragging ? 1000 : isSelected ? 100 : 1,
     cursor: isDragging ? 'grabbing' : 'grab',
   };
 
+  // Group size for snap indicator
+  const GROUP_SIZE = 160;
+
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={isDragging ? 'ring-2 ring-blue-500 ring-offset-2 rounded-lg opacity-80' : ''}
-    >
-      <TableGroup
-        group={group}
-        students={students}
-        isSelected={isSelected}
-        onSelect={onSelect}
-        isEditing
-      />
-    </div>
+    <>
+      {/* Snap position indicator - shows where element will land */}
+      {isDragging && (
+        <div
+          className="absolute border-2 border-blue-500 rounded-lg bg-blue-100/30 pointer-events-none"
+          style={{
+            left: snappedX,
+            top: snappedY,
+            width: GROUP_SIZE,
+            height: GROUP_SIZE,
+            zIndex: 999,
+          }}
+        />
+      )}
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className={isDragging ? 'opacity-70' : ''}
+      >
+        <TableGroup
+          group={group}
+          students={students}
+          isSelected={isSelected}
+          onSelect={onSelect}
+          isEditing
+        />
+      </div>
+    </>
   );
 }
 
@@ -195,7 +219,7 @@ function DraggableRoomElement({
     data: { type: 'room-element', elementId: element.id },
   });
 
-  // Use local state for position to prevent flicker
+  // Use local state for final snapped position (for after drag ends)
   const [localPos, setLocalPos] = useState({ x: element.x, y: element.y });
   const wasDragging = useRef(false);
 
@@ -219,14 +243,20 @@ function DraggableRoomElement({
     }
   }, [isDragging]);
 
-  // Update local position during drag
+  // Update local position to snapped position during drag (for when drag ends)
   useLayoutEffect(() => {
     if (isDragging && transform) {
-      const newX = snapToGrid(element.x + transform.x);
-      const newY = snapToGrid(element.y + transform.y);
-      setLocalPos({ x: newX, y: newY });
+      const snappedX = snapToGrid(element.x + transform.x);
+      const snappedY = snapToGrid(element.y + transform.y);
+      setLocalPos({ x: snappedX, y: snappedY });
     }
   }, [isDragging, transform, element.x, element.y, snapToGrid]);
+
+  // Calculate positions: free movement for element, snapped for indicator
+  const freeX = isDragging && transform ? element.x + transform.x : localPos.x;
+  const freeY = isDragging && transform ? element.y + transform.y : localPos.y;
+  const snappedX = snapToGrid(freeX);
+  const snappedY = snapToGrid(freeY);
 
   // Track resize state
   const [isResizing, setIsResizing] = useState(false);
@@ -323,8 +353,8 @@ function DraggableRoomElement({
 
   const style: React.CSSProperties = {
     position: 'absolute',
-    left: localPos.x + offsetX,
-    top: localPos.y + offsetY,
+    left: freeX + offsetX,
+    top: freeY + offsetY,
     width: element.width,
     height: element.height,
     transform: `rotate(${element.rotation}deg)`,
@@ -335,116 +365,132 @@ function DraggableRoomElement({
   const handleStyle = 'absolute bg-blue-500 border-2 border-white rounded-sm z-50';
 
   return (
-    <div ref={setNodeRef} style={style}>
-      {/* Drag handle - the main element */}
-      <div
-        {...attributes}
-        {...listeners}
-        className={`w-full h-full ${isDragging ? 'ring-2 ring-blue-500 ring-offset-2 rounded opacity-80 cursor-grabbing' : 'cursor-grab'}`}
-      >
-        <RoomElementDisplay
-          element={element}
-          isSelected={isSelected}
-          onSelect={onSelect}
-          onRotate={onRotate}
-          isEditing
-          skipRotation
+    <>
+      {/* Snap position indicator - shows where element will land */}
+      {isDragging && (
+        <div
+          className="absolute border-2 border-blue-500 rounded bg-blue-100/30 pointer-events-none"
+          style={{
+            left: snappedX + offsetX,
+            top: snappedY + offsetY,
+            width: element.width,
+            height: element.height,
+            transform: `rotate(${element.rotation}deg)`,
+            zIndex: 999,
+          }}
         />
-      </div>
-
-      {/* Resize handles - only show when selected and not dragging */}
-      {isSelected && !isDragging && (
-        <>
-          {/* Edge handles */}
-          <div
-            className={`${handleStyle} cursor-ew-resize`}
-            style={{
-              left: -handleSize / 2,
-              top: '50%',
-              marginTop: -handleSize / 2,
-              width: handleSize,
-              height: handleSize,
-            }}
-            onMouseDown={(e) => handleResizeStart(e, 'w')}
-          />
-          <div
-            className={`${handleStyle} cursor-ew-resize`}
-            style={{
-              right: -handleSize / 2,
-              top: '50%',
-              marginTop: -handleSize / 2,
-              width: handleSize,
-              height: handleSize,
-            }}
-            onMouseDown={(e) => handleResizeStart(e, 'e')}
-          />
-          <div
-            className={`${handleStyle} cursor-ns-resize`}
-            style={{
-              top: -handleSize / 2,
-              left: '50%',
-              marginLeft: -handleSize / 2,
-              width: handleSize,
-              height: handleSize,
-            }}
-            onMouseDown={(e) => handleResizeStart(e, 'n')}
-          />
-          <div
-            className={`${handleStyle} cursor-ns-resize`}
-            style={{
-              bottom: -handleSize / 2,
-              left: '50%',
-              marginLeft: -handleSize / 2,
-              width: handleSize,
-              height: handleSize,
-            }}
-            onMouseDown={(e) => handleResizeStart(e, 's')}
-          />
-
-          {/* Corner handles */}
-          <div
-            className={`${handleStyle} cursor-nwse-resize`}
-            style={{
-              left: -handleSize / 2,
-              top: -handleSize / 2,
-              width: handleSize,
-              height: handleSize,
-            }}
-            onMouseDown={(e) => handleResizeStart(e, 'nw')}
-          />
-          <div
-            className={`${handleStyle} cursor-nesw-resize`}
-            style={{
-              right: -handleSize / 2,
-              top: -handleSize / 2,
-              width: handleSize,
-              height: handleSize,
-            }}
-            onMouseDown={(e) => handleResizeStart(e, 'ne')}
-          />
-          <div
-            className={`${handleStyle} cursor-nesw-resize`}
-            style={{
-              left: -handleSize / 2,
-              bottom: -handleSize / 2,
-              width: handleSize,
-              height: handleSize,
-            }}
-            onMouseDown={(e) => handleResizeStart(e, 'sw')}
-          />
-          <div
-            className={`${handleStyle} cursor-nwse-resize`}
-            style={{
-              right: -handleSize / 2,
-              bottom: -handleSize / 2,
-              width: handleSize,
-              height: handleSize,
-            }}
-            onMouseDown={(e) => handleResizeStart(e, 'se')}
-          />
-        </>
       )}
-    </div>
+      <div ref={setNodeRef} style={style}>
+        {/* Drag handle - the main element */}
+        <div
+          {...attributes}
+          {...listeners}
+          className={`w-full h-full ${isDragging ? 'opacity-70 cursor-grabbing' : 'cursor-grab'}`}
+        >
+          <RoomElementDisplay
+            element={element}
+            isSelected={isSelected}
+            onSelect={onSelect}
+            onRotate={onRotate}
+            isEditing
+            skipRotation
+          />
+        </div>
+
+        {/* Resize handles - only show when selected and not dragging */}
+        {isSelected && !isDragging && (
+          <>
+            {/* Edge handles */}
+            <div
+              className={`${handleStyle} cursor-ew-resize`}
+              style={{
+                left: -handleSize / 2,
+                top: '50%',
+                marginTop: -handleSize / 2,
+                width: handleSize,
+                height: handleSize,
+              }}
+              onMouseDown={(e) => handleResizeStart(e, 'w')}
+            />
+            <div
+              className={`${handleStyle} cursor-ew-resize`}
+              style={{
+                right: -handleSize / 2,
+                top: '50%',
+                marginTop: -handleSize / 2,
+                width: handleSize,
+                height: handleSize,
+              }}
+              onMouseDown={(e) => handleResizeStart(e, 'e')}
+            />
+            <div
+              className={`${handleStyle} cursor-ns-resize`}
+              style={{
+                top: -handleSize / 2,
+                left: '50%',
+                marginLeft: -handleSize / 2,
+                width: handleSize,
+                height: handleSize,
+              }}
+              onMouseDown={(e) => handleResizeStart(e, 'n')}
+            />
+            <div
+              className={`${handleStyle} cursor-ns-resize`}
+              style={{
+                bottom: -handleSize / 2,
+                left: '50%',
+                marginLeft: -handleSize / 2,
+                width: handleSize,
+                height: handleSize,
+              }}
+              onMouseDown={(e) => handleResizeStart(e, 's')}
+            />
+
+            {/* Corner handles */}
+            <div
+              className={`${handleStyle} cursor-nwse-resize`}
+              style={{
+                left: -handleSize / 2,
+                top: -handleSize / 2,
+                width: handleSize,
+                height: handleSize,
+              }}
+              onMouseDown={(e) => handleResizeStart(e, 'nw')}
+            />
+            <div
+              className={`${handleStyle} cursor-nesw-resize`}
+              style={{
+                right: -handleSize / 2,
+                top: -handleSize / 2,
+                width: handleSize,
+                height: handleSize,
+              }}
+              onMouseDown={(e) => handleResizeStart(e, 'ne')}
+            />
+            <div
+              className={`${handleStyle} cursor-nesw-resize`}
+              style={{
+                left: -handleSize / 2,
+                bottom: -handleSize / 2,
+                width: handleSize,
+                height: handleSize,
+              }}
+              onMouseDown={(e) => handleResizeStart(e, 'sw')}
+            />
+            <div
+              className={`${handleStyle} cursor-nwse-resize`}
+              style={{
+                right: -handleSize / 2,
+                bottom: -handleSize / 2,
+                width: handleSize,
+                height: handleSize,
+              }}
+              onMouseDown={(e) => handleResizeStart(e, 'se')}
+            />
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
