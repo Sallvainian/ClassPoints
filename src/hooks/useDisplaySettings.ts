@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
+import type { ViewMode } from '../types';
 
 export type CardSize = 'small' | 'medium' | 'large';
 
 export interface DisplaySettings {
   cardSize: CardSize;
   showPointTotals: boolean;
+  viewMode: ViewMode;
 }
 
 const STORAGE_KEY = 'classpoints-display-settings';
@@ -12,6 +14,7 @@ const STORAGE_KEY = 'classpoints-display-settings';
 const DEFAULT_SETTINGS: DisplaySettings = {
   cardSize: 'medium',
   showPointTotals: false,
+  viewMode: 'alphabetical',
 };
 
 function loadSettings(): DisplaySettings {
@@ -27,6 +30,9 @@ function loadSettings(): DisplaySettings {
           typeof parsed.showPointTotals === 'boolean'
             ? parsed.showPointTotals
             : DEFAULT_SETTINGS.showPointTotals,
+        viewMode: ['alphabetical', 'seating'].includes(parsed.viewMode)
+          ? parsed.viewMode
+          : DEFAULT_SETTINGS.viewMode,
       };
     }
   } catch {
@@ -63,10 +69,23 @@ export function useDisplaySettings() {
     setSettings((prev) => ({ ...prev, showPointTotals: !prev.showPointTotals }));
   }, []);
 
+  const setViewMode = useCallback((mode: ViewMode) => {
+    setSettings((prev) => ({ ...prev, viewMode: mode }));
+  }, []);
+
+  const toggleViewMode = useCallback(() => {
+    setSettings((prev) => ({
+      ...prev,
+      viewMode: prev.viewMode === 'alphabetical' ? 'seating' : 'alphabetical',
+    }));
+  }, []);
+
   return {
     settings,
     setCardSize,
     setShowPointTotals,
     toggleShowPointTotals,
+    setViewMode,
+    toggleViewMode,
   };
 }

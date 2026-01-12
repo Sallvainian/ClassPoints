@@ -2,6 +2,9 @@
 // ClassPoints - Type Definitions
 // ============================================
 
+// Re-export seating chart types
+export * from './seatingChart';
+
 // Behavior category for positive/negative tracking
 export type BehaviorCategory = 'positive' | 'negative';
 
