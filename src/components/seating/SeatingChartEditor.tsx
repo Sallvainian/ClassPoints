@@ -100,13 +100,18 @@ function DraggableGroup({ group, students, isSelected, onSelect }: DraggableGrou
     left: group.x,
     top: group.y,
     transform: transform ? CSS.Translate.toString(transform) : undefined,
-    opacity: isDragging ? 0 : 1,
-    zIndex: isSelected ? 100 : 1,
-    cursor: 'grab',
+    zIndex: isDragging ? 1000 : isSelected ? 100 : 1,
+    cursor: isDragging ? 'grabbing' : 'grab',
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={isDragging ? 'ring-2 ring-blue-500 ring-offset-2 rounded-lg opacity-80' : ''}
+    >
       <TableGroup
         group={group}
         students={students}
@@ -136,13 +141,18 @@ function DraggableRoomElement({ element, isSelected, onSelect }: DraggableRoomEl
     left: element.x,
     top: element.y,
     transform: transform ? CSS.Translate.toString(transform) : undefined,
-    opacity: isDragging ? 0 : 1,
-    zIndex: isSelected ? 100 : 2,
-    cursor: 'grab',
+    zIndex: isDragging ? 1000 : isSelected ? 100 : 2,
+    cursor: isDragging ? 'grabbing' : 'grab',
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={isDragging ? 'ring-2 ring-blue-500 ring-offset-2 rounded opacity-80' : ''}
+    >
       <RoomElementDisplay element={element} isSelected={isSelected} onSelect={onSelect} isEditing />
     </div>
   );
@@ -177,6 +187,7 @@ export function SeatingChartEditor({
   const [addingRoomElement, setAddingRoomElement] = useState<RoomElementType | null>(null);
   const [isAltPressed, setIsAltPressed] = useState(false);
   const [draggingType, setDraggingType] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const [snapPreview, setSnapPreview] = useState<{ x: number; y: number } | null>(null);
   const [presetName, setPresetName] = useState('');
   const [showPresetInput, setShowPresetInput] = useState(false);
@@ -270,6 +281,7 @@ export function SeatingChartEditor({
     const { active } = event;
     const data = active.data.current;
     setDraggingType(data?.type || null);
+    setDraggingId(data?.groupId || data?.elementId || null);
   };
 
   const handleDragMove = (event: DragMoveEvent) => {
@@ -298,6 +310,7 @@ export function SeatingChartEditor({
     const data = active.data.current;
 
     setDraggingType(null);
+    setDraggingId(null);
     setSnapPreview(null);
 
     // Handle student dropped on seat
@@ -516,19 +529,34 @@ export function SeatingChartEditor({
                   : undefined,
               }}
             >
-              {/* Snap preview - matches table group dimensions (160x200 = 4x5 grid cells) */}
-              {snapPreview && draggingType && (
-                <div
-                  className="absolute border-2 border-dashed border-blue-400 bg-blue-100/30 rounded pointer-events-none"
-                  style={{
-                    left: snapPreview.x,
-                    top: snapPreview.y,
-                    width: 160,
-                    height: 200,
-                    zIndex: 999,
-                  }}
-                />
-              )}
+              {/* Snap preview - shows where item will land */}
+              {snapPreview &&
+                draggingType &&
+                chart.snapEnabled &&
+                !isAltPressed &&
+                (() => {
+                  let width = 160;
+                  let height = 200;
+                  if (draggingType === 'room-element' && draggingId) {
+                    const element = chart.roomElements.find((e) => e.id === draggingId);
+                    if (element) {
+                      width = element.width;
+                      height = element.height;
+                    }
+                  }
+                  return (
+                    <div
+                      className="absolute border-2 border-dashed border-gray-400 bg-gray-100/30 rounded pointer-events-none"
+                      style={{
+                        left: snapPreview.x,
+                        top: snapPreview.y,
+                        width,
+                        height,
+                        zIndex: 50,
+                      }}
+                    />
+                  );
+                })()}
 
               {/* Table Groups */}
               {chart.groups.map((group) => (
