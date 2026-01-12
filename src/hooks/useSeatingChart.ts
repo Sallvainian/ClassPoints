@@ -364,17 +364,11 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     async (groupId: string, x: number, y: number) => {
       if (!chart) return;
 
-      const { error: updateError } = await supabase
-        .from('seating_groups')
-        .update({ position_x: x, position_y: y })
-        .eq('id', groupId);
+      // Store old position for rollback
+      const oldGroup = chart.groups.find((g) => g.id === groupId);
+      if (!oldGroup) return;
 
-      if (updateError) {
-        setError(new Error(updateError.message));
-        return;
-      }
-
-      // Optimistic update
+      // Optimistic update FIRST (prevents flicker)
       setChart((prev) =>
         prev
           ? {
@@ -384,6 +378,27 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
             }
           : null
       );
+
+      // Then update database
+      const { error: updateError } = await supabase
+        .from('seating_groups')
+        .update({ position_x: x, position_y: y })
+        .eq('id', groupId);
+
+      if (updateError) {
+        // Rollback on error
+        setChart((prev) =>
+          prev
+            ? {
+                ...prev,
+                groups: prev.groups.map((g) =>
+                  g.id === groupId ? { ...g, x: oldGroup.x, y: oldGroup.y } : g
+                ),
+              }
+            : null
+        );
+        setError(new Error(updateError.message));
+      }
     },
     [chart]
   );
@@ -683,17 +698,11 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     async (id: string, x: number, y: number) => {
       if (!chart) return;
 
-      const { error: updateError } = await supabase
-        .from('room_elements')
-        .update({ position_x: x, position_y: y })
-        .eq('id', id);
+      // Store old position for rollback
+      const oldElement = chart.roomElements.find((e) => e.id === id);
+      if (!oldElement) return;
 
-      if (updateError) {
-        setError(new Error(updateError.message));
-        return;
-      }
-
-      // Optimistic update
+      // Optimistic update FIRST (prevents flicker)
       setChart((prev) =>
         prev
           ? {
@@ -703,6 +712,27 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
             }
           : null
       );
+
+      // Then update database
+      const { error: updateError } = await supabase
+        .from('room_elements')
+        .update({ position_x: x, position_y: y })
+        .eq('id', id);
+
+      if (updateError) {
+        // Rollback on error
+        setChart((prev) =>
+          prev
+            ? {
+                ...prev,
+                roomElements: prev.roomElements.map((e) =>
+                  e.id === id ? { ...e, x: oldElement.x, y: oldElement.y } : e
+                ),
+              }
+            : null
+        );
+        setError(new Error(updateError.message));
+      }
     },
     [chart]
   );
