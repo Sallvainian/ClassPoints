@@ -741,11 +741,14 @@ export function SeatingChartEditor({
             </div>
 
             {/* Unassigned Students Panel */}
-            <div className="w-64 bg-white border rounded-lg p-4 flex-shrink-0 self-start">
-              <h3 className="font-medium text-gray-800 mb-3">
+            <div
+              className="w-64 bg-white border rounded-lg p-4 flex-shrink-0 self-start flex flex-col"
+              style={{ height: chart.canvasHeight }}
+            >
+              <h3 className="font-medium text-gray-800 mb-3 flex-shrink-0">
                 Unassigned Students ({unassignedStudents.length})
               </h3>
-              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+              <div className="space-y-2 overflow-y-auto flex-1">
                 {unassignedStudents.map((student) => (
                   <DraggableStudent key={student.id} student={student} />
                 ))}
