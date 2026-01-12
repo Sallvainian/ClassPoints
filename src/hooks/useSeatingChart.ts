@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { useRealtimeSubscription } from './useRealtimeSubscription';
 import type { Student } from '../types';
 import type {
   SeatingChart,
@@ -11,6 +10,7 @@ import type {
   DbSeatingGroup,
   DbSeatingSeat,
   DbRoomElement,
+  LayoutPreset,
 } from '../types/seatingChart';
 import {
   dbToSeatingChart,
@@ -67,6 +67,9 @@ interface UseSeatingChartReturn {
   unassignedStudents: (allStudents: Student[]) => Student[];
   assignedStudentIds: Set<string>;
 
+  // Presets
+  applyPreset: (preset: LayoutPreset) => Promise<void>;
+
   // Refetch
   refetch: () => Promise<void>;
 }
@@ -88,35 +91,27 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     setError(null);
 
     try {
-      // Fetch the seating chart for this classroom
       const { data: chartData, error: chartError } = await supabase
         .from('seating_charts')
         .select('*')
         .eq('classroom_id', classroomId)
         .maybeSingle();
 
-      if (chartError) {
-        throw new Error(chartError.message);
-      }
-
+      if (chartError) throw new Error(chartError.message);
       if (!chartData) {
         setChart(null);
         setLoading(false);
         return;
       }
 
-      // Fetch groups for this chart
       const { data: groupsData, error: groupsError } = await supabase
         .from('seating_groups')
         .select('*')
         .eq('seating_chart_id', chartData.id)
         .order('letter', { ascending: true });
 
-      if (groupsError) {
-        throw new Error(groupsError.message);
-      }
+      if (groupsError) throw new Error(groupsError.message);
 
-      // Fetch all seats for these groups
       const groupIds = (groupsData || []).map((g) => g.id);
       let seatsData: DbSeatingSeat[] = [];
       if (groupIds.length > 0) {
@@ -126,23 +121,17 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
           .in('seating_group_id', groupIds)
           .order('position_in_group', { ascending: true });
 
-        if (seatsError) {
-          throw new Error(seatsError.message);
-        }
+        if (seatsError) throw new Error(seatsError.message);
         seatsData = seats || [];
       }
 
-      // Fetch room elements
       const { data: elementsData, error: elementsError } = await supabase
         .from('room_elements')
         .select('*')
         .eq('seating_chart_id', chartData.id);
 
-      if (elementsError) {
-        throw new Error(elementsError.message);
-      }
+      if (elementsError) throw new Error(elementsError.message);
 
-      // Convert DB types to app types
       const groups: SeatingGroup[] = (groupsData || []).map((g) =>
         dbToSeatingGroup(g as DbSeatingGroup, seatsData)
       );
@@ -150,9 +139,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
         dbToRoomElement(e as DbRoomElement)
       );
 
-      const seatingChart = dbToSeatingChart(chartData as DbSeatingChart, groups, roomElements);
-
-      setChart(seatingChart);
+      setChart(dbToSeatingChart(chartData as DbSeatingChart, groups, roomElements));
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch seating chart'));
       setChart(null);
@@ -161,41 +148,10 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     }
   }, [classroomId]);
 
+  // Initial load
   useEffect(() => {
     fetchChart();
   }, [fetchChart]);
-
-  // Real-time subscriptions
-  useRealtimeSubscription<DbSeatingChart>({
-    table: 'seating_charts',
-    filter: classroomId ? `classroom_id=eq.${classroomId}` : undefined,
-    onInsert: () => fetchChart(),
-    onUpdate: () => fetchChart(),
-    onDelete: () => setChart(null),
-  });
-
-  useRealtimeSubscription<DbSeatingGroup>({
-    table: 'seating_groups',
-    filter: chart?.id ? `seating_chart_id=eq.${chart.id}` : undefined,
-    onInsert: () => fetchChart(),
-    onUpdate: () => fetchChart(),
-    onDelete: () => fetchChart(),
-  });
-
-  useRealtimeSubscription<DbSeatingSeat>({
-    table: 'seating_seats',
-    onInsert: () => fetchChart(),
-    onUpdate: () => fetchChart(),
-    onDelete: () => fetchChart(),
-  });
-
-  useRealtimeSubscription<DbRoomElement>({
-    table: 'room_elements',
-    filter: chart?.id ? `seating_chart_id=eq.${chart.id}` : undefined,
-    onInsert: () => fetchChart(),
-    onUpdate: () => fetchChart(),
-    onDelete: () => fetchChart(),
-  });
 
   // Create a new seating chart
   const createChart = useCallback(
@@ -314,9 +270,11 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       // Table group size is 160x160 (2x2 seats at 80px each)
       const GROUP_SIZE = 160;
 
-      // Clamp position to keep group within canvas bounds
-      const clampedX = Math.max(0, Math.min(x, chart.canvasWidth - GROUP_SIZE));
-      const clampedY = Math.max(0, Math.min(y, chart.canvasHeight - GROUP_SIZE));
+      // Snap then clamp - snap when writing state, not just rendering
+      const snap = (v: number) => Math.round(v / chart.gridSize) * chart.gridSize;
+      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
+      const clampedX = snap(clamp(x, 0, chart.canvasWidth - GROUP_SIZE));
+      const clampedY = snap(clamp(y, 0, chart.canvasHeight - GROUP_SIZE));
 
       try {
         const { data, error: insertError } = await supabase
@@ -385,9 +343,11 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       // Table group size is 160x160 (2x2 seats at 80px each)
       const GROUP_SIZE = 160;
 
-      // Clamp position to keep group within canvas bounds
-      const clampedX = Math.max(0, Math.min(x, chart.canvasWidth - GROUP_SIZE));
-      const clampedY = Math.max(0, Math.min(y, chart.canvasHeight - GROUP_SIZE));
+      // Snap then clamp - snap when writing state, not just rendering
+      const snap = (v: number) => Math.round(v / chart.gridSize) * chart.gridSize;
+      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
+      const clampedX = snap(clamp(x, 0, chart.canvasWidth - GROUP_SIZE));
+      const clampedY = snap(clamp(y, 0, chart.canvasHeight - GROUP_SIZE));
 
       // Optimistic update FIRST (prevents flicker)
       setChart((prev) =>
@@ -498,27 +458,12 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     async (studentId: string, seatId: string) => {
       if (!chart) return;
 
-      // First, unassign this student from any other seat
+      // Find current seat to clear
       const currentSeat = chart.groups
         .flatMap((g) => g.seats)
         .find((s) => s.studentId === studentId);
 
-      if (currentSeat) {
-        await supabase.from('seating_seats').update({ student_id: null }).eq('id', currentSeat.id);
-      }
-
-      // Then assign to the new seat
-      const { error: updateError } = await supabase
-        .from('seating_seats')
-        .update({ student_id: studentId })
-        .eq('id', seatId);
-
-      if (updateError) {
-        setError(new Error(updateError.message));
-        return;
-      }
-
-      // Optimistic update
+      // Optimistic update FIRST for instant feedback
       setChart((prev) =>
         prev
           ? {
@@ -535,6 +480,36 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
             }
           : null
       );
+
+      // Then persist to database
+      if (currentSeat) {
+        await supabase.from('seating_seats').update({ student_id: null }).eq('id', currentSeat.id);
+      }
+
+      const { error: updateError } = await supabase
+        .from('seating_seats')
+        .update({ student_id: studentId })
+        .eq('id', seatId);
+
+      if (updateError) {
+        setError(new Error(updateError.message));
+        // Revert optimistic update
+        setChart((prev) =>
+          prev
+            ? {
+                ...prev,
+                groups: prev.groups.map((g) => ({
+                  ...g,
+                  seats: g.seats.map((s) => {
+                    if (s.id === seatId) return { ...s, studentId: null };
+                    if (currentSeat && s.id === currentSeat.id) return { ...s, studentId };
+                    return s;
+                  }),
+                })),
+              }
+            : null
+        );
+      }
     },
     [chart]
   );
@@ -544,17 +519,12 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     async (seatId: string) => {
       if (!chart) return;
 
-      const { error: updateError } = await supabase
-        .from('seating_seats')
-        .update({ student_id: null })
-        .eq('id', seatId);
+      // Find current student for potential revert
+      const currentStudentId = chart.groups
+        .flatMap((g) => g.seats)
+        .find((s) => s.id === seatId)?.studentId;
 
-      if (updateError) {
-        setError(new Error(updateError.message));
-        return;
-      }
-
-      // Optimistic update
+      // Optimistic update FIRST
       setChart((prev) =>
         prev
           ? {
@@ -567,6 +537,29 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
             }
           : null
       );
+
+      const { error: updateError } = await supabase
+        .from('seating_seats')
+        .update({ student_id: null })
+        .eq('id', seatId);
+
+      if (updateError) {
+        setError(new Error(updateError.message));
+        // Revert
+        setChart((prev) =>
+          prev
+            ? {
+                ...prev,
+                groups: prev.groups.map((g) => ({
+                  ...g,
+                  seats: g.seats.map((s) =>
+                    s.id === seatId ? { ...s, studentId: currentStudentId ?? null } : s
+                  ),
+                })),
+              }
+            : null
+        );
+      }
     },
     [chart]
   );
@@ -582,23 +575,10 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
 
       if (!seat1 || !seat2) return;
 
-      // Swap in database
-      const { error: error1 } = await supabase
-        .from('seating_seats')
-        .update({ student_id: seat2.studentId })
-        .eq('id', seatId1);
+      const student1Id = seat1.studentId;
+      const student2Id = seat2.studentId;
 
-      const { error: error2 } = await supabase
-        .from('seating_seats')
-        .update({ student_id: seat1.studentId })
-        .eq('id', seatId2);
-
-      if (error1 || error2) {
-        setError(new Error('Failed to swap students'));
-        return;
-      }
-
-      // Optimistic update
+      // Optimistic update first
       setChart((prev) =>
         prev
           ? {
@@ -606,8 +586,8 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
               groups: prev.groups.map((g) => ({
                 ...g,
                 seats: g.seats.map((s) => {
-                  if (s.id === seatId1) return { ...s, studentId: seat2.studentId };
-                  if (s.id === seatId2) return { ...s, studentId: seat1.studentId };
+                  if (s.id === seatId1) return { ...s, studentId: student2Id };
+                  if (s.id === seatId2) return { ...s, studentId: student1Id };
                   return s;
                 }),
               })),
@@ -615,6 +595,43 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
             }
           : null
       );
+
+      // Clear both seats first to avoid unique constraint violation
+      await supabase
+        .from('seating_seats')
+        .update({ student_id: null })
+        .in('id', [seatId1, seatId2]);
+
+      // Then set the swapped values
+      const { error: error1 } = await supabase
+        .from('seating_seats')
+        .update({ student_id: student2Id })
+        .eq('id', seatId1);
+
+      const { error: error2 } = await supabase
+        .from('seating_seats')
+        .update({ student_id: student1Id })
+        .eq('id', seatId2);
+
+      if (error1 || error2) {
+        setError(new Error('Failed to swap students'));
+        // Revert optimistic update on error
+        setChart((prev) =>
+          prev
+            ? {
+                ...prev,
+                groups: prev.groups.map((g) => ({
+                  ...g,
+                  seats: g.seats.map((s) => {
+                    if (s.id === seatId1) return { ...s, studentId: student1Id };
+                    if (s.id === seatId2) return { ...s, studentId: student2Id };
+                    return s;
+                  }),
+                })),
+              }
+            : null
+        );
+      }
     },
     [chart]
   );
@@ -671,9 +688,11 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
 
       const config = defaults[type];
 
-      // Clamp position to keep element within canvas bounds
-      const clampedX = Math.max(0, Math.min(x, chart.canvasWidth - config.width));
-      const clampedY = Math.max(0, Math.min(y, chart.canvasHeight - config.height));
+      // Snap then clamp - snap when writing state, not just rendering
+      const snap = (v: number) => Math.round(v / chart.gridSize) * chart.gridSize;
+      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
+      const clampedX = snap(clamp(x, 0, chart.canvasWidth - config.width));
+      const clampedY = snap(clamp(y, 0, chart.canvasHeight - config.height));
 
       try {
         const { data, error: insertError } = await supabase
@@ -733,9 +752,17 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       const oldElement = chart.roomElements.find((e) => e.id === id);
       if (!oldElement) return;
 
-      // Clamp position to keep element within canvas bounds
-      const clampedX = Math.max(0, Math.min(x, chart.canvasWidth - oldElement.width));
-      const clampedY = Math.max(0, Math.min(y, chart.canvasHeight - oldElement.height));
+      // For 90°/270° rotation, visual dimensions are swapped
+      const rot = ((oldElement.rotation % 360) + 360) % 360;
+      const is90or270 = rot === 90 || rot === 270;
+      const w = is90or270 ? oldElement.height : oldElement.width;
+      const h = is90or270 ? oldElement.width : oldElement.height;
+
+      // Snap then clamp - snap when writing state, not just rendering
+      const snap = (v: number) => Math.round(v / chart.gridSize) * chart.gridSize;
+      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
+      const clampedX = snap(clamp(x, 0, chart.canvasWidth - w));
+      const clampedY = snap(clamp(y, 0, chart.canvasHeight - h));
 
       // Optimistic update FIRST (prevents flicker)
       setChart((prev) =>
@@ -783,11 +810,17 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       const oldElement = chart.roomElements.find((e) => e.id === id);
       if (!oldElement) return;
 
-      // Ensure minimum size of 40px (1 grid square)
-      const newWidth = Math.max(40, width);
-      const newHeight = Math.max(40, height);
-      const newX = x ?? oldElement.x;
-      const newY = y ?? oldElement.y;
+      // Snap then clamp - snap when writing state
+      const snap = (v: number) => Math.round(v / chart.gridSize) * chart.gridSize;
+      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
+
+      // Snap width/height to grid, minimum 1 grid square
+      const newWidth = snap(clamp(width, chart.gridSize, chart.canvasWidth));
+      const newHeight = snap(clamp(height, chart.gridSize, chart.canvasHeight));
+
+      // Snap x/y to grid
+      const newX = snap(clamp(x ?? oldElement.x, 0, chart.canvasWidth - newWidth));
+      const newY = snap(clamp(y ?? oldElement.y, 0, chart.canvasHeight - newHeight));
 
       // Optimistic update FIRST
       setChart((prev) =>
@@ -872,9 +905,29 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
 
       const newRotation = (element.rotation + 90) % 360;
 
+      // For 90°/270° rotation, visual dimensions are swapped
+      const is90or270 = newRotation === 90 || newRotation === 270;
+      const w = is90or270 ? element.height : element.width;
+      const h = is90or270 ? element.width : element.height;
+
+      // Snap then clamp - snap when writing state, not just rendering
+      const snap = (v: number) => Math.round(v / chart.gridSize) * chart.gridSize;
+      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
+      const newX = snap(clamp(element.x, 0, chart.canvasWidth - w));
+      const newY = snap(clamp(element.y, 0, chart.canvasHeight - h));
+      const positionChanged = newX !== element.x || newY !== element.y;
+
+      const updateData: { rotation: number; position_x?: number; position_y?: number } = {
+        rotation: newRotation,
+      };
+      if (positionChanged) {
+        updateData.position_x = newX;
+        updateData.position_y = newY;
+      }
+
       const { error: updateError } = await supabase
         .from('room_elements')
-        .update({ rotation: newRotation })
+        .update(updateData)
         .eq('id', id);
 
       if (updateError) {
@@ -888,7 +941,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
           ? {
               ...prev,
               roomElements: prev.roomElements.map((e) =>
-                e.id === id ? { ...e, rotation: newRotation } : e
+                e.id === id ? { ...e, rotation: newRotation, x: newX, y: newY } : e
               ),
               updatedAt: Date.now(),
             }
@@ -918,6 +971,63 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     [assignedStudentIds]
   );
 
+  // Apply a preset layout to the current chart
+  const applyPreset = useCallback(
+    async (preset: LayoutPreset) => {
+      if (!chart) return;
+
+      try {
+        // Update chart settings
+        await supabase
+          .from('seating_charts')
+          .update({
+            snap_enabled: preset.layoutData.settings.snapEnabled,
+            grid_size: preset.layoutData.settings.gridSize,
+            canvas_width: preset.layoutData.settings.canvasWidth,
+            canvas_height: preset.layoutData.settings.canvasHeight,
+          })
+          .eq('id', chart.id);
+
+        // Delete all existing groups (cascades to seats)
+        await supabase.from('seating_groups').delete().eq('seating_chart_id', chart.id);
+
+        // Delete all existing room elements
+        await supabase.from('room_elements').delete().eq('seating_chart_id', chart.id);
+
+        // Create new groups from preset
+        for (const groupData of preset.layoutData.groups) {
+          await supabase.from('seating_groups').insert({
+            seating_chart_id: chart.id,
+            letter: groupData.letter,
+            position_x: groupData.x,
+            position_y: groupData.y,
+            rotation: groupData.rotation,
+          });
+        }
+
+        // Create new room elements from preset
+        for (const elementData of preset.layoutData.roomElements) {
+          await supabase.from('room_elements').insert({
+            seating_chart_id: chart.id,
+            element_type: elementData.type,
+            label: elementData.label,
+            position_x: elementData.x,
+            position_y: elementData.y,
+            width: elementData.width,
+            height: elementData.height,
+            rotation: elementData.rotation,
+          });
+        }
+
+        // Refetch to get updated data
+        await fetchChart();
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to apply preset'));
+      }
+    },
+    [chart, fetchChart]
+  );
+
   return {
     chart,
     loading,
@@ -940,6 +1050,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     rotateRoomElement,
     unassignedStudents,
     assignedStudentIds,
+    applyPreset,
     refetch: fetchChart,
   };
 }

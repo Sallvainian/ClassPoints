@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "dotenvx run -f .env.local -- vite",
     "dev:host": "dotenvx run -f .env.local -- vite --host",
-    "build": "dotenvx run -f .env.local -- tsc -b && vite build",
+    "build": "tsc -b && dotenvx run -f .env.local -- vite build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "preview": "dotenvx run -f .env.local -- vite preview",

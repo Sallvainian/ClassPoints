@@ -8,9 +8,15 @@ interface SeatingChartCanvasProps {
   chart: SeatingChart;
   students: Student[];
   onClickStudent: (student: Student) => void;
+  hideRoomElements?: boolean;
 }
 
-export function SeatingChartCanvas({ chart, students, onClickStudent }: SeatingChartCanvasProps) {
+export function SeatingChartCanvas({
+  chart,
+  students,
+  onClickStudent,
+  hideRoomElements = false,
+}: SeatingChartCanvasProps) {
   // Create a map of student ID to student for quick lookup
   const studentMap = useMemo(() => {
     const map = new Map<string, Student>();
@@ -35,12 +41,11 @@ export function SeatingChartCanvas({ chart, students, onClickStudent }: SeatingC
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Canvas */}
+      {/* Canvas - use outline instead of border to avoid affecting content area */}
       <div
-        className="relative border-2 border-gray-200 rounded-lg bg-white overflow-auto"
+        className="relative outline outline-2 outline-gray-200 rounded-lg bg-white"
         style={{
-          width: '100%',
-          maxWidth: chart.canvasWidth,
+          width: chart.canvasWidth,
           height: chart.canvasHeight,
           backgroundImage: chart.snapEnabled
             ? `
@@ -66,23 +71,69 @@ export function SeatingChartCanvas({ chart, students, onClickStudent }: SeatingC
         ))}
 
         {/* Room Elements */}
-        {chart.roomElements.map((element) => (
-          <div
-            key={element.id}
-            className="absolute"
-            style={{
-              left: element.x,
-              top: element.y,
-            }}
-          >
-            <RoomElementDisplay element={element} />
-          </div>
-        ))}
+        {!hideRoomElements &&
+          chart.roomElements.map((element) => {
+            const grid = chart.gridSize;
+            const rot = ((element.rotation % 360) + 360) % 360;
 
-        {/* Front of room label */}
-        <div className="absolute bottom-0 left-0 right-0 text-center text-sm text-gray-400 py-2 border-t border-gray-100">
-          FRONT OF ROOM
-        </div>
+            const is90 = rot === 90;
+            const is180 = rot === 180;
+            const is270 = rot === 270;
+
+            // Snap helper - everything should be integer grid multiples
+            const snap = (v: number) => Math.round(v / grid) * grid;
+            const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
+
+            // Snap width/height to grid
+            const w = snap(element.width);
+            const h = snap(element.height);
+
+            // Bounding box size after rotation (for right angles)
+            const boxW = is90 || is270 ? h : w;
+            const boxH = is90 || is270 ? w : h;
+
+            const maxLeft = chart.canvasWidth - boxW;
+            const maxTop = chart.canvasHeight - boxH;
+
+            // Snap then clamp x/y
+            const left = snap(clamp(element.x, 0, maxLeft));
+            const top = snap(clamp(element.y, 0, maxTop));
+
+            // Keep rotated content inside wrapper (origin top-left)
+            const translate = is90
+              ? `translate(${h}px, 0)`
+              : is180
+                ? `translate(${w}px, ${h}px)`
+                : is270
+                  ? `translate(0, ${w}px)`
+                  : 'translate(0, 0)';
+
+            return (
+              <div
+                key={element.id}
+                className="absolute z-10"
+                style={{ left, top, width: boxW, height: boxH }}
+              >
+                <div
+                  style={{
+                    width: w,
+                    height: h,
+                    transformOrigin: 'top left',
+                    transform: `${translate} rotate(${rot}deg)`,
+                  }}
+                >
+                  <RoomElementDisplay element={element} skipRotation />
+                </div>
+              </div>
+            );
+          })}
+      </div>
+      {/* Front of room label - positioned outside canvas so it doesn't overlap elements */}
+      <div
+        className="text-center text-sm text-gray-400 py-1 border-t border-gray-200 -mt-px"
+        style={{ width: chart.canvasWidth }}
+      >
+        FRONT OF ROOM
       </div>
 
       {/* Unassigned Students */}

@@ -5,7 +5,6 @@ interface RoomElementDisplayProps {
   element: RoomElement;
   isSelected?: boolean;
   onSelect?: () => void;
-  onRotate?: () => void;
   isEditing?: boolean;
   skipRotation?: boolean;
 }
@@ -14,7 +13,6 @@ function RoomElementDisplayComponent({
   element,
   isSelected = false,
   onSelect,
-  onRotate,
   isEditing = false,
   skipRotation = false,
 }: RoomElementDisplayProps) {
@@ -24,13 +22,14 @@ function RoomElementDisplayComponent({
     transform: skipRotation ? undefined : `rotate(${element.rotation}deg)`,
   };
 
-  // Element type styling
+  // Element type styling - use outline with negative offset so it stays inside the box
   const typeStyles: Record<string, string> = {
-    teacher_desk: 'bg-amber-100 border-amber-500 text-amber-800',
-    door: 'bg-green-100 border-green-500 text-green-800',
-    window: 'bg-sky-100 border-sky-500 text-sky-800',
-    countertop: 'bg-stone-200 border-stone-500 text-stone-800',
-    sink: 'bg-blue-200 border-blue-500 text-blue-800',
+    teacher_desk:
+      'bg-amber-100 outline outline-2 -outline-offset-2 outline-amber-500 text-amber-800',
+    door: 'bg-green-100 outline outline-2 -outline-offset-2 outline-green-500 text-green-800',
+    window: 'bg-sky-100 outline outline-2 -outline-offset-2 outline-sky-500 text-sky-800',
+    countertop: 'bg-stone-200 outline outline-2 -outline-offset-2 outline-stone-500 text-stone-800',
+    sink: 'bg-blue-200 outline outline-2 -outline-offset-2 outline-blue-500 text-blue-800',
   };
 
   const defaultLabels: Record<string, string> = {
@@ -44,10 +43,10 @@ function RoomElementDisplayComponent({
   return (
     <div
       className={`
-        rounded border-2 flex items-center justify-center select-none
+        rounded flex items-center justify-center select-none
         transition-colors
         ${isSelected ? 'ring-2 ring-blue-300' : ''}
-        ${typeStyles[element.type] || 'bg-gray-100 border-gray-400'}
+        ${typeStyles[element.type] || 'bg-gray-100 outline outline-2 -outline-offset-2 outline-gray-400'}
         ${isEditing ? 'cursor-move' : ''}
       `}
       style={style}
@@ -55,12 +54,6 @@ function RoomElementDisplayComponent({
         if (isEditing && onSelect) {
           e.stopPropagation();
           onSelect();
-        }
-      }}
-      onDoubleClick={(e) => {
-        if (isEditing && onRotate) {
-          e.stopPropagation();
-          onRotate();
         }
       }}
     >

@@ -6,19 +6,26 @@ interface SeatCardProps {
   student: Student | null;
   onClickStudent?: (student: Student) => void;
   onClickEmpty?: () => void;
+  onUnassign?: () => void;
   isDropTarget?: boolean;
   isDragging?: boolean;
+  isEditing?: boolean;
 }
 
 function SeatCardComponent({
   student,
   onClickStudent,
   onClickEmpty,
+  onUnassign: _onUnassign,
   isDropTarget = false,
   isDragging = false,
+  isEditing: _isEditing = false,
 }: SeatCardProps) {
+  // Reserved for future use
+  void _onUnassign;
+  void _isEditing;
   if (!student) {
-    // Empty seat - fills parent 80x80 container
+    // Empty seat - fills parent 100x100 container
     return (
       <button
         onClick={onClickEmpty}
@@ -30,7 +37,7 @@ function SeatCardComponent({
         `}
         title="Empty seat - drag a student here"
       >
-        <span className="text-gray-400 text-xl">+</span>
+        <span className="text-gray-400 text-2xl">+</span>
       </button>
     );
   }
@@ -44,37 +51,39 @@ function SeatCardComponent({
   const firstName = student.name.split(' ')[0];
 
   return (
-    <button
-      onClick={() => onClickStudent?.(student)}
-      className={`
-        w-full h-full
-        bg-white rounded-lg shadow-sm border
-        flex flex-col items-center justify-center p-1
-        transition-all cursor-pointer
-        hover:shadow-md hover:border-blue-200
-        ${isDropTarget ? 'border-blue-500 border-2' : 'border-gray-200'}
-        ${isDragging ? 'opacity-50' : ''}
-      `}
-    >
-      {/* Avatar */}
-      <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center ${avatarTextColor} font-bold text-sm shadow-inner`}
-        style={{ backgroundColor: bgColor }}
+    <div className="relative w-full h-full group">
+      <button
+        onClick={() => onClickStudent?.(student)}
+        className={`
+          w-full h-full
+          bg-white rounded-lg shadow-sm border
+          flex flex-col items-center justify-center p-1
+          transition-all cursor-pointer
+          hover:shadow-md hover:border-blue-200
+          ${isDropTarget ? 'border-blue-500 border-2' : 'border-gray-200'}
+          ${isDragging ? 'opacity-50' : ''}
+        `}
       >
-        {student.name.charAt(0).toUpperCase()}
-      </div>
+        {/* Avatar */}
+        <div
+          className={`w-10 h-10 rounded-full flex items-center justify-center ${avatarTextColor} font-bold text-base shadow-inner`}
+          style={{ backgroundColor: bgColor }}
+        >
+          {student.name.charAt(0).toUpperCase()}
+        </div>
 
-      {/* Name */}
-      <span className="text-[10px] font-medium text-gray-800 text-center truncate w-full mt-0.5">
-        {firstName}
-      </span>
+        {/* Name */}
+        <span className="text-xs font-medium text-gray-800 text-center truncate w-full mt-1">
+          {firstName}
+        </span>
 
-      {/* Points */}
-      <span className={`text-xs font-bold ${pointsColor}`}>
-        {student.pointTotal >= 0 ? '+' : ''}
-        {student.pointTotal}
-      </span>
-    </button>
+        {/* Points */}
+        <span className={`text-sm font-bold ${pointsColor}`}>
+          {student.pointTotal >= 0 ? '+' : ''}
+          {student.pointTotal}
+        </span>
+      </button>
+    </div>
   );
 }
 

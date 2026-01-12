@@ -103,10 +103,17 @@ export function useLayoutPresets(): UseLayoutPresetsReturn {
           },
         };
 
+        // Get current user ID for RLS
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
         const { data, error: insertError } = await supabase
           .from('layout_presets')
           .insert({
             name,
+            user_id: user.id,
             layout_data: layoutData as unknown as Json,
           })
           .select()

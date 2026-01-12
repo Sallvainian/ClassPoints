@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, useDraggable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import type { Student } from '../../types';
 import type { SeatingGroup, SeatAssignment } from '../../types/seatingChart';
 import { getGroupColor } from '../../types/seatingChart';
@@ -10,9 +11,11 @@ interface TableGroupProps {
   students: Map<string, Student>;
   onClickStudent?: (student: Student) => void;
   onClickEmptySeat?: (seatId: string) => void;
+  onUnassignStudent?: (seatId: string) => void;
   isSelected?: boolean;
   onSelect?: () => void;
   isEditing?: boolean;
+  studentsAreDraggable?: boolean;
 }
 
 interface DroppableSeatProps {
@@ -20,25 +23,81 @@ interface DroppableSeatProps {
   student: Student | null;
   onClickStudent?: (student: Student) => void;
   onClickEmpty?: () => void;
+  onUnassign?: () => void;
+  isEditing?: boolean;
+  studentIsDraggable?: boolean;
 }
 
-// Grid-aligned dimensions: 80x80 = 2 grid cells (40px each)
-const SEAT_SIZE = 80;
+// Grid-aligned dimensions: 100x100 = 2.5 grid cells (40px each)
+const SEAT_SIZE = 100;
 
-function DroppableSeat({ seat, student, onClickStudent, onClickEmpty }: DroppableSeatProps) {
+// Wrapper to make a seated student draggable
+interface DraggableSeatedStudentProps {
+  seat: SeatAssignment;
+  student: Student;
+  children: React.ReactNode;
+}
+
+function DraggableSeatedStudent({ seat, student, children }: DraggableSeatedStudentProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `seated-student-${seat.id}`,
+    data: { type: 'seated-student', studentId: student.id, seatId: seat.id },
+  });
+
+  const style: React.CSSProperties = {
+    transform: transform ? CSS.Translate.toString(transform) : undefined,
+    opacity: isDragging ? 0.5 : 1,
+    cursor: isDragging ? 'grabbing' : 'grab',
+    width: SEAT_SIZE,
+    height: SEAT_SIZE,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {children}
+    </div>
+  );
+}
+
+function DroppableSeat({
+  seat,
+  student,
+  onClickStudent,
+  onClickEmpty,
+  onUnassign,
+  isEditing,
+  studentIsDraggable,
+}: DroppableSeatProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: `seat-${seat.id}`,
     data: { type: 'seat', seatId: seat.id },
   });
 
+  const seatCard = (
+    <SeatCard
+      student={student}
+      onClickStudent={studentIsDraggable ? undefined : onClickStudent}
+      onClickEmpty={onClickEmpty}
+      onUnassign={onUnassign}
+      isDropTarget={isOver}
+      isEditing={isEditing}
+    />
+  );
+
+  // If student exists and is draggable, wrap in DraggableSeatedStudent
+  if (student && studentIsDraggable) {
+    return (
+      <div ref={setNodeRef} style={{ width: SEAT_SIZE, height: SEAT_SIZE }}>
+        <DraggableSeatedStudent seat={seat} student={student}>
+          {seatCard}
+        </DraggableSeatedStudent>
+      </div>
+    );
+  }
+
   return (
     <div ref={setNodeRef} style={{ width: SEAT_SIZE, height: SEAT_SIZE }}>
-      <SeatCard
-        student={student}
-        onClickStudent={onClickStudent}
-        onClickEmpty={onClickEmpty}
-        isDropTarget={isOver}
-      />
+      {seatCard}
     </div>
   );
 }
@@ -48,9 +107,11 @@ function TableGroupComponent({
   students,
   onClickStudent,
   onClickEmptySeat,
+  onUnassignStudent,
   isSelected = false,
   onSelect,
   isEditing = false,
+  studentsAreDraggable = false,
 }: TableGroupProps) {
   const bgColor = getGroupColor(group.letter);
 
@@ -118,6 +179,9 @@ function TableGroupComponent({
               student={getStudentForSeat(seat1)}
               onClickStudent={onClickStudent}
               onClickEmpty={() => onClickEmptySeat?.(seat1.id)}
+              onUnassign={() => onUnassignStudent?.(seat1.id)}
+              isEditing={isEditing}
+              studentIsDraggable={studentsAreDraggable}
             />
           )}
           {seat2 && (
@@ -126,6 +190,9 @@ function TableGroupComponent({
               student={getStudentForSeat(seat2)}
               onClickStudent={onClickStudent}
               onClickEmpty={() => onClickEmptySeat?.(seat2.id)}
+              onUnassign={() => onUnassignStudent?.(seat2.id)}
+              isEditing={isEditing}
+              studentIsDraggable={studentsAreDraggable}
             />
           )}
           {seat3 && (
@@ -134,6 +201,9 @@ function TableGroupComponent({
               student={getStudentForSeat(seat3)}
               onClickStudent={onClickStudent}
               onClickEmpty={() => onClickEmptySeat?.(seat3.id)}
+              onUnassign={() => onUnassignStudent?.(seat3.id)}
+              isEditing={isEditing}
+              studentIsDraggable={studentsAreDraggable}
             />
           )}
           {seat4 && (
@@ -142,6 +212,9 @@ function TableGroupComponent({
               student={getStudentForSeat(seat4)}
               onClickStudent={onClickStudent}
               onClickEmpty={() => onClickEmptySeat?.(seat4.id)}
+              onUnassign={() => onUnassignStudent?.(seat4.id)}
+              isEditing={isEditing}
+              studentIsDraggable={studentsAreDraggable}
             />
           )}
         </div>

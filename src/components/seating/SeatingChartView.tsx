@@ -33,10 +33,12 @@ export function SeatingChartView({ classroomId, students, onClickStudent }: Seat
     deleteRoomElement,
     rotateRoomElement,
     updateSettings,
+    applyPreset,
   } = useSeatingChart(classroomId);
 
-  const { presets, savePreset } = useLayoutPresets();
+  const { presets, savePreset, deletePreset } = useLayoutPresets();
   const [isEditing, setIsEditing] = useState(false);
+  const [hideRoomElements, setHideRoomElements] = useState(false);
 
   const handleCreateChart = useCallback(async () => {
     await createChart();
@@ -105,6 +107,9 @@ export function SeatingChartView({ classroomId, students, onClickStudent }: Seat
         onRotateRoomElement={rotateRoomElement}
         onUpdateSettings={updateSettings}
         onSavePreset={handleSavePreset}
+        presets={presets}
+        onLoadPreset={applyPreset}
+        onDeletePreset={deletePreset}
       />
     );
   }
@@ -115,13 +120,30 @@ export function SeatingChartView({ classroomId, students, onClickStudent }: Seat
       {/* Header with edit button */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-800">{chart.name}</h2>
-        <Button onClick={handleOpenEditor} variant="secondary" size="sm">
-          Edit Seating Chart
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setHideRoomElements(!hideRoomElements)}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+              hideRoomElements
+                ? 'bg-gray-100 border-gray-300 text-gray-700'
+                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            {hideRoomElements ? 'Show' : 'Hide'} Room Elements
+          </button>
+          <Button onClick={handleOpenEditor} variant="secondary" size="sm">
+            Edit Seating Chart
+          </Button>
+        </div>
       </div>
 
       {/* Seating chart canvas */}
-      <SeatingChartCanvas chart={chart} students={students} onClickStudent={onClickStudent} />
+      <SeatingChartCanvas
+        chart={chart}
+        students={students}
+        onClickStudent={onClickStudent}
+        hideRoomElements={hideRoomElements}
+      />
     </div>
   );
 }

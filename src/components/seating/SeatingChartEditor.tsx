@@ -14,6 +14,7 @@ import type {
   SeatingGroup,
   RoomElement,
   RoomElementType,
+  LayoutPreset,
 } from '../../types/seatingChart';
 import { TableGroup } from './TableGroup';
 import { RoomElementDisplay } from './RoomElementDisplay';
@@ -52,6 +53,9 @@ interface SeatingChartEditorProps {
     }>
   ) => Promise<void>;
   onSavePreset: (name: string) => Promise<void>;
+  presets: LayoutPreset[];
+  onLoadPreset: (preset: LayoutPreset) => Promise<void>;
+  onDeletePreset: (presetId: string) => Promise<boolean>;
 }
 
 // Draggable student card for unassigned students panel
@@ -95,7 +99,10 @@ interface DraggableGroupProps {
   students: Map<string, Student>;
   isSelected: boolean;
   onSelect: () => void;
+  onUnassignStudent: (seatId: string) => void;
   snapToGrid: (value: number) => number;
+  disabled?: boolean;
+  studentsAreDraggable?: boolean;
 }
 
 function DraggableGroup({
@@ -103,11 +110,15 @@ function DraggableGroup({
   students,
   isSelected,
   onSelect,
+  onUnassignStudent,
   snapToGrid,
+  disabled = false,
+  studentsAreDraggable = false,
 }: DraggableGroupProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `group-${group.id}`,
     data: { type: 'group', groupId: group.id },
+    disabled,
   });
 
   // Use local state for final snapped position (for after drag ends)
@@ -154,11 +165,12 @@ function DraggableGroup({
     left: freeX,
     top: freeY,
     zIndex: isDragging ? 1000 : isSelected ? 100 : 1,
-    cursor: isDragging ? 'grabbing' : 'grab',
+    cursor: disabled ? 'default' : isDragging ? 'grabbing' : 'grab',
   };
 
-  // Group size for snap indicator
-  const GROUP_SIZE = 160;
+  // Group dimensions for snap indicator (must match TableGroup)
+  const GROUP_WIDTH = 200; // SEAT_SIZE * 2
+  const GROUP_HEIGHT = 240; // 40px badge + SEAT_SIZE * 2
 
   return (
     <>
@@ -169,8 +181,8 @@ function DraggableGroup({
           style={{
             left: snappedX,
             top: snappedY,
-            width: GROUP_SIZE,
-            height: GROUP_SIZE,
+            width: GROUP_WIDTH,
+            height: GROUP_HEIGHT,
             zIndex: 999,
           }}
         />
@@ -187,7 +199,9 @@ function DraggableGroup({
           students={students}
           isSelected={isSelected}
           onSelect={onSelect}
+          onUnassignStudent={onUnassignStudent}
           isEditing
+          studentsAreDraggable={studentsAreDraggable}
         />
       </div>
     </>
@@ -199,66 +213,37 @@ interface DraggableRoomElementProps {
   element: RoomElement;
   isSelected: boolean;
   onSelect: () => void;
-  onRotate: () => void;
   onResize: (width: number, height: number, x?: number, y?: number) => void;
   snapToGrid: (value: number) => number;
   gridSize: number;
+  canvasWidth: number;
+  canvasHeight: number;
 }
 
 function DraggableRoomElement({
   element,
   isSelected,
   onSelect,
-  onRotate,
   onResize,
   snapToGrid,
   gridSize,
+  canvasWidth,
+  canvasHeight,
 }: DraggableRoomElementProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `room-${element.id}`,
     data: { type: 'room-element', elementId: element.id },
   });
 
-  // Use local state for final snapped position (for after drag ends)
-  const [localPos, setLocalPos] = useState({ x: element.x, y: element.y });
-  const wasDragging = useRef(false);
+  // Local state for position/dimensions during interaction
+  const [local, setLocal] = useState({
+    x: element.x,
+    y: element.y,
+    width: element.width,
+    height: element.height,
+  });
 
-  // Sync local position with props, but only when not just finished dragging
-  useLayoutEffect(() => {
-    if (!isDragging && !wasDragging.current) {
-      setLocalPos({ x: element.x, y: element.y });
-    }
-    if (!isDragging && wasDragging.current) {
-      // Just finished dragging - check if props caught up
-      if (element.x === localPos.x && element.y === localPos.y) {
-        wasDragging.current = false;
-      }
-    }
-  }, [element.x, element.y, isDragging, localPos.x, localPos.y]);
-
-  // Track dragging state
-  useLayoutEffect(() => {
-    if (isDragging) {
-      wasDragging.current = true;
-    }
-  }, [isDragging]);
-
-  // Update local position to snapped position during drag (for when drag ends)
-  useLayoutEffect(() => {
-    if (isDragging && transform) {
-      const snappedX = snapToGrid(element.x + transform.x);
-      const snappedY = snapToGrid(element.y + transform.y);
-      setLocalPos({ x: snappedX, y: snappedY });
-    }
-  }, [isDragging, transform, element.x, element.y, snapToGrid]);
-
-  // Calculate positions: free movement for element, snapped for indicator
-  const freeX = isDragging && transform ? element.x + transform.x : localPos.x;
-  const freeY = isDragging && transform ? element.y + transform.y : localPos.y;
-  const snappedX = snapToGrid(freeX);
-  const snappedY = snapToGrid(freeY);
-
-  // Track resize state
+  // Resize state
   const [isResizing, setIsResizing] = useState(false);
   const resizeRef = useRef<{
     edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
@@ -270,8 +255,57 @@ function DraggableRoomElement({
     startElemY: number;
   } | null>(null);
 
-  // Check if element is rotated 90 or 270 degrees (portrait orientation)
-  const isPortrait = element.rotation === 90 || element.rotation === 270;
+  // Track when we were interacting (to know when to sync from props)
+  const wasInteracting = useRef(false);
+
+  // Track interaction state
+  useLayoutEffect(() => {
+    if (isDragging || isResizing) {
+      wasInteracting.current = true;
+    }
+  }, [isDragging, isResizing]);
+
+  // Sync local state from props when NOT interacting
+  useLayoutEffect(() => {
+    if (!isDragging && !isResizing) {
+      if (wasInteracting.current) {
+        // Check if props caught up
+        if (
+          element.x === local.x &&
+          element.y === local.y &&
+          element.width === local.width &&
+          element.height === local.height
+        ) {
+          wasInteracting.current = false;
+        }
+      } else {
+        // Not interacting and wasn't just interacting - sync from props
+        setLocal((prev) => {
+          if (
+            prev.x === element.x &&
+            prev.y === element.y &&
+            prev.width === element.width &&
+            prev.height === element.height
+          ) {
+            return prev;
+          }
+          return { x: element.x, y: element.y, width: element.width, height: element.height };
+        });
+      }
+    }
+  }, [element.x, element.y, element.width, element.height, isDragging, isResizing, local]);
+
+  // Update local position during drag
+  useLayoutEffect(() => {
+    if (isDragging && transform) {
+      const snappedX = snapToGrid(element.x + transform.x);
+      const snappedY = snapToGrid(element.y + transform.y);
+      setLocal((prev) => {
+        if (prev.x === snappedX && prev.y === snappedY) return prev;
+        return { ...prev, x: snappedX, y: snappedY };
+      });
+    }
+  }, [isDragging, transform, element.x, element.y, snapToGrid]);
 
   // Handle resize mouse events
   useEffect(() => {
@@ -290,32 +324,28 @@ function DraggableRoomElement({
       let newX = startElemX;
       let newY = startElemY;
 
-      // Calculate new dimensions based on which edge is being dragged
-      if (edge.includes('e')) {
-        newWidth = snapToGrid(startWidth + deltaX);
-      }
+      if (edge.includes('e')) newWidth = snapToGrid(startWidth + deltaX);
       if (edge.includes('w')) {
         const widthChange = snapToGrid(deltaX);
         newWidth = startWidth - widthChange;
         newX = startElemX + widthChange;
       }
-      if (edge.includes('s')) {
-        newHeight = snapToGrid(startHeight + deltaY);
-      }
+      if (edge.includes('s')) newHeight = snapToGrid(startHeight + deltaY);
       if (edge.includes('n')) {
         const heightChange = snapToGrid(deltaY);
         newHeight = startHeight - heightChange;
         newY = startElemY + heightChange;
       }
 
-      // Enforce minimum size
       newWidth = Math.max(gridSize, newWidth);
       newHeight = Math.max(gridSize, newHeight);
 
-      onResize(newWidth, newHeight, newX, newY);
+      setLocal({ x: newX, y: newY, width: newWidth, height: newHeight });
     };
 
     const handleMouseUp = () => {
+      // Persist to database only on mouseup
+      onResize(local.width, local.height, local.x, local.y);
       setIsResizing(false);
       resizeRef.current = null;
     };
@@ -327,7 +357,7 @@ function DraggableRoomElement({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizing, snapToGrid, gridSize, onResize]);
+  }, [isResizing, snapToGrid, gridSize, onResize, local]);
 
   const handleResizeStart = (
     e: React.MouseEvent,
@@ -340,25 +370,67 @@ function DraggableRoomElement({
       edge,
       startX: e.clientX,
       startY: e.clientY,
-      startWidth: element.width,
-      startHeight: element.height,
-      startElemX: element.x,
-      startElemY: element.y,
+      startWidth: local.width,
+      startHeight: local.height,
+      startElemX: local.x,
+      startElemY: local.y,
     };
   };
 
-  // When rotated 90/270, we need to offset the position because CSS rotation happens around center
-  const offsetX = isPortrait ? (element.width - element.height) / 2 : 0;
-  const offsetY = isPortrait ? (element.height - element.width) / 2 : 0;
+  // Calculate display values from local state
+  const freeX = isDragging && transform ? element.x + transform.x : local.x;
+  const freeY = isDragging && transform ? element.y + transform.y : local.y;
+  const snappedX = snapToGrid(freeX);
+  const snappedY = snapToGrid(freeY);
 
-  const style: React.CSSProperties = {
+  // Calculate rotation-aware bounds
+  const rot = ((element.rotation % 360) + 360) % 360;
+  const is90 = rot === 90;
+  const is180 = rot === 180;
+  const is270 = rot === 270;
+
+  // Snap helper
+  const snap = (v: number) => Math.round(v / gridSize) * gridSize;
+  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
+
+  // Use unified local state for width/height
+  const w = snap(local.width);
+  const h = snap(local.height);
+
+  // Bounding box size after rotation (for right angles)
+  const boxW = is90 || is270 ? h : w;
+  const boxH = is90 || is270 ? w : h;
+
+  const maxLeft = canvasWidth - boxW;
+  const maxTop = canvasHeight - boxH;
+
+  // Display position: during drag show free movement, otherwise use local state
+  const displayLeft = isDragging ? freeX : snap(clamp(local.x, 0, maxLeft));
+  const displayTop = isDragging ? freeY : snap(clamp(local.y, 0, maxTop));
+
+  // Keep rotated content inside wrapper (origin top-left)
+  const translate = is90
+    ? `translate(${h}px, 0)`
+    : is180
+      ? `translate(${w}px, ${h}px)`
+      : is270
+        ? `translate(0, ${w}px)`
+        : 'translate(0, 0)';
+
+  const wrapperStyle: React.CSSProperties = {
     position: 'absolute',
-    left: freeX + offsetX,
-    top: freeY + offsetY,
-    width: element.width,
-    height: element.height,
-    transform: `rotate(${element.rotation}deg)`,
+    left: displayLeft,
+    top: displayTop,
+    width: boxW,
+    height: boxH,
     zIndex: isDragging || isResizing ? 1000 : isSelected ? 100 : 2,
+  };
+
+  const innerStyle: React.CSSProperties = {
+    width: w,
+    height: h,
+    transformOrigin: 'top left',
+    transform: `${translate} rotate(${rot}deg)`,
   };
 
   const handleSize = 10;
@@ -371,124 +443,127 @@ function DraggableRoomElement({
         <div
           className="absolute border-2 border-blue-500 rounded bg-blue-100/30 pointer-events-none"
           style={{
-            left: snappedX + offsetX,
-            top: snappedY + offsetY,
-            width: element.width,
-            height: element.height,
-            transform: `rotate(${element.rotation}deg)`,
+            left: snap(clamp(snappedX, 0, maxLeft)),
+            top: snap(clamp(snappedY, 0, maxTop)),
+            width: boxW,
+            height: boxH,
             zIndex: 999,
           }}
         />
       )}
-      <div ref={setNodeRef} style={style}>
-        {/* Drag handle - the main element */}
-        <div
-          {...attributes}
-          {...listeners}
-          className={`w-full h-full ${isDragging ? 'opacity-70 cursor-grabbing' : 'cursor-grab'}`}
-        >
-          <RoomElementDisplay
-            element={element}
-            isSelected={isSelected}
-            onSelect={onSelect}
-            onRotate={onRotate}
-            isEditing
-            skipRotation
-          />
+      {/* Wrapper positioned on grid with bounding box size */}
+      <div
+        ref={setNodeRef}
+        style={wrapperStyle}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect();
+        }}
+      >
+        {/* Inner rotated element */}
+        <div style={innerStyle}>
+          {/* Drag handle - the main element */}
+          <div
+            {...attributes}
+            {...listeners}
+            className={`w-full h-full ${isDragging ? 'opacity-70 cursor-grabbing' : 'cursor-grab'}`}
+          >
+            <RoomElementDisplay element={element} isSelected={isSelected} isEditing skipRotation />
+          </div>
+
+          {/* Resize handles - only show when selected and not dragging */}
+          {isSelected && !isDragging && (
+            <>
+              {/* Edge handles */}
+              <div
+                className={`${handleStyle} cursor-ew-resize`}
+                style={{
+                  left: -handleSize / 2,
+                  top: '50%',
+                  marginTop: -handleSize / 2,
+                  width: handleSize,
+                  height: handleSize,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, 'w')}
+              />
+              <div
+                className={`${handleStyle} cursor-ew-resize`}
+                style={{
+                  right: -handleSize / 2,
+                  top: '50%',
+                  marginTop: -handleSize / 2,
+                  width: handleSize,
+                  height: handleSize,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, 'e')}
+              />
+              <div
+                className={`${handleStyle} cursor-ns-resize`}
+                style={{
+                  top: -handleSize / 2,
+                  left: '50%',
+                  marginLeft: -handleSize / 2,
+                  width: handleSize,
+                  height: handleSize,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, 'n')}
+              />
+              <div
+                className={`${handleStyle} cursor-ns-resize`}
+                style={{
+                  bottom: -handleSize / 2,
+                  left: '50%',
+                  marginLeft: -handleSize / 2,
+                  width: handleSize,
+                  height: handleSize,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, 's')}
+              />
+
+              {/* Corner handles */}
+              <div
+                className={`${handleStyle} cursor-nwse-resize`}
+                style={{
+                  left: -handleSize / 2,
+                  top: -handleSize / 2,
+                  width: handleSize,
+                  height: handleSize,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, 'nw')}
+              />
+              <div
+                className={`${handleStyle} cursor-nesw-resize`}
+                style={{
+                  right: -handleSize / 2,
+                  top: -handleSize / 2,
+                  width: handleSize,
+                  height: handleSize,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, 'ne')}
+              />
+              <div
+                className={`${handleStyle} cursor-nesw-resize`}
+                style={{
+                  left: -handleSize / 2,
+                  bottom: -handleSize / 2,
+                  width: handleSize,
+                  height: handleSize,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, 'sw')}
+              />
+              <div
+                className={`${handleStyle} cursor-nwse-resize`}
+                style={{
+                  right: -handleSize / 2,
+                  bottom: -handleSize / 2,
+                  width: handleSize,
+                  height: handleSize,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, 'se')}
+              />
+            </>
+          )}
         </div>
-
-        {/* Resize handles - only show when selected and not dragging */}
-        {isSelected && !isDragging && (
-          <>
-            {/* Edge handles */}
-            <div
-              className={`${handleStyle} cursor-ew-resize`}
-              style={{
-                left: -handleSize / 2,
-                top: '50%',
-                marginTop: -handleSize / 2,
-                width: handleSize,
-                height: handleSize,
-              }}
-              onMouseDown={(e) => handleResizeStart(e, 'w')}
-            />
-            <div
-              className={`${handleStyle} cursor-ew-resize`}
-              style={{
-                right: -handleSize / 2,
-                top: '50%',
-                marginTop: -handleSize / 2,
-                width: handleSize,
-                height: handleSize,
-              }}
-              onMouseDown={(e) => handleResizeStart(e, 'e')}
-            />
-            <div
-              className={`${handleStyle} cursor-ns-resize`}
-              style={{
-                top: -handleSize / 2,
-                left: '50%',
-                marginLeft: -handleSize / 2,
-                width: handleSize,
-                height: handleSize,
-              }}
-              onMouseDown={(e) => handleResizeStart(e, 'n')}
-            />
-            <div
-              className={`${handleStyle} cursor-ns-resize`}
-              style={{
-                bottom: -handleSize / 2,
-                left: '50%',
-                marginLeft: -handleSize / 2,
-                width: handleSize,
-                height: handleSize,
-              }}
-              onMouseDown={(e) => handleResizeStart(e, 's')}
-            />
-
-            {/* Corner handles */}
-            <div
-              className={`${handleStyle} cursor-nwse-resize`}
-              style={{
-                left: -handleSize / 2,
-                top: -handleSize / 2,
-                width: handleSize,
-                height: handleSize,
-              }}
-              onMouseDown={(e) => handleResizeStart(e, 'nw')}
-            />
-            <div
-              className={`${handleStyle} cursor-nesw-resize`}
-              style={{
-                right: -handleSize / 2,
-                top: -handleSize / 2,
-                width: handleSize,
-                height: handleSize,
-              }}
-              onMouseDown={(e) => handleResizeStart(e, 'ne')}
-            />
-            <div
-              className={`${handleStyle} cursor-nesw-resize`}
-              style={{
-                left: -handleSize / 2,
-                bottom: -handleSize / 2,
-                width: handleSize,
-                height: handleSize,
-              }}
-              onMouseDown={(e) => handleResizeStart(e, 'sw')}
-            />
-            <div
-              className={`${handleStyle} cursor-nwse-resize`}
-              style={{
-                right: -handleSize / 2,
-                bottom: -handleSize / 2,
-                width: handleSize,
-                height: handleSize,
-              }}
-              onMouseDown={(e) => handleResizeStart(e, 'se')}
-            />
-          </>
-        )}
       </div>
     </>
   );
@@ -503,8 +578,8 @@ export function SeatingChartEditor({
   onDeleteGroup,
   onRotateGroup,
   onAssignStudent,
-  onUnassignStudent: _onUnassignStudent,
-  onSwapStudents: _onSwapStudents,
+  onUnassignStudent,
+  onSwapStudents,
   onRandomize,
   onAddRoomElement,
   onMoveRoomElement,
@@ -513,10 +588,10 @@ export function SeatingChartEditor({
   onRotateRoomElement,
   onUpdateSettings,
   onSavePreset,
+  presets,
+  onLoadPreset,
+  onDeletePreset,
 }: SeatingChartEditorProps) {
-  // Reserved for future: right-click to unassign, drag-to-swap
-  void _onUnassignStudent;
-  void _onSwapStudents;
   const canvasRef = useRef<HTMLDivElement>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -527,7 +602,10 @@ export function SeatingChartEditor({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [presetName, setPresetName] = useState('');
   const [showPresetInput, setShowPresetInput] = useState(false);
+  const [showPresetList, setShowPresetList] = useState(false);
   const [previewPos, setPreviewPos] = useState<{ x: number; y: number } | null>(null);
+  const [tablesLocked, setTablesLocked] = useState(false);
+  const [draggingStudent, setDraggingStudent] = useState<Student | null>(null);
 
   // Element size defaults for preview
   const elementSizes: Record<RoomElementType | 'group', { width: number; height: number }> = {
@@ -685,6 +763,14 @@ export function SeatingChartEditor({
     const data = active.data.current;
     setDraggingType(data?.type || null);
     setDraggingId(data?.groupId || data?.elementId || null);
+
+    // Track which student is being dragged for the overlay
+    if (data?.type === 'student' || data?.type === 'seated-student') {
+      const student = studentMap.get(data.studentId);
+      setDraggingStudent(student || null);
+    } else {
+      setDraggingStudent(null);
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -693,14 +779,51 @@ export function SeatingChartEditor({
 
     setDraggingType(null);
     setDraggingId(null);
+    setDraggingStudent(null);
 
-    // Handle student dropped on seat
+    // Handle unassigned student dropped on seat
     if (data?.type === 'student' && over) {
       const overId = String(over.id);
       if (overId.startsWith('seat-')) {
         const seatId = overId.replace('seat-', '');
         await onAssignStudent(data.studentId, seatId);
       }
+      return;
+    }
+
+    // Handle seated student being dragged
+    if (data?.type === 'seated-student') {
+      const sourceSeatId = data.seatId;
+
+      if (over) {
+        const overId = String(over.id);
+        if (overId.startsWith('seat-')) {
+          const targetSeatId = overId.replace('seat-', '');
+          if (targetSeatId !== sourceSeatId) {
+            // Check if target seat is occupied
+            let targetOccupied = false;
+            for (const group of chart.groups) {
+              const seat = group.seats.find((s) => s.id === targetSeatId);
+              if (seat?.studentId) {
+                targetOccupied = true;
+                break;
+              }
+            }
+
+            if (targetOccupied) {
+              // Swap students
+              await onSwapStudents(sourceSeatId, targetSeatId);
+            } else {
+              // Move to empty seat (assignStudent handles clearing old seat)
+              await onAssignStudent(data.studentId, targetSeatId);
+            }
+          }
+          return;
+        }
+      }
+
+      // Dropped outside a seat - unassign the student
+      await onUnassignStudent(sourceSeatId);
       return;
     }
 
@@ -769,9 +892,58 @@ export function SeatingChartEditor({
                 </Button>
               </div>
             ) : (
-              <Button onClick={() => setShowPresetInput(true)} variant="secondary" size="sm">
-                Save as Preset
-              </Button>
+              <>
+                <div className="relative">
+                  <Button
+                    onClick={() => setShowPresetList(!showPresetList)}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Load Preset {presets.length > 0 && `(${presets.length})`}
+                  </Button>
+                  {showPresetList && (
+                    <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg z-50 min-w-64 max-h-80 overflow-auto">
+                      {presets.length === 0 ? (
+                        <div className="px-4 py-3 text-sm text-gray-500">No saved presets</div>
+                      ) : (
+                        presets.map((preset) => (
+                          <div
+                            key={preset.id}
+                            className="px-4 py-2 hover:bg-gray-50 border-b last:border-b-0 flex items-center justify-between gap-2"
+                          >
+                            <button
+                              onClick={async () => {
+                                await onLoadPreset(preset);
+                                setShowPresetList(false);
+                              }}
+                              className="flex-1 text-left"
+                            >
+                              <div className="font-medium text-sm">{preset.name}</div>
+                              <div className="text-xs text-gray-500">
+                                {new Date(preset.createdAt).toLocaleDateString()} •{' '}
+                                {preset.layoutData.groups.length} tables
+                              </div>
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await onDeletePreset(preset.id);
+                              }}
+                              className="text-red-500 hover:text-red-700 text-sm px-2"
+                              title="Delete preset"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                <Button onClick={() => setShowPresetInput(true)} variant="secondary" size="sm">
+                  Save as Preset
+                </Button>
+              </>
             )}
             <Button onClick={onClose} variant="primary" size="sm">
               Done
@@ -850,6 +1022,14 @@ export function SeatingChartEditor({
             size="sm"
           >
             Snap: {chart.snapEnabled ? 'ON' : 'OFF'}
+          </Button>
+
+          <Button
+            onClick={() => setTablesLocked(!tablesLocked)}
+            variant={tablesLocked ? 'primary' : 'secondary'}
+            size="sm"
+          >
+            🔒 Tables: {tablesLocked ? 'LOCKED' : 'Unlocked'}
           </Button>
 
           <Button onClick={onRandomize} variant="secondary" size="sm">
@@ -932,13 +1112,6 @@ export function SeatingChartEditor({
             <>
               <div className="w-px h-6 bg-gray-300 mx-2" />
               <Button
-                onClick={() => onRotateRoomElement(selectedElementId)}
-                variant="secondary"
-                size="sm"
-              >
-                Rotate Element
-              </Button>
-              <Button
                 onClick={() => {
                   onDeleteRoomElement(selectedElementId);
                   setSelectedElementId(null);
@@ -955,88 +1128,97 @@ export function SeatingChartEditor({
 
         {/* Help text */}
         <div className="px-4 py-1 text-xs text-gray-500 bg-gray-50 border-b">
-          Drag to reposition • R to rotate • Alt to disable snap • Delete to remove • Double-click
-          elements to rotate
+          Drag to reposition • R to rotate • Alt to disable snap • Delete/D to remove • Drag edges
+          to resize • Lock tables to move students
         </div>
 
         {/* Main content */}
         <div className="flex-1 overflow-auto p-4">
-          <div className="inline-flex gap-4">
-            {/* Canvas */}
-            <div
-              ref={canvasRef}
-              onClick={handleCanvasClick}
-              onMouseMove={handleCanvasMouseMove}
-              onMouseLeave={handleCanvasMouseLeave}
-              className={`relative border-2 rounded-lg bg-white flex-shrink-0 ${
-                isAddingGroup || addingRoomElement
-                  ? 'cursor-crosshair border-blue-400'
-                  : 'border-gray-200'
-              }`}
-              style={{
-                width: chart.canvasWidth,
-                height: chart.canvasHeight,
-                backgroundImage: chart.snapEnabled
-                  ? `
+          <div className="inline-flex gap-4 items-start">
+            {/* Canvas container */}
+            <div className="flex flex-col flex-shrink-0">
+              {/* Canvas */}
+              <div
+                ref={canvasRef}
+                onClick={handleCanvasClick}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseLeave={handleCanvasMouseLeave}
+                className={`relative outline outline-2 rounded-lg bg-white flex-shrink-0 ${
+                  isAddingGroup || addingRoomElement
+                    ? 'cursor-crosshair outline-blue-400'
+                    : 'outline-gray-200'
+                }`}
+                style={{
+                  width: chart.canvasWidth,
+                  height: chart.canvasHeight,
+                  backgroundImage: chart.snapEnabled
+                    ? `
                     linear-gradient(to right, #f0f0f0 1px, transparent 1px),
                     linear-gradient(to bottom, #f0f0f0 1px, transparent 1px)
                   `
-                  : undefined,
-                backgroundSize: chart.snapEnabled
-                  ? `${chart.gridSize}px ${chart.gridSize}px`
-                  : undefined,
-              }}
-            >
-              {/* Table Groups */}
-              {chart.groups.map((group) => (
-                <DraggableGroup
-                  key={group.id}
-                  group={group}
-                  students={studentMap}
-                  isSelected={selectedGroupId === group.id}
-                  onSelect={() => {
-                    setSelectedGroupId(group.id);
-                    setSelectedElementId(null);
-                  }}
-                  snapToGrid={snapToGrid}
-                />
-              ))}
+                    : undefined,
+                  backgroundSize: chart.snapEnabled
+                    ? `${chart.gridSize}px ${chart.gridSize}px`
+                    : undefined,
+                }}
+              >
+                {/* Table Groups */}
+                {chart.groups.map((group) => (
+                  <DraggableGroup
+                    key={group.id}
+                    group={group}
+                    students={studentMap}
+                    isSelected={selectedGroupId === group.id}
+                    onSelect={() => {
+                      setSelectedGroupId(group.id);
+                      setSelectedElementId(null);
+                    }}
+                    onUnassignStudent={onUnassignStudent}
+                    snapToGrid={snapToGrid}
+                    disabled={tablesLocked}
+                    studentsAreDraggable={tablesLocked}
+                  />
+                ))}
 
-              {/* Room Elements */}
-              {chart.roomElements.map((element) => (
-                <DraggableRoomElement
-                  key={element.id}
-                  element={element}
-                  isSelected={selectedElementId === element.id}
-                  onSelect={() => {
-                    setSelectedElementId(element.id);
-                    setSelectedGroupId(null);
-                  }}
-                  onRotate={() => onRotateRoomElement(element.id)}
-                  onResize={(width, height, x, y) =>
-                    onResizeRoomElement(element.id, width, height, x, y)
-                  }
-                  snapToGrid={snapToGrid}
-                  gridSize={chart.gridSize}
-                />
-              ))}
+                {/* Room Elements */}
+                {chart.roomElements.map((element) => (
+                  <DraggableRoomElement
+                    key={element.id}
+                    element={element}
+                    isSelected={selectedElementId === element.id}
+                    onSelect={() => {
+                      setSelectedElementId(element.id);
+                      setSelectedGroupId(null);
+                    }}
+                    onResize={(width, height, x, y) =>
+                      onResizeRoomElement(element.id, width, height, x, y)
+                    }
+                    snapToGrid={snapToGrid}
+                    gridSize={chart.gridSize}
+                    canvasWidth={chart.canvasWidth}
+                    canvasHeight={chart.canvasHeight}
+                  />
+                ))}
 
-              {/* Preview outline when adding element */}
-              {previewPos && (isAddingGroup || addingRoomElement) && (
-                <div
-                  className="absolute border-2 border-blue-500 rounded-lg bg-blue-100/30 pointer-events-none"
-                  style={{
-                    left: previewPos.x,
-                    top: previewPos.y,
-                    width: elementSizes[addingRoomElement || 'group'].width,
-                    height: elementSizes[addingRoomElement || 'group'].height,
-                    zIndex: 999,
-                  }}
-                />
-              )}
-
-              {/* Front of room label */}
-              <div className="absolute bottom-0 left-0 right-0 text-center text-sm text-gray-400 py-2 border-t border-gray-100">
+                {/* Preview outline when adding element */}
+                {previewPos && (isAddingGroup || addingRoomElement) && (
+                  <div
+                    className="absolute border-2 border-blue-500 rounded-lg bg-blue-100/30 pointer-events-none"
+                    style={{
+                      left: previewPos.x,
+                      top: previewPos.y,
+                      width: elementSizes[addingRoomElement || 'group'].width,
+                      height: elementSizes[addingRoomElement || 'group'].height,
+                      zIndex: 999,
+                    }}
+                  />
+                )}
+              </div>
+              {/* Front of room label - outside canvas */}
+              <div
+                className="text-center text-sm text-gray-400 py-1 border-t border-gray-200 -mt-px"
+                style={{ width: chart.canvasWidth }}
+              >
                 FRONT OF ROOM
               </div>
             </div>
@@ -1063,9 +1245,29 @@ export function SeatingChartEditor({
 
         {/* Drag overlay */}
         <DragOverlay>
-          {draggingType === 'student' && (
-            <div className="bg-white rounded-lg border border-blue-500 shadow-lg px-3 py-2">
-              <span className="text-sm text-gray-700">Dragging student...</span>
+          {(draggingType === 'student' || draggingType === 'seated-student') && draggingStudent && (
+            <div
+              className="bg-white rounded-lg shadow-lg border-2 border-blue-500 flex flex-col items-center justify-center p-1"
+              style={{ width: 100, height: 100 }}
+            >
+              {/* Avatar */}
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-base shadow-inner"
+                style={{ backgroundColor: draggingStudent.avatarColor || '#6B7280' }}
+              >
+                {draggingStudent.name.charAt(0).toUpperCase()}
+              </div>
+              {/* Name */}
+              <span className="text-xs font-medium text-gray-800 text-center truncate w-full mt-1">
+                {draggingStudent.name.split(' ')[0]}
+              </span>
+              {/* Points */}
+              <span
+                className={`text-sm font-bold ${draggingStudent.pointTotal >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+              >
+                {draggingStudent.pointTotal >= 0 ? '+' : ''}
+                {draggingStudent.pointTotal}
+              </span>
             </div>
           )}
         </DragOverlay>
