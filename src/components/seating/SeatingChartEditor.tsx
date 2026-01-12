@@ -128,9 +128,15 @@ interface DraggableRoomElementProps {
   element: RoomElement;
   isSelected: boolean;
   onSelect: () => void;
+  onRotate: () => void;
 }
 
-function DraggableRoomElement({ element, isSelected, onSelect }: DraggableRoomElementProps) {
+function DraggableRoomElement({
+  element,
+  isSelected,
+  onSelect,
+  onRotate,
+}: DraggableRoomElementProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `room-${element.id}`,
     data: { type: 'room-element', elementId: element.id },
@@ -153,7 +159,13 @@ function DraggableRoomElement({ element, isSelected, onSelect }: DraggableRoomEl
       {...listeners}
       className={isDragging ? 'ring-2 ring-blue-500 ring-offset-2 rounded opacity-80' : ''}
     >
-      <RoomElementDisplay element={element} isSelected={isSelected} onSelect={onSelect} isEditing />
+      <RoomElementDisplay
+        element={element}
+        isSelected={isSelected}
+        onSelect={onSelect}
+        onRotate={onRotate}
+        isEditing
+      />
     </div>
   );
 }
@@ -582,6 +594,7 @@ export function SeatingChartEditor({
                     setSelectedElementId(element.id);
                     setSelectedGroupId(null);
                   }}
+                  onRotate={() => onRotateRoomElement(element.id)}
                 />
               ))}
 

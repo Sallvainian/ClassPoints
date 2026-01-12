@@ -5,6 +5,7 @@ interface RoomElementDisplayProps {
   element: RoomElement;
   isSelected?: boolean;
   onSelect?: () => void;
+  onRotate?: () => void;
   isEditing?: boolean;
 }
 
@@ -12,6 +13,7 @@ function RoomElementDisplayComponent({
   element,
   isSelected = false,
   onSelect,
+  onRotate,
   isEditing = false,
 }: RoomElementDisplayProps) {
   const isTeacherDesk = element.type === 'teacher_desk';
@@ -43,6 +45,12 @@ function RoomElementDisplayComponent({
         if (isEditing && onSelect) {
           e.stopPropagation();
           onSelect();
+        }
+      }}
+      onDoubleClick={(e) => {
+        if (isEditing && onRotate) {
+          e.stopPropagation();
+          onRotate();
         }
       }}
     >

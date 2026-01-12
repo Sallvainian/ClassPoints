@@ -217,7 +217,7 @@ export function dbToLayoutPreset(preset: DbLayoutPreset): LayoutPreset {
 export const DEFAULT_SEATING_CHART_SETTINGS: SeatingChartSettings = {
   snapEnabled: true,
   gridSize: 40,
-  canvasWidth: 1200,
+  canvasWidth: 1600,
   canvasHeight: 800,
 };
 
