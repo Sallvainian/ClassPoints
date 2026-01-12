@@ -1,7 +1,7 @@
 # Workflow Status Check - Multi-Mode Service
 
-<critical>The workflow execution engine is governed by: {project-root}/_bmad/core/tasks/workflow.xml</critical>
-<critical>You MUST have already loaded and processed: {project-root}/_bmad/bmm/workflows/workflow-status/workflow.yaml</critical>
+<critical>The workflow execution engine is governed by: {project-root}/\_bmad/core/tasks/workflow.xml</critical>
+<critical>You MUST have already loaded and processed: {project-root}/\_bmad/bmm/workflows/workflow-status/workflow.yaml</critical>
 <critical>This workflow operates in multiple modes: interactive (default), validate, data, init-check, update</critical>
 <critical>Other workflows can call this as a service to avoid duplicating status logic</critical>
 <critical>⚠️ ABSOLUTELY NO TIME ESTIMATES - NEVER mention hours, days, weeks, months, or ANY time-based predictions. AI has fundamentally changed development speed - what once took teams weeks/months can now be done by one person in hours. DO NOT give ANY time estimates whatsoever.</critical>
@@ -197,7 +197,7 @@ Your choice:</ask>
 <!-- ============================================= -->
 
 <step n="10" goal="Validate mode - Check if calling workflow should proceed">
-<action>Read {output_folder}/bmm-workflow-status.yaml if exists</action>
+<action>Read {planning_artifacts}/bmm-workflow-status.yaml if exists</action>
 
 <check if="status file not found">
   <template-output>status_exists = false</template-output>
@@ -261,7 +261,7 @@ Your choice:</ask>
 </step>
 
 <step n="20" goal="Data mode - Extract specific information">
-<action>Read {output_folder}/bmm-workflow-status.yaml if exists</action>
+<action>Read {planning_artifacts}/bmm-workflow-status.yaml if exists</action>
 
 <check if="status file not found">
   <template-output>status_exists = false</template-output>
@@ -309,7 +309,7 @@ Your choice:</ask>
 </step>
 
 <step n="30" goal="Init-check mode - Simple existence check">
-<action>Check if {output_folder}/bmm-workflow-status.yaml exists</action>
+<action>Check if {planning_artifacts}/bmm-workflow-status.yaml exists</action>
 
 <check if="exists">
   <template-output>status_exists = true</template-output>
@@ -325,7 +325,7 @@ Your choice:</ask>
 </step>
 
 <step n="40" goal="Update mode - Centralized status file updates">
-<action>Read {output_folder}/bmm-workflow-status.yaml</action>
+<action>Read {planning_artifacts}/bmm-workflow-status.yaml</action>
 
 <check if="status file not found">
   <template-output>success = false</template-output>

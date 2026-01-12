@@ -18,12 +18,12 @@ function SeatCardComponent({
   isDragging = false,
 }: SeatCardProps) {
   if (!student) {
-    // Empty seat
+    // Empty seat - fills parent 80x80 container
     return (
       <button
         onClick={onClickEmpty}
         className={`
-          w-full h-full min-h-[60px] min-w-[70px]
+          w-full h-full
           border-2 border-dashed rounded-lg
           flex items-center justify-center
           transition-colors cursor-pointer
@@ -52,7 +52,7 @@ function SeatCardComponent({
     <button
       onClick={() => onClickStudent?.(student)}
       className={`
-        w-full h-full min-h-[60px] min-w-[70px]
+        w-full h-full
         bg-white rounded-lg shadow-sm border
         flex flex-col items-center justify-center p-1
         transition-all cursor-pointer

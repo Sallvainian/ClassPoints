@@ -516,15 +516,15 @@ export function SeatingChartEditor({
                   : undefined,
               }}
             >
-              {/* Snap preview */}
+              {/* Snap preview - matches table group dimensions (160x200 = 4x5 grid cells) */}
               {snapPreview && draggingType && (
                 <div
                   className="absolute border-2 border-dashed border-blue-400 bg-blue-100/30 rounded pointer-events-none"
                   style={{
                     left: snapPreview.x,
                     top: snapPreview.y,
-                    width: 180,
-                    height: 160,
+                    width: 160,
+                    height: 200,
                     zIndex: 999,
                   }}
                 />

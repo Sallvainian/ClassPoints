@@ -22,6 +22,9 @@ interface DroppableSeatProps {
   onClickEmpty?: () => void;
 }
 
+// Grid-aligned dimensions: 80x80 = 2 grid cells (40px each)
+const SEAT_SIZE = 80;
+
 function DroppableSeat({ seat, student, onClickStudent, onClickEmpty }: DroppableSeatProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: `seat-${seat.id}`,
@@ -29,7 +32,7 @@ function DroppableSeat({ seat, student, onClickStudent, onClickEmpty }: Droppabl
   });
 
   return (
-    <div ref={setNodeRef} className="w-[80px] h-[70px]">
+    <div ref={setNodeRef} style={{ width: SEAT_SIZE, height: SEAT_SIZE }}>
       <SeatCard
         student={student}
         onClickStudent={onClickStudent}
@@ -65,10 +68,17 @@ function TableGroupComponent({
     transform: `rotate(${group.rotation}deg)`,
   };
 
+  // Grid-aligned total: 160x200 (4x5 grid cells)
+  // - Badge row: 40px (1 grid cell)
+  // - Seats: 80x80 each, 2x2 arrangement = 160x160 (4x4 grid cells)
+  // Total: 160 wide x 200 tall
+  const GROUP_WIDTH = SEAT_SIZE * 2; // 160px = 4 grid cells
+  const GROUP_HEIGHT = 40 + SEAT_SIZE * 2; // 200px = 5 grid cells
+
   return (
     <div
       className={`
-        relative flex flex-col items-center
+        relative
         ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 rounded-lg' : ''}
       `}
       onClick={(e) => {
@@ -77,12 +87,16 @@ function TableGroupComponent({
           onSelect();
         }
       }}
-      style={groupStyle}
+      style={{
+        ...groupStyle,
+        width: GROUP_WIDTH,
+        height: GROUP_HEIGHT,
+      }}
     >
-      {/* Letter badge */}
+      {/* Letter badge - centered in top 40px row */}
       <div
         className={`
-          absolute -top-3 left-1/2 -translate-x-1/2 z-10
+          absolute top-1 left-1/2 -translate-x-1/2 z-10
           w-7 h-7 rounded-full flex items-center justify-center
           text-white font-bold text-sm shadow-md
           ${bgColor}
@@ -91,10 +105,10 @@ function TableGroupComponent({
         {group.letter}
       </div>
 
-      {/* Table group container */}
-      <div className="pt-4 flex flex-col gap-1">
-        {/* Top row (seats 1 and 2) - Table 1 */}
-        <div className="flex gap-1">
+      {/* Table group container - starts at 40px from top */}
+      <div className="absolute" style={{ top: 40, left: 0, right: 0 }}>
+        {/* 2x2 grid of seats */}
+        <div className="grid grid-cols-2" style={{ width: GROUP_WIDTH }}>
           {seat1 && (
             <DroppableSeat
               seat={seat1}
@@ -111,13 +125,6 @@ function TableGroupComponent({
               onClickEmpty={() => onClickEmptySeat?.(seat2.id)}
             />
           )}
-        </div>
-
-        {/* Table divider */}
-        <div className="h-1 bg-gray-300 rounded mx-2" />
-
-        {/* Bottom row (seats 3 and 4) - Table 2 */}
-        <div className="flex gap-1">
           {seat3 && (
             <DroppableSeat
               seat={seat3}
@@ -135,6 +142,17 @@ function TableGroupComponent({
             />
           )}
         </div>
+
+        {/* Table divider between top and bottom rows */}
+        <div
+          className="absolute bg-gray-300 rounded"
+          style={{
+            top: SEAT_SIZE - 2,
+            left: 8,
+            right: 8,
+            height: 4,
+          }}
+        />
       </div>
     </div>
   );
