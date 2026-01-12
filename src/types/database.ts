@@ -4,7 +4,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type BehaviorCategory = 'positive' | 'negative';
-export type RoomElementType = 'teacher_desk' | 'door';
+export type RoomElementType = 'teacher_desk' | 'door' | 'window' | 'countertop' | 'sink';
 
 export interface Database {
   public: {

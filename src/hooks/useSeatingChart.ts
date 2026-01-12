@@ -638,9 +638,12 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       if (!chart) return null;
 
       // Dimensions must be multiples of 40px grid
-      const defaults = {
+      const defaults: Record<RoomElementType, { width: number; height: number; label: string }> = {
         teacher_desk: { width: 120, height: 80, label: 'Teacher' },
         door: { width: 80, height: 40, label: 'Door' },
+        window: { width: 80, height: 40, label: 'Window' },
+        countertop: { width: 200, height: 40, label: 'Counter' },
+        sink: { width: 40, height: 40, label: 'Sink' },
       };
 
       const config = defaults[type];

@@ -530,6 +530,36 @@ export function SeatingChartEditor({
           >
             {addingRoomElement === 'door' ? 'Click to place...' : '+ Door'}
           </Button>
+          <Button
+            onClick={() => {
+              setAddingRoomElement(addingRoomElement === 'window' ? null : 'window');
+              setIsAddingGroup(false);
+            }}
+            variant={addingRoomElement === 'window' ? 'primary' : 'secondary'}
+            size="sm"
+          >
+            {addingRoomElement === 'window' ? 'Click to place...' : '+ Window'}
+          </Button>
+          <Button
+            onClick={() => {
+              setAddingRoomElement(addingRoomElement === 'countertop' ? null : 'countertop');
+              setIsAddingGroup(false);
+            }}
+            variant={addingRoomElement === 'countertop' ? 'primary' : 'secondary'}
+            size="sm"
+          >
+            {addingRoomElement === 'countertop' ? 'Click to place...' : '+ Counter'}
+          </Button>
+          <Button
+            onClick={() => {
+              setAddingRoomElement(addingRoomElement === 'sink' ? null : 'sink');
+              setIsAddingGroup(false);
+            }}
+            variant={addingRoomElement === 'sink' ? 'primary' : 'secondary'}
+            size="sm"
+          >
+            {addingRoomElement === 'sink' ? 'Click to place...' : '+ Sink'}
+          </Button>
 
           <div className="w-px h-6 bg-gray-300 mx-2" />
 

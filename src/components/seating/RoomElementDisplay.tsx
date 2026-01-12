@@ -18,13 +18,27 @@ function RoomElementDisplayComponent({
   isEditing = false,
   skipRotation = false,
 }: RoomElementDisplayProps) {
-  const isTeacherDesk = element.type === 'teacher_desk';
-  const isDoor = element.type === 'door';
-
   const style: React.CSSProperties = {
     width: element.width,
     height: element.height,
     transform: skipRotation ? undefined : `rotate(${element.rotation}deg)`,
+  };
+
+  // Element type styling
+  const typeStyles: Record<string, string> = {
+    teacher_desk: 'bg-amber-100 border-amber-500 text-amber-800',
+    door: 'bg-green-100 border-green-500 text-green-800',
+    window: 'bg-sky-100 border-sky-500 text-sky-800',
+    countertop: 'bg-stone-200 border-stone-500 text-stone-800',
+    sink: 'bg-blue-200 border-blue-500 text-blue-800',
+  };
+
+  const defaultLabels: Record<string, string> = {
+    teacher_desk: 'Teacher',
+    door: 'Door',
+    window: 'Window',
+    countertop: 'Counter',
+    sink: 'Sink',
   };
 
   return (
@@ -33,13 +47,7 @@ function RoomElementDisplayComponent({
         rounded border-2 flex items-center justify-center select-none
         transition-colors
         ${isSelected ? 'ring-2 ring-blue-300' : ''}
-        ${
-          isTeacherDesk
-            ? 'bg-amber-100 border-amber-500 text-amber-800'
-            : isDoor
-              ? 'bg-green-100 border-green-500 text-green-800'
-              : 'bg-gray-100 border-gray-400'
-        }
+        ${typeStyles[element.type] || 'bg-gray-100 border-gray-400'}
         ${isEditing ? 'cursor-move' : ''}
       `}
       style={style}
@@ -57,7 +65,7 @@ function RoomElementDisplayComponent({
       }}
     >
       <span className="text-xs font-medium text-center px-1 pointer-events-none">
-        {element.label || (isTeacherDesk ? 'Teacher' : 'Door')}
+        {element.label || defaultLabels[element.type] || element.type}
       </span>
     </div>
   );

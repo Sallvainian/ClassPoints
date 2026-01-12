@@ -5,8 +5,8 @@
 // View mode for dashboard display
 export type ViewMode = 'alphabetical' | 'seating';
 
-// Room element types (teacher desk, door)
-export type RoomElementType = 'teacher_desk' | 'door';
+// Room element types
+export type RoomElementType = 'teacher_desk' | 'door' | 'window' | 'countertop' | 'sink';
 
 // Seating chart settings
 export interface SeatingChartSettings {
