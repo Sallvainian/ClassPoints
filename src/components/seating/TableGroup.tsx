@@ -143,14 +143,14 @@ function TableGroupComponent({
           )}
         </div>
 
-        {/* Table divider between top and bottom rows */}
+        {/* Table divider between top and bottom rows - centered on 80px grid line */}
         <div
-          className="absolute bg-gray-300 rounded"
+          className="absolute bg-gray-300"
           style={{
-            top: SEAT_SIZE - 2,
-            left: 8,
-            right: 8,
-            height: 4,
+            top: SEAT_SIZE - 1,
+            left: 0,
+            right: 0,
+            height: 2,
           }}
         />
       </div>
