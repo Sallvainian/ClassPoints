@@ -642,7 +642,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
         teacher_desk: { width: 120, height: 80, label: 'Teacher' },
         door: { width: 80, height: 40, label: 'Door' },
         window: { width: 80, height: 40, label: 'Window' },
-        countertop: { width: 200, height: 40, label: 'Counter' },
+        countertop: { width: 120, height: 80, label: 'Counter' },
         sink: { width: 40, height: 40, label: 'Sink' },
       };
 

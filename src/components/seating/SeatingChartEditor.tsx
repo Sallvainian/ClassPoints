@@ -679,13 +679,13 @@ export function SeatingChartEditor({
         </div>
 
         {/* Main content */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Canvas */}
-          <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 overflow-auto p-4">
+          <div className="inline-flex gap-4">
+            {/* Canvas */}
             <div
               ref={canvasRef}
               onClick={handleCanvasClick}
-              className={`relative border-2 rounded-lg bg-white ${
+              className={`relative border-2 rounded-lg bg-white flex-shrink-0 ${
                 isAddingGroup || addingRoomElement
                   ? 'cursor-crosshair border-blue-400'
                   : 'border-gray-200'
@@ -739,20 +739,20 @@ export function SeatingChartEditor({
                 FRONT OF ROOM
               </div>
             </div>
-          </div>
 
-          {/* Unassigned Students Panel */}
-          <div className="w-64 bg-white border-l p-4 overflow-y-auto">
-            <h3 className="font-medium text-gray-800 mb-3">
-              Unassigned Students ({unassignedStudents.length})
-            </h3>
-            <div className="space-y-2">
-              {unassignedStudents.map((student) => (
-                <DraggableStudent key={student.id} student={student} />
-              ))}
-              {unassignedStudents.length === 0 && (
-                <p className="text-sm text-gray-500 italic">All students assigned</p>
-              )}
+            {/* Unassigned Students Panel */}
+            <div className="w-64 bg-white border rounded-lg p-4 flex-shrink-0 self-start">
+              <h3 className="font-medium text-gray-800 mb-3">
+                Unassigned Students ({unassignedStudents.length})
+              </h3>
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                {unassignedStudents.map((student) => (
+                  <DraggableStudent key={student.id} student={student} />
+                ))}
+                {unassignedStudents.length === 0 && (
+                  <p className="text-sm text-gray-500 italic">All students assigned</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
