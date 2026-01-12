@@ -53,6 +53,13 @@ interface UseSeatingChartReturn {
   // Room elements
   addRoomElement: (type: RoomElementType, x: number, y: number) => Promise<RoomElement | null>;
   moveRoomElement: (id: string, x: number, y: number) => Promise<void>;
+  resizeRoomElement: (
+    id: string,
+    width: number,
+    height: number,
+    x?: number,
+    y?: number
+  ) => Promise<void>;
   deleteRoomElement: (id: string) => Promise<boolean>;
   rotateRoomElement: (id: string) => Promise<void>;
 
@@ -741,6 +748,66 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     [chart]
   );
 
+  // Resize a room element
+  const resizeRoomElement = useCallback(
+    async (id: string, width: number, height: number, x?: number, y?: number) => {
+      if (!chart) return;
+
+      // Store old values for rollback
+      const oldElement = chart.roomElements.find((e) => e.id === id);
+      if (!oldElement) return;
+
+      // Ensure minimum size of 40px (1 grid square)
+      const newWidth = Math.max(40, width);
+      const newHeight = Math.max(40, height);
+      const newX = x ?? oldElement.x;
+      const newY = y ?? oldElement.y;
+
+      // Optimistic update FIRST
+      setChart((prev) =>
+        prev
+          ? {
+              ...prev,
+              roomElements: prev.roomElements.map((e) =>
+                e.id === id ? { ...e, width: newWidth, height: newHeight, x: newX, y: newY } : e
+              ),
+              updatedAt: Date.now(),
+            }
+          : null
+      );
+
+      // Then update database
+      const { error: updateError } = await supabase
+        .from('room_elements')
+        .update({ width: newWidth, height: newHeight, position_x: newX, position_y: newY })
+        .eq('id', id);
+
+      if (updateError) {
+        // Rollback on error
+        setChart((prev) =>
+          prev
+            ? {
+                ...prev,
+                roomElements: prev.roomElements.map((e) =>
+                  e.id === id
+                    ? {
+                        ...e,
+                        width: oldElement.width,
+                        height: oldElement.height,
+                        x: oldElement.x,
+                        y: oldElement.y,
+                      }
+                    : e
+                ),
+              }
+            : null
+        );
+        setError(new Error(updateError.message));
+      }
+    },
+    [chart]
+  );
+
   // Delete a room element
   const deleteRoomElement = useCallback(
     async (id: string): Promise<boolean> => {
@@ -842,6 +909,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     randomizeAssignments,
     addRoomElement,
     moveRoomElement,
+    resizeRoomElement,
     deleteRoomElement,
     rotateRoomElement,
     unassignedStudents,

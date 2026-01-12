@@ -33,6 +33,13 @@ interface SeatingChartEditorProps {
   onRandomize: () => Promise<void>;
   onAddRoomElement: (type: RoomElementType, x: number, y: number) => Promise<RoomElement | null>;
   onMoveRoomElement: (id: string, x: number, y: number) => Promise<void>;
+  onResizeRoomElement: (
+    id: string,
+    width: number,
+    height: number,
+    x?: number,
+    y?: number
+  ) => Promise<void>;
   onDeleteRoomElement: (id: string) => Promise<boolean>;
   onRotateRoomElement: (id: string) => Promise<void>;
   onUpdateSettings: (
@@ -103,45 +110,43 @@ function DraggableGroup({
     data: { type: 'group', groupId: group.id },
   });
 
-  // Track pending position to prevent flicker on drag end
-  const pendingPos = useRef<{ x: number; y: number } | null>(null);
+  // Use local state for position to prevent flicker
+  const [localPos, setLocalPos] = useState({ x: group.x, y: group.y });
+  const wasDragging = useRef(false);
 
-  // Calculate the actual position including any drag offset
-  let displayX: number;
-  let displayY: number;
-
-  if (isDragging && transform) {
-    displayX = snapToGrid(group.x + transform.x);
-    displayY = snapToGrid(group.y + transform.y);
-    pendingPos.current = { x: displayX, y: displayY };
-  } else if (
-    pendingPos.current &&
-    (pendingPos.current.x !== group.x || pendingPos.current.y !== group.y)
-  ) {
-    // Use pending position until props catch up
-    displayX = pendingPos.current.x;
-    displayY = pendingPos.current.y;
-  } else {
-    displayX = group.x;
-    displayY = group.y;
-    pendingPos.current = null;
-  }
-
-  // Clear pending position when props match
+  // Sync local position with props, but only when not just finished dragging
   useLayoutEffect(() => {
-    if (
-      pendingPos.current &&
-      pendingPos.current.x === group.x &&
-      pendingPos.current.y === group.y
-    ) {
-      pendingPos.current = null;
+    if (!isDragging && !wasDragging.current) {
+      setLocalPos({ x: group.x, y: group.y });
     }
-  }, [group.x, group.y]);
+    if (!isDragging && wasDragging.current) {
+      // Just finished dragging - check if props caught up
+      if (group.x === localPos.x && group.y === localPos.y) {
+        wasDragging.current = false;
+      }
+    }
+  }, [group.x, group.y, isDragging, localPos.x, localPos.y]);
+
+  // Track dragging state
+  useLayoutEffect(() => {
+    if (isDragging) {
+      wasDragging.current = true;
+    }
+  }, [isDragging]);
+
+  // Update local position during drag
+  useLayoutEffect(() => {
+    if (isDragging && transform) {
+      const newX = snapToGrid(group.x + transform.x);
+      const newY = snapToGrid(group.y + transform.y);
+      setLocalPos({ x: newX, y: newY });
+    }
+  }, [isDragging, transform, group.x, group.y, snapToGrid]);
 
   const style: React.CSSProperties = {
     position: 'absolute',
-    left: displayX,
-    top: displayY,
+    left: localPos.x,
+    top: localPos.y,
     zIndex: isDragging ? 1000 : isSelected ? 100 : 1,
     cursor: isDragging ? 'grabbing' : 'grab',
   };
@@ -165,13 +170,15 @@ function DraggableGroup({
   );
 }
 
-// Draggable room element
+// Draggable room element with resize handles
 interface DraggableRoomElementProps {
   element: RoomElement;
   isSelected: boolean;
   onSelect: () => void;
   onRotate: () => void;
+  onResize: (width: number, height: number, x?: number, y?: number) => void;
   snapToGrid: (value: number) => number;
+  gridSize: number;
 }
 
 function DraggableRoomElement({
@@ -179,50 +186,136 @@ function DraggableRoomElement({
   isSelected,
   onSelect,
   onRotate,
+  onResize,
   snapToGrid,
+  gridSize,
 }: DraggableRoomElementProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `room-${element.id}`,
     data: { type: 'room-element', elementId: element.id },
   });
 
-  // Track pending position to prevent flicker on drag end
-  const pendingPos = useRef<{ x: number; y: number } | null>(null);
+  // Use local state for position to prevent flicker
+  const [localPos, setLocalPos] = useState({ x: element.x, y: element.y });
+  const wasDragging = useRef(false);
+
+  // Sync local position with props, but only when not just finished dragging
+  useLayoutEffect(() => {
+    if (!isDragging && !wasDragging.current) {
+      setLocalPos({ x: element.x, y: element.y });
+    }
+    if (!isDragging && wasDragging.current) {
+      // Just finished dragging - check if props caught up
+      if (element.x === localPos.x && element.y === localPos.y) {
+        wasDragging.current = false;
+      }
+    }
+  }, [element.x, element.y, isDragging, localPos.x, localPos.y]);
+
+  // Track dragging state
+  useLayoutEffect(() => {
+    if (isDragging) {
+      wasDragging.current = true;
+    }
+  }, [isDragging]);
+
+  // Update local position during drag
+  useLayoutEffect(() => {
+    if (isDragging && transform) {
+      const newX = snapToGrid(element.x + transform.x);
+      const newY = snapToGrid(element.y + transform.y);
+      setLocalPos({ x: newX, y: newY });
+    }
+  }, [isDragging, transform, element.x, element.y, snapToGrid]);
+
+  // Track resize state
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef<{
+    edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+    startElemX: number;
+    startElemY: number;
+  } | null>(null);
 
   // Check if element is rotated 90 or 270 degrees (portrait orientation)
   const isPortrait = element.rotation === 90 || element.rotation === 270;
 
-  // Calculate the actual position including any drag offset
-  let displayX: number;
-  let displayY: number;
+  // Handle resize mouse events
+  useEffect(() => {
+    if (!isResizing) return;
 
-  if (isDragging && transform) {
-    displayX = snapToGrid(element.x + transform.x);
-    displayY = snapToGrid(element.y + transform.y);
-    pendingPos.current = { x: displayX, y: displayY };
-  } else if (
-    pendingPos.current &&
-    (pendingPos.current.x !== element.x || pendingPos.current.y !== element.y)
-  ) {
-    // Use pending position until props catch up
-    displayX = pendingPos.current.x;
-    displayY = pendingPos.current.y;
-  } else {
-    displayX = element.x;
-    displayY = element.y;
-    pendingPos.current = null;
-  }
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizeRef.current) return;
 
-  // Clear pending position when props match
-  useLayoutEffect(() => {
-    if (
-      pendingPos.current &&
-      pendingPos.current.x === element.x &&
-      pendingPos.current.y === element.y
-    ) {
-      pendingPos.current = null;
-    }
-  }, [element.x, element.y]);
+      const { edge, startX, startY, startWidth, startHeight, startElemX, startElemY } =
+        resizeRef.current;
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+
+      let newWidth = startWidth;
+      let newHeight = startHeight;
+      let newX = startElemX;
+      let newY = startElemY;
+
+      // Calculate new dimensions based on which edge is being dragged
+      if (edge.includes('e')) {
+        newWidth = snapToGrid(startWidth + deltaX);
+      }
+      if (edge.includes('w')) {
+        const widthChange = snapToGrid(deltaX);
+        newWidth = startWidth - widthChange;
+        newX = startElemX + widthChange;
+      }
+      if (edge.includes('s')) {
+        newHeight = snapToGrid(startHeight + deltaY);
+      }
+      if (edge.includes('n')) {
+        const heightChange = snapToGrid(deltaY);
+        newHeight = startHeight - heightChange;
+        newY = startElemY + heightChange;
+      }
+
+      // Enforce minimum size
+      newWidth = Math.max(gridSize, newWidth);
+      newHeight = Math.max(gridSize, newHeight);
+
+      onResize(newWidth, newHeight, newX, newY);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      resizeRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, snapToGrid, gridSize, onResize]);
+
+  const handleResizeStart = (
+    e: React.MouseEvent,
+    edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsResizing(true);
+    resizeRef.current = {
+      edge,
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: element.width,
+      startHeight: element.height,
+      startElemX: element.x,
+      startElemY: element.y,
+    };
+  };
 
   // When rotated 90/270, we need to offset the position because CSS rotation happens around center
   const offsetX = isPortrait ? (element.width - element.height) / 2 : 0;
@@ -230,31 +323,127 @@ function DraggableRoomElement({
 
   const style: React.CSSProperties = {
     position: 'absolute',
-    left: displayX + offsetX,
-    top: displayY + offsetY,
+    left: localPos.x + offsetX,
+    top: localPos.y + offsetY,
     width: element.width,
     height: element.height,
     transform: `rotate(${element.rotation}deg)`,
-    zIndex: isDragging ? 1000 : isSelected ? 100 : 2,
-    cursor: isDragging ? 'grabbing' : 'grab',
+    zIndex: isDragging || isResizing ? 1000 : isSelected ? 100 : 2,
   };
 
+  const handleSize = 10;
+  const handleStyle = 'absolute bg-blue-500 border-2 border-white rounded-sm z-50';
+
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={isDragging ? 'ring-2 ring-blue-500 ring-offset-2 rounded opacity-80' : ''}
-    >
-      <RoomElementDisplay
-        element={element}
-        isSelected={isSelected}
-        onSelect={onSelect}
-        onRotate={onRotate}
-        isEditing
-        skipRotation
-      />
+    <div ref={setNodeRef} style={style}>
+      {/* Drag handle - the main element */}
+      <div
+        {...attributes}
+        {...listeners}
+        className={`w-full h-full ${isDragging ? 'ring-2 ring-blue-500 ring-offset-2 rounded opacity-80 cursor-grabbing' : 'cursor-grab'}`}
+      >
+        <RoomElementDisplay
+          element={element}
+          isSelected={isSelected}
+          onSelect={onSelect}
+          onRotate={onRotate}
+          isEditing
+          skipRotation
+        />
+      </div>
+
+      {/* Resize handles - only show when selected and not dragging */}
+      {isSelected && !isDragging && (
+        <>
+          {/* Edge handles */}
+          <div
+            className={`${handleStyle} cursor-ew-resize`}
+            style={{
+              left: -handleSize / 2,
+              top: '50%',
+              marginTop: -handleSize / 2,
+              width: handleSize,
+              height: handleSize,
+            }}
+            onMouseDown={(e) => handleResizeStart(e, 'w')}
+          />
+          <div
+            className={`${handleStyle} cursor-ew-resize`}
+            style={{
+              right: -handleSize / 2,
+              top: '50%',
+              marginTop: -handleSize / 2,
+              width: handleSize,
+              height: handleSize,
+            }}
+            onMouseDown={(e) => handleResizeStart(e, 'e')}
+          />
+          <div
+            className={`${handleStyle} cursor-ns-resize`}
+            style={{
+              top: -handleSize / 2,
+              left: '50%',
+              marginLeft: -handleSize / 2,
+              width: handleSize,
+              height: handleSize,
+            }}
+            onMouseDown={(e) => handleResizeStart(e, 'n')}
+          />
+          <div
+            className={`${handleStyle} cursor-ns-resize`}
+            style={{
+              bottom: -handleSize / 2,
+              left: '50%',
+              marginLeft: -handleSize / 2,
+              width: handleSize,
+              height: handleSize,
+            }}
+            onMouseDown={(e) => handleResizeStart(e, 's')}
+          />
+
+          {/* Corner handles */}
+          <div
+            className={`${handleStyle} cursor-nwse-resize`}
+            style={{
+              left: -handleSize / 2,
+              top: -handleSize / 2,
+              width: handleSize,
+              height: handleSize,
+            }}
+            onMouseDown={(e) => handleResizeStart(e, 'nw')}
+          />
+          <div
+            className={`${handleStyle} cursor-nesw-resize`}
+            style={{
+              right: -handleSize / 2,
+              top: -handleSize / 2,
+              width: handleSize,
+              height: handleSize,
+            }}
+            onMouseDown={(e) => handleResizeStart(e, 'ne')}
+          />
+          <div
+            className={`${handleStyle} cursor-nesw-resize`}
+            style={{
+              left: -handleSize / 2,
+              bottom: -handleSize / 2,
+              width: handleSize,
+              height: handleSize,
+            }}
+            onMouseDown={(e) => handleResizeStart(e, 'sw')}
+          />
+          <div
+            className={`${handleStyle} cursor-nwse-resize`}
+            style={{
+              right: -handleSize / 2,
+              bottom: -handleSize / 2,
+              width: handleSize,
+              height: handleSize,
+            }}
+            onMouseDown={(e) => handleResizeStart(e, 'se')}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -273,6 +462,7 @@ export function SeatingChartEditor({
   onRandomize,
   onAddRoomElement,
   onMoveRoomElement,
+  onResizeRoomElement,
   onDeleteRoomElement,
   onRotateRoomElement,
   onUpdateSettings,
@@ -777,7 +967,11 @@ export function SeatingChartEditor({
                     setSelectedGroupId(null);
                   }}
                   onRotate={() => onRotateRoomElement(element.id)}
+                  onResize={(width, height, x, y) =>
+                    onResizeRoomElement(element.id, width, height, x, y)
+                  }
                   snapToGrid={snapToGrid}
+                  gridSize={chart.gridSize}
                 />
               ))}
 

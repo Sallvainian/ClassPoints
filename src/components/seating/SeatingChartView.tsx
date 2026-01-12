@@ -29,6 +29,7 @@ export function SeatingChartView({ classroomId, students, onClickStudent }: Seat
     randomizeAssignments,
     addRoomElement,
     moveRoomElement,
+    resizeRoomElement,
     deleteRoomElement,
     rotateRoomElement,
     updateSettings,
@@ -99,6 +100,7 @@ export function SeatingChartView({ classroomId, students, onClickStudent }: Seat
         onRandomize={() => randomizeAssignments(students)}
         onAddRoomElement={addRoomElement}
         onMoveRoomElement={moveRoomElement}
+        onResizeRoomElement={resizeRoomElement}
         onDeleteRoomElement={deleteRoomElement}
         onRotateRoomElement={rotateRoomElement}
         onUpdateSettings={updateSettings}
