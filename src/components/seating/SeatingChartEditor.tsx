@@ -156,14 +156,25 @@ function DraggableRoomElement({
     data: { type: 'room-element', elementId: element.id },
   });
 
+  // Check if element is rotated 90 or 270 degrees (portrait orientation)
+  const isPortrait = element.rotation === 90 || element.rotation === 270;
+
   // Calculate the actual position including any drag offset
   const displayX = isDragging && transform ? snapToGrid(element.x + transform.x) : element.x;
   const displayY = isDragging && transform ? snapToGrid(element.y + transform.y) : element.y;
 
+  // When rotated 90/270, we need to offset the position because CSS rotation happens around center
+  // The element's bounding box changes when rotated
+  const offsetX = isPortrait ? (element.width - element.height) / 2 : 0;
+  const offsetY = isPortrait ? (element.height - element.width) / 2 : 0;
+
   const style: React.CSSProperties = {
     position: 'absolute',
-    left: displayX,
-    top: displayY,
+    left: displayX + offsetX,
+    top: displayY + offsetY,
+    width: element.width,
+    height: element.height,
+    transform: `rotate(${element.rotation}deg)`,
     zIndex: isDragging ? 1000 : isSelected ? 100 : 2,
     cursor: isDragging ? 'grabbing' : 'grab',
   };
@@ -182,6 +193,7 @@ function DraggableRoomElement({
         onSelect={onSelect}
         onRotate={onRotate}
         isEditing
+        skipRotation
       />
     </div>
   );

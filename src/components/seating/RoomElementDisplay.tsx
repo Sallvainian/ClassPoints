@@ -7,6 +7,7 @@ interface RoomElementDisplayProps {
   onSelect?: () => void;
   onRotate?: () => void;
   isEditing?: boolean;
+  skipRotation?: boolean;
 }
 
 function RoomElementDisplayComponent({
@@ -15,6 +16,7 @@ function RoomElementDisplayComponent({
   onSelect,
   onRotate,
   isEditing = false,
+  skipRotation = false,
 }: RoomElementDisplayProps) {
   const isTeacherDesk = element.type === 'teacher_desk';
   const isDoor = element.type === 'door';
@@ -22,7 +24,7 @@ function RoomElementDisplayComponent({
   const style: React.CSSProperties = {
     width: element.width,
     height: element.height,
-    transform: `rotate(${element.rotation}deg)`,
+    transform: skipRotation ? undefined : `rotate(${element.rotation}deg)`,
   };
 
   return (
