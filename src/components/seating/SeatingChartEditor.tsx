@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import {
   DndContext,
   DragStartEvent,
@@ -103,10 +103,40 @@ function DraggableGroup({
     data: { type: 'group', groupId: group.id },
   });
 
+  // Track pending position to prevent flicker on drag end
+  const pendingPos = useRef<{ x: number; y: number } | null>(null);
+
   // Calculate the actual position including any drag offset
-  // When dragging, show at snapped position; otherwise show at group position
-  const displayX = isDragging && transform ? snapToGrid(group.x + transform.x) : group.x;
-  const displayY = isDragging && transform ? snapToGrid(group.y + transform.y) : group.y;
+  let displayX: number;
+  let displayY: number;
+
+  if (isDragging && transform) {
+    displayX = snapToGrid(group.x + transform.x);
+    displayY = snapToGrid(group.y + transform.y);
+    pendingPos.current = { x: displayX, y: displayY };
+  } else if (
+    pendingPos.current &&
+    (pendingPos.current.x !== group.x || pendingPos.current.y !== group.y)
+  ) {
+    // Use pending position until props catch up
+    displayX = pendingPos.current.x;
+    displayY = pendingPos.current.y;
+  } else {
+    displayX = group.x;
+    displayY = group.y;
+    pendingPos.current = null;
+  }
+
+  // Clear pending position when props match
+  useLayoutEffect(() => {
+    if (
+      pendingPos.current &&
+      pendingPos.current.x === group.x &&
+      pendingPos.current.y === group.y
+    ) {
+      pendingPos.current = null;
+    }
+  }, [group.x, group.y]);
 
   const style: React.CSSProperties = {
     position: 'absolute',
@@ -156,15 +186,45 @@ function DraggableRoomElement({
     data: { type: 'room-element', elementId: element.id },
   });
 
+  // Track pending position to prevent flicker on drag end
+  const pendingPos = useRef<{ x: number; y: number } | null>(null);
+
   // Check if element is rotated 90 or 270 degrees (portrait orientation)
   const isPortrait = element.rotation === 90 || element.rotation === 270;
 
   // Calculate the actual position including any drag offset
-  const displayX = isDragging && transform ? snapToGrid(element.x + transform.x) : element.x;
-  const displayY = isDragging && transform ? snapToGrid(element.y + transform.y) : element.y;
+  let displayX: number;
+  let displayY: number;
+
+  if (isDragging && transform) {
+    displayX = snapToGrid(element.x + transform.x);
+    displayY = snapToGrid(element.y + transform.y);
+    pendingPos.current = { x: displayX, y: displayY };
+  } else if (
+    pendingPos.current &&
+    (pendingPos.current.x !== element.x || pendingPos.current.y !== element.y)
+  ) {
+    // Use pending position until props catch up
+    displayX = pendingPos.current.x;
+    displayY = pendingPos.current.y;
+  } else {
+    displayX = element.x;
+    displayY = element.y;
+    pendingPos.current = null;
+  }
+
+  // Clear pending position when props match
+  useLayoutEffect(() => {
+    if (
+      pendingPos.current &&
+      pendingPos.current.x === element.x &&
+      pendingPos.current.y === element.y
+    ) {
+      pendingPos.current = null;
+    }
+  }, [element.x, element.y]);
 
   // When rotated 90/270, we need to offset the position because CSS rotation happens around center
-  // The element's bounding box changes when rotated
   const offsetX = isPortrait ? (element.width - element.height) / 2 : 0;
   const offsetY = isPortrait ? (element.height - element.width) / 2 : 0;
 

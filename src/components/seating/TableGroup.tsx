@@ -107,8 +107,11 @@ function TableGroupComponent({
 
       {/* Table group container - starts at 40px from top */}
       <div className="absolute" style={{ top: 40, left: 0, right: 0 }}>
-        {/* 2x2 grid of seats */}
-        <div className="grid grid-cols-2" style={{ width: GROUP_WIDTH }}>
+        {/* 2x2 grid of seats with single outer border */}
+        <div
+          className="grid grid-cols-2 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden"
+          style={{ width: GROUP_WIDTH }}
+        >
           {seat1 && (
             <DroppableSeat
               seat={seat1}
@@ -143,14 +146,25 @@ function TableGroupComponent({
           )}
         </div>
 
-        {/* Table divider between top and bottom rows - centered on 80px grid line */}
+        {/* Horizontal divider between top and bottom rows */}
         <div
-          className="absolute bg-gray-300"
+          className="absolute bg-gray-300 pointer-events-none"
           style={{
             top: SEAT_SIZE - 1,
             left: 0,
             right: 0,
             height: 2,
+          }}
+        />
+
+        {/* Vertical divider between left and right columns */}
+        <div
+          className="absolute bg-gray-300 pointer-events-none"
+          style={{
+            top: 0,
+            left: SEAT_SIZE - 1,
+            width: 2,
+            height: SEAT_SIZE * 2,
           }}
         />
       </div>

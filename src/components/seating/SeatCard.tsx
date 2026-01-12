@@ -24,14 +24,9 @@ function SeatCardComponent({
         onClick={onClickEmpty}
         className={`
           w-full h-full
-          border-2 border-dashed rounded-lg
           flex items-center justify-center
           transition-colors cursor-pointer
-          ${
-            isDropTarget
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 hover:border-gray-400 bg-gray-50'
-          }
+          ${isDropTarget ? 'bg-blue-50' : 'bg-gray-50 hover:bg-gray-100'}
         `}
         title="Empty seat - drag a student here"
       >
