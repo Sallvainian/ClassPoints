@@ -3,7 +3,6 @@ import {
   DndContext,
   DragStartEvent,
   DragEndEvent,
-  DragMoveEvent,
   DragOverlay,
   pointerWithin,
   useDraggable,
@@ -89,19 +88,30 @@ interface DraggableGroupProps {
   students: Map<string, Student>;
   isSelected: boolean;
   onSelect: () => void;
+  snapToGrid: (value: number) => number;
 }
 
-function DraggableGroup({ group, students, isSelected, onSelect }: DraggableGroupProps) {
+function DraggableGroup({
+  group,
+  students,
+  isSelected,
+  onSelect,
+  snapToGrid,
+}: DraggableGroupProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `group-${group.id}`,
     data: { type: 'group', groupId: group.id },
   });
 
+  // Calculate the actual position including any drag offset
+  // When dragging, show at snapped position; otherwise show at group position
+  const displayX = isDragging && transform ? snapToGrid(group.x + transform.x) : group.x;
+  const displayY = isDragging && transform ? snapToGrid(group.y + transform.y) : group.y;
+
   const style: React.CSSProperties = {
     position: 'absolute',
-    left: group.x,
-    top: group.y,
-    transform: transform ? CSS.Translate.toString(transform) : undefined,
+    left: displayX,
+    top: displayY,
     zIndex: isDragging ? 1000 : isSelected ? 100 : 1,
     cursor: isDragging ? 'grabbing' : 'grab',
   };
@@ -131,6 +141,7 @@ interface DraggableRoomElementProps {
   isSelected: boolean;
   onSelect: () => void;
   onRotate: () => void;
+  snapToGrid: (value: number) => number;
 }
 
 function DraggableRoomElement({
@@ -138,17 +149,21 @@ function DraggableRoomElement({
   isSelected,
   onSelect,
   onRotate,
+  snapToGrid,
 }: DraggableRoomElementProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `room-${element.id}`,
     data: { type: 'room-element', elementId: element.id },
   });
 
+  // Calculate the actual position including any drag offset
+  const displayX = isDragging && transform ? snapToGrid(element.x + transform.x) : element.x;
+  const displayY = isDragging && transform ? snapToGrid(element.y + transform.y) : element.y;
+
   const style: React.CSSProperties = {
     position: 'absolute',
-    left: element.x,
-    top: element.y,
-    transform: transform ? CSS.Translate.toString(transform) : undefined,
+    left: displayX,
+    top: displayY,
     zIndex: isDragging ? 1000 : isSelected ? 100 : 2,
     cursor: isDragging ? 'grabbing' : 'grab',
   };
@@ -202,7 +217,6 @@ export function SeatingChartEditor({
   const [isAltPressed, setIsAltPressed] = useState(false);
   const [draggingType, setDraggingType] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [snapPreview, setSnapPreview] = useState<{ x: number; y: number } | null>(null);
   const [presetName, setPresetName] = useState('');
   const [showPresetInput, setShowPresetInput] = useState(false);
 
@@ -320,34 +334,12 @@ export function SeatingChartEditor({
     setDraggingId(data?.groupId || data?.elementId || null);
   };
 
-  const handleDragMove = (event: DragMoveEvent) => {
-    const { active, delta } = event;
-    const data = active.data.current;
-
-    if (data?.type === 'group') {
-      const group = chart.groups.find((g) => g.id === data.groupId);
-      if (group) {
-        const newX = snapToGrid(group.x + delta.x);
-        const newY = snapToGrid(group.y + delta.y);
-        setSnapPreview({ x: newX, y: newY });
-      }
-    } else if (data?.type === 'room-element') {
-      const element = chart.roomElements.find((e) => e.id === data.elementId);
-      if (element) {
-        const newX = snapToGrid(element.x + delta.x);
-        const newY = snapToGrid(element.y + delta.y);
-        setSnapPreview({ x: newX, y: newY });
-      }
-    }
-  };
-
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over, delta } = event;
     const data = active.data.current;
 
     setDraggingType(null);
     setDraggingId(null);
-    setSnapPreview(null);
 
     // Handle student dropped on seat
     if (data?.type === 'student' && over) {
@@ -393,7 +385,6 @@ export function SeatingChartEditor({
   return (
     <DndContext
       onDragStart={handleDragStart}
-      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
       collisionDetection={pointerWithin}
     >
@@ -611,44 +602,6 @@ export function SeatingChartEditor({
                   : undefined,
               }}
             >
-              {/* Snap preview - shows where item will land */}
-              {snapPreview &&
-                draggingType &&
-                chart.snapEnabled &&
-                !isAltPressed &&
-                (() => {
-                  let width = 160;
-                  let height = 200;
-                  let rotation = 0;
-                  if (draggingType === 'group' && draggingId) {
-                    const group = chart.groups.find((g) => g.id === draggingId);
-                    if (group) {
-                      rotation = group.rotation;
-                    }
-                  } else if (draggingType === 'room-element' && draggingId) {
-                    const element = chart.roomElements.find((e) => e.id === draggingId);
-                    if (element) {
-                      width = element.width;
-                      height = element.height;
-                      rotation = element.rotation;
-                    }
-                  }
-                  return (
-                    <div
-                      className="absolute border-2 border-dashed border-gray-400 bg-gray-100/30 rounded pointer-events-none"
-                      style={{
-                        left: snapPreview.x,
-                        top: snapPreview.y,
-                        width,
-                        height,
-                        transform: rotation ? `rotate(${rotation}deg)` : undefined,
-                        transformOrigin: 'top left',
-                        zIndex: 50,
-                      }}
-                    />
-                  );
-                })()}
-
               {/* Table Groups */}
               {chart.groups.map((group) => (
                 <DraggableGroup
@@ -660,6 +613,7 @@ export function SeatingChartEditor({
                     setSelectedGroupId(group.id);
                     setSelectedElementId(null);
                   }}
+                  snapToGrid={snapToGrid}
                 />
               ))}
 
@@ -674,6 +628,7 @@ export function SeatingChartEditor({
                     setSelectedGroupId(null);
                   }}
                   onRotate={() => onRotateRoomElement(element.id)}
+                  snapToGrid={snapToGrid}
                 />
               ))}
 

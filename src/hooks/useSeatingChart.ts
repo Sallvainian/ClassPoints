@@ -637,9 +637,10 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     async (type: RoomElementType, x: number, y: number): Promise<RoomElement | null> => {
       if (!chart) return null;
 
+      // Dimensions must be multiples of 40px grid
       const defaults = {
-        teacher_desk: { width: 140, height: 70, label: 'Teacher' },
-        door: { width: 60, height: 20, label: 'Door' },
+        teacher_desk: { width: 120, height: 80, label: 'Teacher' },
+        door: { width: 80, height: 40, label: 'Door' },
       };
 
       const config = defaults[type];
