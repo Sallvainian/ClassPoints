@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "dotenvx run -f .env.local -- vite",
     "dev:host": "dotenvx run -f .env.local -- vite --host",
-    "build": "dotenvx run -f .env.local -- tsc -b && vite build",
+    "build": "tsc -b && dotenvx run -f .env.local -- vite build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "preview": "dotenvx run -f .env.local -- vite preview",
@@ -17,6 +17,8 @@
     "prepare": "simple-git-hooks"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.84.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

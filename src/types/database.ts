@@ -1,15 +1,10 @@
 // Supabase Database Types - Auto-generated with convenience aliases
 // Run: npx supabase gen types typescript --project-id hxclfwawibrtfjvptxno
 
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type BehaviorCategory = 'positive' | 'negative';
+export type RoomElementType = 'teacher_desk' | 'door' | 'window' | 'countertop' | 'sink';
 
 export interface Database {
   public: {
@@ -129,7 +124,7 @@ export interface Database {
             isOneToOne: false;
             referencedRelation: 'students';
             referencedColumns: ['id'];
-          }
+          },
         ];
       };
       students: {
@@ -161,7 +156,7 @@ export interface Database {
             isOneToOne: false;
             referencedRelation: 'classrooms';
             referencedColumns: ['id'];
-          }
+          },
         ];
       };
       user_sound_settings: {
@@ -203,6 +198,198 @@ export interface Database {
         };
         Relationships: [];
       };
+      seating_charts: {
+        Row: {
+          id: string;
+          classroom_id: string;
+          name: string;
+          snap_enabled: boolean;
+          grid_size: number;
+          canvas_width: number;
+          canvas_height: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          classroom_id: string;
+          name?: string;
+          snap_enabled?: boolean;
+          grid_size?: number;
+          canvas_width?: number;
+          canvas_height?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          classroom_id?: string;
+          name?: string;
+          snap_enabled?: boolean;
+          grid_size?: number;
+          canvas_width?: number;
+          canvas_height?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'seating_charts_classroom_id_fkey';
+            columns: ['classroom_id'];
+            isOneToOne: true;
+            referencedRelation: 'classrooms';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      seating_groups: {
+        Row: {
+          id: string;
+          seating_chart_id: string;
+          letter: string;
+          position_x: number;
+          position_y: number;
+          rotation: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          seating_chart_id: string;
+          letter: string;
+          position_x: number;
+          position_y: number;
+          rotation?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          seating_chart_id?: string;
+          letter?: string;
+          position_x?: number;
+          position_y?: number;
+          rotation?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'seating_groups_seating_chart_id_fkey';
+            columns: ['seating_chart_id'];
+            isOneToOne: false;
+            referencedRelation: 'seating_charts';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      seating_seats: {
+        Row: {
+          id: string;
+          seating_group_id: string;
+          position_in_group: number;
+          student_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          seating_group_id: string;
+          position_in_group: number;
+          student_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          seating_group_id?: string;
+          position_in_group?: number;
+          student_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'seating_seats_seating_group_id_fkey';
+            columns: ['seating_group_id'];
+            isOneToOne: false;
+            referencedRelation: 'seating_groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'seating_seats_student_id_fkey';
+            columns: ['student_id'];
+            isOneToOne: false;
+            referencedRelation: 'students';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      room_elements: {
+        Row: {
+          id: string;
+          seating_chart_id: string;
+          element_type: RoomElementType;
+          label: string | null;
+          position_x: number;
+          position_y: number;
+          width: number;
+          height: number;
+          rotation: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          seating_chart_id: string;
+          element_type: RoomElementType;
+          label?: string | null;
+          position_x: number;
+          position_y: number;
+          width?: number;
+          height?: number;
+          rotation?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          seating_chart_id?: string;
+          element_type?: RoomElementType;
+          label?: string | null;
+          position_x?: number;
+          position_y?: number;
+          width?: number;
+          height?: number;
+          rotation?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'room_elements_seating_chart_id_fkey';
+            columns: ['seating_chart_id'];
+            isOneToOne: false;
+            referencedRelation: 'seating_charts';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      layout_presets: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          layout_data: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          name: string;
+          layout_data: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          layout_data?: Json;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -212,6 +399,7 @@ export interface Database {
     };
     Enums: {
       behavior_category: BehaviorCategory;
+      room_element_type: RoomElementType;
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -241,3 +429,24 @@ export type UpdatePointTransaction = Database['public']['Tables']['point_transac
 export type UserSoundSettings = Database['public']['Tables']['user_sound_settings']['Row'];
 export type NewUserSoundSettings = Database['public']['Tables']['user_sound_settings']['Insert'];
 export type UpdateUserSoundSettings = Database['public']['Tables']['user_sound_settings']['Update'];
+
+// Seating chart types
+export type SeatingChartRow = Database['public']['Tables']['seating_charts']['Row'];
+export type NewSeatingChart = Database['public']['Tables']['seating_charts']['Insert'];
+export type UpdateSeatingChart = Database['public']['Tables']['seating_charts']['Update'];
+
+export type SeatingGroupRow = Database['public']['Tables']['seating_groups']['Row'];
+export type NewSeatingGroup = Database['public']['Tables']['seating_groups']['Insert'];
+export type UpdateSeatingGroup = Database['public']['Tables']['seating_groups']['Update'];
+
+export type SeatingSeatRow = Database['public']['Tables']['seating_seats']['Row'];
+export type NewSeatingSeat = Database['public']['Tables']['seating_seats']['Insert'];
+export type UpdateSeatingSeat = Database['public']['Tables']['seating_seats']['Update'];
+
+export type RoomElementRow = Database['public']['Tables']['room_elements']['Row'];
+export type NewRoomElement = Database['public']['Tables']['room_elements']['Insert'];
+export type UpdateRoomElement = Database['public']['Tables']['room_elements']['Update'];
+
+export type LayoutPresetRow = Database['public']['Tables']['layout_presets']['Row'];
+export type NewLayoutPreset = Database['public']['Tables']['layout_presets']['Insert'];
+export type UpdateLayoutPreset = Database['public']['Tables']['layout_presets']['Update'];

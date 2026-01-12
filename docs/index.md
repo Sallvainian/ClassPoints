@@ -2,9 +2,9 @@
 
 > A classroom behavior management application for tracking student points and behaviors.
 
-**Generated:** December 12, 2025
+**Generated:** January 12, 2026 (updated from December 12, 2025)
 **Project Type:** Web Application (React + Supabase)
-**Scan Level:** Exhaustive
+**Scan Level:** Exhaustive (Full Rescan)
 
 ---
 
