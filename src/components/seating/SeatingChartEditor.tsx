@@ -593,6 +593,7 @@ export function SeatingChartEditor({
   onDeletePreset,
 }: SeatingChartEditorProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [isAddingGroup, setIsAddingGroup] = useState(false);
@@ -606,6 +607,27 @@ export function SeatingChartEditor({
   const [previewPos, setPreviewPos] = useState<{ x: number; y: number } | null>(null);
   const [tablesLocked, setTablesLocked] = useState(false);
   const [draggingStudent, setDraggingStudent] = useState<Student | null>(null);
+  const [scale, setScale] = useState(1);
+
+  // Zoom constants
+  const ZOOM_STEP = 0.1;
+  const MIN_ZOOM = 0.3;
+  const MAX_ZOOM = 1.5;
+
+  const handleZoomIn = useCallback(() => {
+    setScale((prev) => Math.min(MAX_ZOOM, prev + ZOOM_STEP));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setScale((prev) => Math.max(MIN_ZOOM, prev - ZOOM_STEP));
+  }, []);
+
+  const handleFitToScreen = useCallback(() => {
+    if (!editorContainerRef.current) return;
+    const containerWidth = editorContainerRef.current.clientWidth - 320; // Account for sidebar + padding
+    const newScale = Math.min(1, containerWidth / chart.canvasWidth);
+    setScale(newScale);
+  }, [chart.canvasWidth]);
 
   // Element size defaults for preview
   const elementSizes: Record<RoomElementType | 'group', { width: number; height: number }> = {
@@ -1082,6 +1104,35 @@ export function SeatingChartEditor({
             </Button>
           </div>
 
+          <div className="w-px h-6 bg-gray-300 mx-2" />
+
+          {/* Zoom controls */}
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={handleZoomOut}
+              disabled={scale <= MIN_ZOOM}
+              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+              title="Zoom out"
+            >
+              <span className="text-base font-medium text-gray-600">−</span>
+            </button>
+            <button
+              onClick={handleFitToScreen}
+              className="px-2 h-7 text-xs text-gray-600 hover:bg-white rounded-md transition-colors min-w-[3rem]"
+              title="Fit to screen"
+            >
+              {Math.round(scale * 100)}%
+            </button>
+            <button
+              onClick={handleZoomIn}
+              disabled={scale >= MAX_ZOOM}
+              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+              title="Zoom in"
+            >
+              <span className="text-base font-medium text-gray-600">+</span>
+            </button>
+          </div>
+
           {selectedGroupId && (
             <>
               <div className="w-px h-6 bg-gray-300 mx-2" />
@@ -1133,8 +1184,14 @@ export function SeatingChartEditor({
         </div>
 
         {/* Main content */}
-        <div className="flex-1 overflow-auto p-4">
-          <div className="inline-flex gap-4 items-start">
+        <div className="flex-1 overflow-auto p-4" ref={editorContainerRef}>
+          <div
+            className="inline-flex gap-4 items-start"
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+            }}
+          >
             {/* Canvas container */}
             <div className="flex flex-col flex-shrink-0">
               {/* Canvas */}
