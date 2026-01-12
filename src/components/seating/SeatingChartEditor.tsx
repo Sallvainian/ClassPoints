@@ -291,6 +291,17 @@ export function SeatingChartEditor({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [presetName, setPresetName] = useState('');
   const [showPresetInput, setShowPresetInput] = useState(false);
+  const [previewPos, setPreviewPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Element size defaults for preview
+  const elementSizes: Record<RoomElementType | 'group', { width: number; height: number }> = {
+    teacher_desk: { width: 120, height: 80 },
+    door: { width: 80, height: 40 },
+    window: { width: 80, height: 40 },
+    countertop: { width: 120, height: 80 },
+    sink: { width: 40, height: 40 },
+    group: { width: 160, height: 160 },
+  };
 
   // Student map for quick lookup
   const studentMap = useMemo(() => {
@@ -329,12 +340,25 @@ export function SeatingChartEditor({
           onRotateRoomElement(selectedElementId);
         }
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedGroupId || selectedElementId)) {
-        e.preventDefault();
-        if (selectedGroupId) {
+      // Delete/Backspace/D to delete while dragging or when selected
+      if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'd' || e.key === 'D') {
+        // Check if we're dragging something
+        if (draggingType === 'group' && draggingId) {
+          e.preventDefault();
+          onDeleteGroup(draggingId);
+          setDraggingType(null);
+          setDraggingId(null);
+        } else if (draggingType === 'room-element' && draggingId) {
+          e.preventDefault();
+          onDeleteRoomElement(draggingId);
+          setDraggingType(null);
+          setDraggingId(null);
+        } else if (selectedGroupId) {
+          e.preventDefault();
           onDeleteGroup(selectedGroupId);
           setSelectedGroupId(null);
         } else if (selectedElementId) {
+          e.preventDefault();
           onDeleteRoomElement(selectedElementId);
           setSelectedElementId(null);
         }
@@ -371,32 +395,53 @@ export function SeatingChartEditor({
     [chart.snapEnabled, chart.gridSize, isAltPressed]
   );
 
-  // Handle canvas click for adding items
-  const handleCanvasClick = useCallback(
-    async (e: React.MouseEvent) => {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
+  // Handle canvas mouse move for preview
+  const handleCanvasMouseMove = useCallback(
+    (e: React.MouseEvent) => {
       if (!isAddingGroup && !addingRoomElement) {
-        // Clear selections
-        setSelectedGroupId(null);
-        setSelectedElementId(null);
+        if (previewPos) setPreviewPos(null);
         return;
       }
+
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
 
       const x = snapToGrid(e.clientX - rect.left);
       const y = snapToGrid(e.clientY - rect.top);
 
-      if (addingRoomElement) {
-        await onAddRoomElement(addingRoomElement, x, y);
-        setAddingRoomElement(null);
-      } else if (isAddingGroup) {
-        await onAddGroup(x, y);
-        setIsAddingGroup(false);
-      }
+      setPreviewPos({ x, y });
     },
-    [isAddingGroup, addingRoomElement, snapToGrid, onAddGroup, onAddRoomElement]
+    [isAddingGroup, addingRoomElement, snapToGrid, previewPos]
   );
+
+  // Handle canvas mouse leave - clear preview
+  const handleCanvasMouseLeave = useCallback(() => {
+    setPreviewPos(null);
+  }, []);
+
+  // Handle canvas click for adding items
+  const handleCanvasClick = useCallback(async () => {
+    if (!isAddingGroup && !addingRoomElement) {
+      // Clear selections
+      setSelectedGroupId(null);
+      setSelectedElementId(null);
+      return;
+    }
+
+    if (!previewPos) return;
+
+    const { x, y } = previewPos;
+
+    if (addingRoomElement) {
+      await onAddRoomElement(addingRoomElement, x, y);
+      setAddingRoomElement(null);
+    } else if (isAddingGroup) {
+      await onAddGroup(x, y);
+      setIsAddingGroup(false);
+    }
+
+    setPreviewPos(null);
+  }, [isAddingGroup, addingRoomElement, previewPos, onAddGroup, onAddRoomElement]);
 
   // Drag handlers
   const handleDragStart = (event: DragStartEvent) => {
@@ -685,6 +730,8 @@ export function SeatingChartEditor({
             <div
               ref={canvasRef}
               onClick={handleCanvasClick}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseLeave={handleCanvasMouseLeave}
               className={`relative border-2 rounded-lg bg-white flex-shrink-0 ${
                 isAddingGroup || addingRoomElement
                   ? 'cursor-crosshair border-blue-400'
@@ -733,6 +780,20 @@ export function SeatingChartEditor({
                   snapToGrid={snapToGrid}
                 />
               ))}
+
+              {/* Preview outline when adding element */}
+              {previewPos && (isAddingGroup || addingRoomElement) && (
+                <div
+                  className="absolute border-2 border-blue-500 rounded-lg bg-blue-100/30 pointer-events-none"
+                  style={{
+                    left: previewPos.x,
+                    top: previewPos.y,
+                    width: elementSizes[addingRoomElement || 'group'].width,
+                    height: elementSizes[addingRoomElement || 'group'].height,
+                    zIndex: 999,
+                  }}
+                />
+              )}
 
               {/* Front of room label */}
               <div className="absolute bottom-0 left-0 right-0 text-center text-sm text-gray-400 py-2 border-t border-gray-100">
