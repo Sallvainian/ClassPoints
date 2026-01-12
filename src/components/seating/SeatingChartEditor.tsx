@@ -224,11 +224,24 @@ export function SeatingChartEditor({
     return students.filter((s) => !assignedIds.has(s.id));
   }, [chart.groups, students]);
 
-  // Track Alt key for disabling snap
+  // Track Alt key for disabling snap and R key for rotation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Alt') {
         setIsAltPressed(true);
+      }
+      // R key to rotate while dragging or when selected
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        if (draggingType === 'group' && draggingId) {
+          onRotateGroup(draggingId);
+        } else if (draggingType === 'room-element' && draggingId) {
+          onRotateRoomElement(draggingId);
+        } else if (selectedGroupId) {
+          onRotateGroup(selectedGroupId);
+        } else if (selectedElementId) {
+          onRotateRoomElement(selectedElementId);
+        }
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedGroupId || selectedElementId)) {
         e.preventDefault();
@@ -252,7 +265,16 @@ export function SeatingChartEditor({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedGroupId, selectedElementId, onDeleteGroup, onDeleteRoomElement]);
+  }, [
+    selectedGroupId,
+    selectedElementId,
+    draggingType,
+    draggingId,
+    onDeleteGroup,
+    onDeleteRoomElement,
+    onRotateGroup,
+    onRotateRoomElement,
+  ]);
 
   // Snap to grid helper
   const snapToGrid = useCallback(
@@ -559,8 +581,8 @@ export function SeatingChartEditor({
 
         {/* Help text */}
         <div className="px-4 py-1 text-xs text-gray-500 bg-gray-50 border-b">
-          Drag groups to reposition • Hold Alt to disable snap • Delete key to remove selected •
-          Drag students to assign
+          Drag to reposition • R to rotate • Alt to disable snap • Delete to remove • Double-click
+          elements to rotate
         </div>
 
         {/* Main content */}
@@ -597,11 +619,18 @@ export function SeatingChartEditor({
                 (() => {
                   let width = 160;
                   let height = 200;
-                  if (draggingType === 'room-element' && draggingId) {
+                  let rotation = 0;
+                  if (draggingType === 'group' && draggingId) {
+                    const group = chart.groups.find((g) => g.id === draggingId);
+                    if (group) {
+                      rotation = group.rotation;
+                    }
+                  } else if (draggingType === 'room-element' && draggingId) {
                     const element = chart.roomElements.find((e) => e.id === draggingId);
                     if (element) {
                       width = element.width;
                       height = element.height;
+                      rotation = element.rotation;
                     }
                   }
                   return (
@@ -612,6 +641,8 @@ export function SeatingChartEditor({
                         top: snapPreview.y,
                         width,
                         height,
+                        transform: rotation ? `rotate(${rotation}deg)` : undefined,
+                        transformOrigin: 'top left',
                         zIndex: 50,
                       }}
                     />
