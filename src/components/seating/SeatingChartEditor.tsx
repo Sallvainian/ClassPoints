@@ -41,6 +41,8 @@ interface SeatingChartEditorProps {
       name: string;
       snapEnabled: boolean;
       gridSize: number;
+      canvasWidth: number;
+      canvasHeight: number;
     }>
   ) => Promise<void>;
   onSavePreset: (name: string) => Promise<void>;
@@ -457,6 +459,52 @@ export function SeatingChartEditor({
           <Button onClick={onRandomize} variant="secondary" size="sm">
             Randomize Students
           </Button>
+
+          <div className="w-px h-6 bg-gray-300 mx-2" />
+
+          {/* Canvas size controls */}
+          <div className="flex items-center gap-1 text-xs text-gray-600">
+            <span>Size:</span>
+            <Button
+              onClick={() =>
+                onUpdateSettings({ canvasWidth: Math.max(800, chart.canvasWidth - 200) })
+              }
+              variant="ghost"
+              size="sm"
+              className="px-2"
+            >
+              -W
+            </Button>
+            <span>
+              {chart.canvasWidth}×{chart.canvasHeight}
+            </span>
+            <Button
+              onClick={() => onUpdateSettings({ canvasWidth: chart.canvasWidth + 200 })}
+              variant="ghost"
+              size="sm"
+              className="px-2"
+            >
+              +W
+            </Button>
+            <Button
+              onClick={() =>
+                onUpdateSettings({ canvasHeight: Math.max(400, chart.canvasHeight - 200) })
+              }
+              variant="ghost"
+              size="sm"
+              className="px-2"
+            >
+              -H
+            </Button>
+            <Button
+              onClick={() => onUpdateSettings({ canvasHeight: chart.canvasHeight + 200 })}
+              variant="ghost"
+              size="sm"
+              className="px-2"
+            >
+              +H
+            </Button>
+          </div>
 
           {selectedGroupId && (
             <>
