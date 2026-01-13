@@ -2,7 +2,7 @@
 
 > A classroom behavior management application for tracking student points and behaviors.
 
-**Generated:** January 12, 2026 (updated from December 12, 2025)
+**Generated:** January 12, 2026
 **Project Type:** Web Application (React + Supabase)
 **Scan Level:** Exhaustive (Full Rescan)
 
@@ -30,6 +30,8 @@
 - **Student Tracking** - Add students individually or import from CSV/JSON
 - **Behavior System** - Pre-defined and custom positive/negative behaviors
 - **Point Awards** - Award points to individuals or entire classes
+- **Seating Charts** - Visual classroom layouts with drag-drop student assignment
+- **Sound Effects** - Audio feedback for positive/negative behaviors (Web Audio API)
 - **Undo Support** - Undo recent actions with batch support for class-wide awards
 - **Real-time Sync** - Live updates across devices via Supabase Realtime
 - **Offline Support** - Works offline with localStorage fallback
@@ -66,12 +68,16 @@ UI Components → React Context → Custom Hooks → Supabase Client → Postgre
 
 ## Core Entities
 
-| Entity               | Description                         |
-| -------------------- | ----------------------------------- |
-| **Classroom**        | A class period with students        |
-| **Student**          | A student within a classroom        |
-| **Behavior**         | Positive/negative behavior template |
-| **PointTransaction** | Record of points awarded            |
+| Entity               | Description                               |
+| -------------------- | ----------------------------------------- |
+| **Classroom**        | A class period with students              |
+| **Student**          | A student within a classroom              |
+| **Behavior**         | Positive/negative behavior template       |
+| **PointTransaction** | Record of points awarded                  |
+| **SeatingChart**     | Visual classroom layout with groups       |
+| **SeatingGroup**     | 4-seat table group in a seating chart     |
+| **RoomElement**      | Static elements (teacher desk, door, etc) |
+| **SoundSettings**    | User audio preferences                    |
 
 ---
 
@@ -80,15 +86,19 @@ UI Components → React Context → Custom Hooks → Supabase Client → Postgre
 ```
 ClassPoints/
 ├── src/
-│   ├── components/    # React UI components (29)
+│   ├── components/    # React UI components (37)
+│   │   ├── seating/   # Seating chart feature (8 components)
+│   │   ├── points/    # Point award modals
+│   │   └── ...
 │   ├── contexts/      # React Context providers (5)
-│   ├── hooks/         # Custom React hooks (9)
+│   ├── hooks/         # Custom React hooks (11)
 │   ├── services/      # Business services (1)
 │   ├── lib/           # External configs
-│   ├── types/         # TypeScript definitions
+│   ├── types/         # TypeScript definitions (3 files)
+│   ├── assets/        # Static assets (sounds)
 │   └── utils/         # Utility functions
 ├── supabase/
-│   └── migrations/    # Database schema (7 migrations)
+│   └── migrations/    # Database schema (10 migrations)
 ├── e2e/               # Playwright E2E tests
 └── docs/              # This documentation
 ```
@@ -209,28 +219,30 @@ Row Level Security ensures data isolation:
 
 ## Component Map
 
-| Feature Area  | Components                                                                |
-| ------------- | ------------------------------------------------------------------------- |
-| **Auth**      | AuthGuard, AuthPage, LoginForm, SignupForm, ForgotPasswordForm            |
-| **Dashboard** | DashboardView, BottomToolbar, ClassPointsBox, TodaySummary                |
-| **Students**  | StudentGrid, StudentPointCard                                             |
-| **Points**    | AwardPointsModal, ClassAwardModal, MultiAwardModal, UndoToast             |
-| **Settings**  | ClassSettingsView, ImportStudentsModal, SoundSettings, SoundSettingsModal |
-| **Behaviors** | BehaviorPicker, BehaviorButton                                            |
-| **Layout**    | Layout, Sidebar, SyncStatus, Modal, Button, Input, ErrorToast             |
+| Feature Area  | Components                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Auth**      | AuthGuard, AuthPage, LoginForm, SignupForm, ForgotPasswordForm                                                                       |
+| **Dashboard** | DashboardView, BottomToolbar, ClassPointsBox, TodaySummary                                                                           |
+| **Students**  | StudentGrid, StudentPointCard                                                                                                        |
+| **Seating**   | SeatingChartView, SeatingChartEditor, SeatingChartCanvas, TableGroup, SeatCard, RoomElementDisplay, EmptyChartPrompt, ViewModeToggle |
+| **Points**    | AwardPointsModal, ClassAwardModal, MultiAwardModal, UndoToast                                                                        |
+| **Settings**  | ClassSettingsView, ImportStudentsModal, SoundSettings, SoundSettingsModal                                                            |
+| **Behaviors** | BehaviorPicker, BehaviorButton                                                                                                       |
+| **Layout**    | Layout, Sidebar, SyncStatus, Modal, Button, Input, ErrorToast                                                                        |
 
 ---
 
 ## File Statistics
 
-| Category            | Count |
-| ------------------- | ----- |
-| React Components    | 29    |
-| React Contexts      | 5     |
-| Custom Hooks        | 9     |
-| Utility Modules     | 7     |
-| Database Migrations | 7     |
-| E2E Tests           | 2     |
+| Category              | Count |
+| --------------------- | ----- |
+| React Components      | 37    |
+| React Contexts        | 5     |
+| Custom Hooks          | 11    |
+| Type Definition Files | 3     |
+| Utility Modules       | 7     |
+| Database Migrations   | 10    |
+| E2E Tests             | 2     |
 
 ---
 

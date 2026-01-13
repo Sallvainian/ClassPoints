@@ -229,6 +229,13 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 - Optimistic UI updates
 - Efficient realtime subscriptions (per-table channels)
 
+### Audio System
+
+- **Web Audio API** for synthesized sound effects
+- AudioContext with oscillator-based sound generation
+- Configurable volume and sound types
+- No external audio file dependencies
+
 ## Security Considerations
 
 ### Authentication

@@ -71,11 +71,21 @@ ClassPoints is a classroom behavior management application built with a modern R
 The app uses a nested provider pattern where each layer adds specific functionality:
 
 ```tsx
-<AuthProvider>          // Authentication state
-  <AuthGuard>           // Route protection
-    <HybridAppProvider> // Online/Offline mode selection
-      <AppContent />    // Main app with unified context
-    </HybridAppProvider>
+<AuthProvider>
+  {' '}
+  // Authentication state
+  <AuthGuard>
+    {' '}
+    // Route protection
+    <SoundProvider>
+      {' '}
+      // Sound effects settings
+      <HybridAppProvider>
+        {' '}
+        // Online/Offline mode selection
+        <AppContent /> // Main app with unified context
+      </HybridAppProvider>
+    </SoundProvider>
   </AuthGuard>
 </AuthProvider>
 ```
@@ -83,10 +93,12 @@ The app uses a nested provider pattern where each layer adds specific functional
 ### 2. Hybrid Online/Offline Architecture
 
 The `HybridAppContext` switches between:
+
 - **Online Mode**: Uses `SupabaseAppContext` for real-time cloud sync
 - **Offline Mode**: Falls back to localStorage for data persistence
 
 This enables:
+
 - Development without Supabase credentials
 - Offline functionality with sync on reconnect
 - Migration path from legacy localStorage data
@@ -99,7 +111,8 @@ The app uses Supabase Realtime for live updates:
 // useRealtimeSubscription hook pattern
 const channel = supabase
   .channel('table_changes')
-  .on('postgres_changes',
+  .on(
+    'postgres_changes',
     { event: '*', schema: 'public', table: 'point_transactions' },
     (payload) => {
       // Handle INSERT, UPDATE, DELETE
@@ -109,6 +122,7 @@ const channel = supabase
 ```
 
 Key features:
+
 - `REPLICA IDENTITY FULL` on tables for complete DELETE payloads
 - Optimistic UI updates with server reconciliation
 - Automatic reconnection handling
@@ -126,6 +140,7 @@ CREATE POLICY "Users can view own classrooms" ON classrooms
 ```
 
 This ensures:
+
 - Multi-tenant data isolation
 - Server-side access control
 - No client-side security dependencies
@@ -161,26 +176,92 @@ SupabaseAppContext.undoTransaction()
 4. Toast dismisses
 ```
 
+### Seating Chart Data Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Seating Chart Architecture                        │
+│                                                                       │
+│   ┌─────────────┐     ┌──────────────┐     ┌─────────────────┐     │
+│   │ Dashboard   │────▶│ ViewToggle   │────▶│ SeatingChart    │     │
+│   │ (Toolbar)   │     │ (Alpha/Seat) │     │ View            │     │
+│   └─────────────┘     └──────────────┘     └────────┬────────┘     │
+│                                                      │              │
+│                                        ┌─────────────┼─────────────┐│
+│                                        ▼             ▼             ││
+│                               ┌──────────────┐ ┌──────────────┐   ││
+│                               │ TableGroup   │ │ RoomElement  │   ││
+│                               │ (4 seats)    │ │ Display      │   ││
+│                               └──────┬───────┘ └──────────────┘   ││
+│                                      │                             ││
+│                               ┌──────▼───────┐                     ││
+│                               │  SeatCard    │                     ││
+│                               │ (clickable)  │                     ││
+│                               └──────────────┘                     ││
+│                                                                     │
+│   ┌─────────────────────────────────────────────────────────────┐  │
+│   │                     useSeatingChart Hook                     │  │
+│   ├─────────────────────────────────────────────────────────────┤  │
+│   │ • Fetches chart with groups, seats, elements                 │  │
+│   │ • Manages drag-drop state (draggedItem, dragType)           │  │
+│   │ • CRUD: createChart, addGroup, removeGroup, updatePosition  │  │
+│   │ • Student ops: assignStudent, unassignStudent, swapStudents │  │
+│   │ • Room elements: addElement, updateElement, removeElement   │  │
+│   │ • Realtime subscriptions for all 4 tables                   │  │
+│   │ • Optimistic updates with error rollback                    │  │
+│   └─────────────────────────────────────────────────────────────┘  │
+│                                                                       │
+│   Drag-Drop Operations:                                              │
+│   ┌────────────┐    ┌────────────┐    ┌────────────┐                │
+│   │ Unassigned │───▶│   Seat     │───▶│ Other Seat │                │
+│   │ Student    │    │ (assign)   │    │ (swap)     │                │
+│   └────────────┘    └────────────┘    └────────────┘                │
+│                           │                                          │
+│                           ▼                                          │
+│                     ┌────────────┐                                   │
+│                     │ Unassign   │                                   │
+│                     │ (remove)   │                                   │
+│                     └────────────┘                                   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Sound Effects Flow
+
+```
+Point awarded → useSoundEffects.playSound()
+     ↓
+1. Check SoundContext.enabled
+2. Determine sound type (positive/negative)
+3. Generate sound via Web Audio API oscillator
+4. Play through AudioContext with volume setting
+```
+
 ## State Management
 
 ### Context Structure
 
-| Context | Purpose | Key State |
-|---------|---------|-----------|
-| `AuthContext` | User authentication | `user`, `loading`, `session` |
-| `AppContext` | Unified API facade | Delegates to HybridAppContext |
-| `HybridAppContext` | Mode switching | `isOnline`, `mode` |
-| `SupabaseAppContext` | Cloud data layer | `classrooms`, `behaviors`, `transactions` |
+| Context              | Purpose                | Key State                                    |
+| -------------------- | ---------------------- | -------------------------------------------- |
+| `AuthContext`        | User authentication    | `user`, `loading`, `session`                 |
+| `SoundContext`       | Sound effects settings | `enabled`, `volume`, `sounds`, Supabase sync |
+| `AppContext`         | Unified API facade     | Delegates to HybridAppContext                |
+| `HybridAppContext`   | Mode switching         | `isOnline`, `mode`                           |
+| `SupabaseAppContext` | Cloud data layer       | `classrooms`, `behaviors`, `transactions`    |
 
 ### Hook Responsibilities
 
-| Hook | Purpose |
-|------|---------|
-| `useClassrooms` | Classroom CRUD with realtime sync |
-| `useStudents` | Student management within classrooms |
-| `useBehaviors` | Behavior templates (positive/negative) |
-| `useTransactions` | Point transaction history |
-| `useRealtimeSubscription` | Generic realtime postgres_changes |
+| Hook                      | Purpose                                          |
+| ------------------------- | ------------------------------------------------ |
+| `useClassrooms`           | Classroom CRUD with realtime sync + point totals |
+| `useStudents`             | Student management with point calculations       |
+| `useBehaviors`            | Behavior templates (positive/negative)           |
+| `useTransactions`         | Point transaction history                        |
+| `useRealtimeSubscription` | Generic realtime postgres_changes                |
+| `useSeatingChart`         | Full seating chart CRUD + drag-drop operations   |
+| `useLayoutPresets`        | Layout preset management (save/load/apply)       |
+| `useDisplaySettings`      | Card size and display preferences                |
+| `useSoundEffects`         | Sound effect playback via Web Audio API          |
+| `usePersistedState`       | localStorage persistence helper                  |
 
 ## Security Architecture
 
@@ -218,13 +299,13 @@ SupabaseAppContext.undoTransaction()
 
 ## Technology Choices Rationale
 
-| Choice | Rationale |
-|--------|-----------|
-| React 18 | Modern React with Concurrent features |
-| Vite | Fast HMR, optimized builds |
-| TypeScript | Type safety, better DX |
-| Tailwind CSS | Utility-first, consistent styling |
-| Supabase | Full backend (auth, DB, realtime) without custom server |
-| React Context | Simple state management for app complexity level |
-| Playwright | Real browser E2E testing |
-| Vitest | Fast unit testing with Vite integration |
+| Choice        | Rationale                                               |
+| ------------- | ------------------------------------------------------- |
+| React 18      | Modern React with Concurrent features                   |
+| Vite          | Fast HMR, optimized builds                              |
+| TypeScript    | Type safety, better DX                                  |
+| Tailwind CSS  | Utility-first, consistent styling                       |
+| Supabase      | Full backend (auth, DB, realtime) without custom server |
+| React Context | Simple state management for app complexity level        |
+| Playwright    | Real browser E2E testing                                |
+| Vitest        | Fast unit testing with Vite integration                 |

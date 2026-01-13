@@ -10,7 +10,7 @@ ClassPoints/
 │   ├── index.css                 # Global styles (Tailwind imports)
 │   ├── vite-env.d.ts             # Vite type declarations
 │   │
-│   ├── components/               # React UI components (29 components)
+│   ├── components/               # React UI components (37 components)
 │   │   ├── auth/                 # Authentication components
 │   │   │   ├── AuthGuard.tsx     # Route protection wrapper
 │   │   │   ├── AuthPage.tsx      # Auth page container
@@ -47,6 +47,16 @@ ClassPoints/
 │   │   │   ├── TodaySummary.tsx      # Recent activity
 │   │   │   └── UndoToast.tsx         # Undo notification
 │   │   │
+│   │   ├── seating/              # Seating chart feature (NEW)
+│   │   │   ├── SeatingChartView.tsx     # Main seating chart display
+│   │   │   ├── SeatingChartEditor.tsx   # Edit mode with drag-drop
+│   │   │   ├── SeatingChartCanvas.tsx   # Canvas/viewport container
+│   │   │   ├── TableGroup.tsx           # 4-seat table group component
+│   │   │   ├── SeatCard.tsx             # Individual seat with student
+│   │   │   ├── RoomElementDisplay.tsx   # Teacher desk, doors, etc.
+│   │   │   ├── EmptyChartPrompt.tsx     # Create chart CTA
+│   │   │   └── ViewModeToggle.tsx       # Alphabetical/seating toggle
+│   │   │
 │   │   ├── settings/             # Settings views
 │   │   │   ├── ClassSettingsView.tsx
 │   │   │   ├── SoundSettings.tsx
@@ -63,22 +73,24 @@ ClassPoints/
 │   │       └── ErrorToast.tsx
 │   │
 │   ├── contexts/                 # React Context providers (5 contexts)
-│   │   ├── AppContext.tsx        # Main app context facade
+│   │   ├── AppContext.tsx        # Main app context facade (re-exports HybridAppContext)
 │   │   ├── AuthContext.tsx       # Supabase authentication
 │   │   ├── HybridAppContext.tsx  # Online/offline hybrid state
 │   │   ├── SoundContext.tsx      # Sound effects settings
 │   │   └── SupabaseAppContext.tsx # Full Supabase data layer
 │   │
-│   ├── hooks/                    # Custom React hooks (9 hooks)
+│   ├── hooks/                    # Custom React hooks (11 hooks)
 │   │   ├── index.ts              # Hook exports
 │   │   ├── useBehaviors.ts       # Behavior CRUD operations
-│   │   ├── useClassrooms.ts      # Classroom management
+│   │   ├── useClassrooms.ts      # Classroom management with point totals
 │   │   ├── useDisplaySettings.ts # Card size and display prefs
+│   │   ├── useLayoutPresets.ts   # Seating chart layout presets (NEW)
 │   │   ├── usePersistedState.ts  # localStorage persistence
-│   │   ├── useRealtimeSubscription.ts # Supabase realtime
+│   │   ├── useRealtimeSubscription.ts # Supabase realtime subscription
+│   │   ├── useSeatingChart.ts    # Seating chart CRUD + drag-drop (NEW)
 │   │   ├── useSoundEffects.ts    # Sound effect playback
-│   │   ├── useStudents.ts        # Student operations
-│   │   └── useTransactions.ts    # Point transaction ops
+│   │   ├── useStudents.ts        # Student operations with point totals
+│   │   └── useTransactions.ts    # Point transaction operations
 │   │
 │   ├── lib/                      # Library configurations
 │   │   └── supabase.ts           # Supabase client init
@@ -88,7 +100,12 @@ ClassPoints/
 │   │
 │   ├── types/                    # TypeScript definitions
 │   │   ├── index.ts              # Domain types (Behavior, Student, etc.)
-│   │   └── database.ts           # Supabase-generated types
+│   │   ├── database.ts           # Supabase-generated types
+│   │   └── seatingChart.ts       # Seating chart types + helpers (NEW)
+│   │
+│   ├── assets/                   # Static assets
+│   │   └── sounds/               # Sound effect definitions
+│   │       └── index.ts          # Sound synthesis definitions
 │   │
 │   ├── utils/                    # Utility functions (7 modules)
 │   │   ├── index.ts              # Utility exports
@@ -103,26 +120,27 @@ ClassPoints/
 │       └── ...
 │
 ├── supabase/                     # Database configuration
-│   └── migrations/               # 7 migration files
+│   └── migrations/               # 10 migration files
 │       ├── 001_initial_schema.sql     # Base schema + temporary RLS
 │       ├── 002_add_user_auth.sql      # User auth + proper RLS
 │       ├── 003_sync_default_behaviors.sql
 │       ├── 004_enable_realtime.sql    # Enable realtime on tables
 │       ├── 005_replica_identity_full.sql # Full row data for DELETE events
 │       ├── 006_add_batch_id.sql       # Batch transactions for class-wide awards
-│       └── 007_add_sound_settings.sql # User sound preferences
-│
-├── e2e/                          # End-to-end tests
-│   ├── fixtures/
-│   │   └── auth.fixture.ts       # Auth test fixtures
-│   ├── page-objects/
-│   │   └── SoundSettingsPage.ts  # POM for sound settings
-│   ├── undo-points.spec.ts       # Undo functionality E2E
-│   └── sound-settings.spec.ts    # Sound settings E2E
+│       ├── 007_add_sound_settings.sql # User sound preferences
+│       ├── 008_add_seating_charts.sql # Seating charts + groups + seats + elements (NEW)
+│       ├── 009_fix_room_element_dimensions.sql # Room element default sizes (NEW)
+│       └── 010_add_room_element_types.sql # Additional room element types (NEW)
 │
 ├── docs/                         # Generated documentation
-│   ├── project-scan-report.json
-│   └── ...
+│   ├── index.md                  # Documentation index
+│   ├── architecture.md           # System architecture
+│   ├── data-models.md            # Database schema
+│   ├── tech-stack.md             # Technology stack
+│   ├── source-tree.md            # This file
+│   ├── patterns-and-rules/       # Coding patterns
+│   ├── ux-design-specification/  # UX design system
+│   └── plans/                    # Feature plans
 │
 ├── public/                       # Static assets
 │   └── vite.svg
@@ -146,7 +164,7 @@ ClassPoints/
     ├── vitest.config.ts          # Vitest unit test config
     ├── eslint.config.js          # ESLint config
     ├── .env.example              # Environment template
-    └── .env.local                # Local environment (gitignored)
+    └── .env.local                # Local environment (encrypted via dotenvx)
 ```
 
 ## Component Hierarchy
