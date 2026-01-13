@@ -42,7 +42,27 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      'react-refresh/only-export-components': [
+        'warn',
+        {
+          allowConstantExport: true,
+          // Allow React Context pattern exports (context objects and consumer hooks)
+          // These are standard React patterns that co-locate context, provider, and hook
+          allowExportNames: [
+            // Context objects
+            'AuthContext',
+            'HybridAppContext',
+            'SoundContext',
+            'SupabaseAppContext',
+            // Consumer hooks (re-exports for backwards compatibility)
+            'useAuth',
+            'useApp',
+            'useHybridApp',
+            'useSoundContext',
+            'useSupabaseApp',
+          ],
+        },
+      ],
     },
   }
 );

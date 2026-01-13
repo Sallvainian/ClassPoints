@@ -9,3 +9,6 @@ export { useStudents } from './useStudents';
 export type { StudentWithPoints } from './useStudents';
 export { useBehaviors } from './useBehaviors';
 export { useTransactions } from './useTransactions';
+
+// Context consumer hooks
+export { useAuth, useApp, useHybridApp, useSoundContext, useSupabaseApp } from './useContextHooks';

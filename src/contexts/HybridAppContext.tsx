@@ -7,9 +7,10 @@
  * - Reconnect: Sync queued operations to Supabase
  */
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useState, useEffect, type ReactNode } from 'react';
 import { syncManager } from '../services/SyncManager';
-import { useSupabaseApp, SupabaseAppProvider } from './SupabaseAppContext';
+import { SupabaseAppProvider } from './SupabaseAppContext';
+import { useSupabaseApp } from '../hooks/useContextHooks';
 import type {
   Classroom as DbClassroom,
   Student as DbStudent,
@@ -103,7 +104,11 @@ interface HybridAppContextValue {
   // Student operations
   addStudent: (classroomId: string, name: string) => Promise<DbStudent | null>;
   addStudents: (classroomId: string, names: string[]) => Promise<DbStudent[]>;
-  updateStudent: (classroomId: string, studentId: string, updates: Partial<DbStudent>) => Promise<void>;
+  updateStudent: (
+    classroomId: string,
+    studentId: string,
+    updates: Partial<DbStudent>
+  ) => Promise<void>;
   removeStudent: (classroomId: string, studentId: string) => Promise<void>;
 
   // Behavior operations
@@ -113,9 +118,23 @@ interface HybridAppContextValue {
   resetBehaviorsToDefault: () => Promise<void>;
 
   // Point operations
-  awardPoints: (classroomId: string, studentId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction | null>;
-  awardClassPoints: (classroomId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
-  awardPointsToStudents: (classroomId: string, studentIds: string[], behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
+  awardPoints: (
+    classroomId: string,
+    studentId: string,
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction | null>;
+  awardClassPoints: (
+    classroomId: string,
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction[]>;
+  awardPointsToStudents: (
+    classroomId: string,
+    studentIds: string[],
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction[]>;
   undoTransaction: (transactionId: string) => Promise<void>;
   undoBatchTransaction: (batchId: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
@@ -126,7 +145,8 @@ interface HybridAppContextValue {
   clearStudentPoints: (classroomId: string, studentId: string) => Promise<void>;
 }
 
-const HybridAppContext = createContext<HybridAppContextValue | null>(null);
+// Exported for use by useContextHooks.ts - components should import useApp from hooks
+export const HybridAppContext = createContext<HybridAppContextValue | null>(null);
 
 /**
  * Internal component that has access to SupabaseApp context
@@ -189,11 +209,7 @@ function HybridAppProviderInner({ children }: { children: ReactNode }) {
     clearStudentPoints: supabaseApp.clearStudentPoints,
   };
 
-  return (
-    <HybridAppContext.Provider value={value}>
-      {children}
-    </HybridAppContext.Provider>
-  );
+  return <HybridAppContext.Provider value={value}>{children}</HybridAppContext.Provider>;
 }
 
 /**
@@ -207,18 +223,6 @@ export function HybridAppProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Hook to use the hybrid app context
- */
-export function useHybridApp() {
-  const context = useContext(HybridAppContext);
-  if (!context) {
-    throw new Error('useHybridApp must be used within HybridAppProvider');
-  }
-  return context;
-}
-
-/**
- * Alias for backwards compatibility - use this in components
- */
-export const useApp = useHybridApp;
+// Re-export hooks from hooks file for backwards compatibility
+// Components should import from './hooks/useContextHooks' or './hooks' instead
+export { useHybridApp, useApp } from '../hooks/useContextHooks';

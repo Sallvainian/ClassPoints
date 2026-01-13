@@ -12,15 +12,7 @@ declare global {
   }
 }
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  type ReactNode,
-} from 'react';
+import { createContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import type { UserSoundSettings, UpdateUserSoundSettings } from '../types/database';
@@ -61,7 +53,8 @@ interface SoundContextValue {
   isAudioReady: boolean;
 }
 
-const SoundContext = createContext<SoundContextValue | null>(null);
+// Exported for use by useContextHooks.ts - components should import useSoundContext from hooks
+export const SoundContext = createContext<SoundContextValue | null>(null);
 
 export function SoundProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -207,13 +200,9 @@ export function SoundProvider({ children }: { children: ReactNode }) {
   return <SoundContext.Provider value={value}>{children}</SoundContext.Provider>;
 }
 
-export function useSoundContext() {
-  const context = useContext(SoundContext);
-  if (!context) {
-    throw new Error('useSoundContext must be used within SoundProvider');
-  }
-  return context;
-}
+// Re-export useSoundContext from hooks for backwards compatibility
+// Components should import from './hooks/useContextHooks' or './hooks' instead
+export { useSoundContext } from '../hooks/useContextHooks';
 
 // Type guard for validating SoundId from database
 function isValidSoundId(value: string): value is SoundId {
