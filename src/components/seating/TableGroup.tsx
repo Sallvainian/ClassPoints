@@ -16,6 +16,7 @@ interface TableGroupProps {
   onSelect?: () => void;
   isEditing?: boolean;
   studentsAreDraggable?: boolean;
+  showPointBreakdown?: boolean;
 }
 
 interface DroppableSeatProps {
@@ -26,6 +27,7 @@ interface DroppableSeatProps {
   onUnassign?: () => void;
   isEditing?: boolean;
   studentIsDraggable?: boolean;
+  showPointBreakdown?: boolean;
 }
 
 // Grid-aligned dimensions: 100x100 = 2.5 grid cells (40px each)
@@ -67,6 +69,7 @@ function DroppableSeat({
   onUnassign,
   isEditing,
   studentIsDraggable,
+  showPointBreakdown,
 }: DroppableSeatProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: `seat-${seat.id}`,
@@ -81,6 +84,7 @@ function DroppableSeat({
       onUnassign={onUnassign}
       isDropTarget={isOver}
       isEditing={isEditing}
+      showPointBreakdown={showPointBreakdown}
     />
   );
 
@@ -112,6 +116,7 @@ function TableGroupComponent({
   onSelect,
   isEditing = false,
   studentsAreDraggable = false,
+  showPointBreakdown = false,
 }: TableGroupProps) {
   const bgColor = getGroupColor(group.letter);
 
@@ -182,6 +187,7 @@ function TableGroupComponent({
               onUnassign={() => onUnassignStudent?.(seat1.id)}
               isEditing={isEditing}
               studentIsDraggable={studentsAreDraggable}
+              showPointBreakdown={showPointBreakdown}
             />
           )}
           {seat2 && (
@@ -193,6 +199,7 @@ function TableGroupComponent({
               onUnassign={() => onUnassignStudent?.(seat2.id)}
               isEditing={isEditing}
               studentIsDraggable={studentsAreDraggable}
+              showPointBreakdown={showPointBreakdown}
             />
           )}
           {seat3 && (
@@ -204,6 +211,7 @@ function TableGroupComponent({
               onUnassign={() => onUnassignStudent?.(seat3.id)}
               isEditing={isEditing}
               studentIsDraggable={studentsAreDraggable}
+              showPointBreakdown={showPointBreakdown}
             />
           )}
           {seat4 && (
@@ -215,6 +223,7 @@ function TableGroupComponent({
               onUnassign={() => onUnassignStudent?.(seat4.id)}
               isEditing={isEditing}
               studentIsDraggable={studentsAreDraggable}
+              showPointBreakdown={showPointBreakdown}
             />
           )}
         </div>

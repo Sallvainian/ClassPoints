@@ -9,6 +9,7 @@ interface SeatingChartCanvasProps {
   students: Student[];
   onClickStudent: (student: Student) => void;
   hideRoomElements?: boolean;
+  showPointBreakdown?: boolean;
 }
 
 export function SeatingChartCanvas({
@@ -16,6 +17,7 @@ export function SeatingChartCanvas({
   students,
   onClickStudent,
   hideRoomElements = false,
+  showPointBreakdown = false,
 }: SeatingChartCanvasProps) {
   // Create a map of student ID to student for quick lookup
   const studentMap = useMemo(() => {
@@ -66,7 +68,12 @@ export function SeatingChartCanvas({
               top: group.y,
             }}
           >
-            <TableGroup group={group} students={studentMap} onClickStudent={onClickStudent} />
+            <TableGroup
+              group={group}
+              students={studentMap}
+              onClickStudent={onClickStudent}
+              showPointBreakdown={showPointBreakdown}
+            />
           </div>
         ))}
 

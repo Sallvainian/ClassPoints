@@ -46,9 +46,7 @@ export function Sidebar() {
       {/* Classroom List */}
       <nav className="flex-1 overflow-y-auto px-2">
         {classrooms.length === 0 ? (
-          <p className="text-sm text-blue-200 px-2 text-center py-4">
-            No classrooms yet
-          </p>
+          <p className="text-sm text-blue-200 px-2 text-center py-4">No classrooms yet</p>
         ) : (
           <ul className="space-y-1">
             {classrooms.map((classroom) => {
@@ -70,31 +68,39 @@ export function Sidebar() {
                   >
                     <div className="flex items-center justify-between">
                       <span className="truncate">{classroom.name}</span>
-                      <div className="flex flex-col items-end ml-2">
+                      <div className="flex flex-col items-end ml-2 font-normal">
                         {Number.isNaN(pointTotal) ? (
                           <span className="text-xs text-blue-200">...</span>
                         ) : (
                           <>
                             <span
-                              className={`text-xs font-medium ${
+                              className={`text-xs font-semibold ${
                                 pointTotal >= 0 ? 'text-emerald-300' : 'text-red-300'
                               }`}
                             >
-                              {pointTotal >= 0 ? '+' : ''}{pointTotal}
+                              {pointTotal >= 0 ? '+' : ''}
+                              {pointTotal}
                             </span>
-                            {hasBreakdown && (
-                              <span className="text-[10px] text-blue-200">
-                                <span className="text-emerald-300/80">+{positiveTotal}</span>
-                                {' / '}
-                                <span className="text-red-300/80">{negativeTotal}</span>
-                              </span>
-                            )}
+                            {/* Always render breakdown container to prevent layout shift, only show content for active classroom */}
+                            <span
+                              className="text-[10px] text-blue-200 font-normal"
+                              style={{ minHeight: '14px' }}
+                            >
+                              {isActive && hasBreakdown && (
+                                <>
+                                  <span className="text-emerald-300/80">+{positiveTotal}</span>
+                                  {' / '}
+                                  <span className="text-red-300/80">{negativeTotal}</span>
+                                </>
+                              )}
+                            </span>
                           </>
                         )}
                       </div>
                     </div>
                     <span className="text-xs text-blue-200 block mt-0.5">
-                      {classroom.students.length} student{classroom.students.length !== 1 ? 's' : ''}
+                      {classroom.students.length} student
+                      {classroom.students.length !== 1 ? 's' : ''}
                     </span>
                   </button>
                 </li>
@@ -144,11 +150,7 @@ export function Sidebar() {
             autoFocus
           />
           <div className="flex justify-end gap-2 mt-4">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setIsCreateModalOpen(false)}
-            >
+            <Button type="button" variant="secondary" onClick={() => setIsCreateModalOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={!newClassroomName.trim()}>

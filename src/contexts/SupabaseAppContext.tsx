@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { useClassrooms } from '../hooks/useClassrooms';
 import { useStudents } from '../hooks/useStudents';
@@ -118,7 +118,11 @@ interface SupabaseAppContextValue {
   // Student operations
   addStudent: (classroomId: string, name: string) => Promise<DbStudent | null>;
   addStudents: (classroomId: string, names: string[]) => Promise<DbStudent[]>;
-  updateStudent: (classroomId: string, studentId: string, updates: Partial<DbStudent>) => Promise<void>;
+  updateStudent: (
+    classroomId: string,
+    studentId: string,
+    updates: Partial<DbStudent>
+  ) => Promise<void>;
   removeStudent: (classroomId: string, studentId: string) => Promise<void>;
 
   // Behavior operations
@@ -128,9 +132,23 @@ interface SupabaseAppContextValue {
   resetBehaviorsToDefault: () => Promise<void>;
 
   // Point operations
-  awardPoints: (classroomId: string, studentId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction | null>;
-  awardClassPoints: (classroomId: string, behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
-  awardPointsToStudents: (classroomId: string, studentIds: string[], behaviorId: string, note?: string) => Promise<DbPointTransaction[]>;
+  awardPoints: (
+    classroomId: string,
+    studentId: string,
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction | null>;
+  awardClassPoints: (
+    classroomId: string,
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction[]>;
+  awardPointsToStudents: (
+    classroomId: string,
+    studentIds: string[],
+    behaviorId: string,
+    note?: string
+  ) => Promise<DbPointTransaction[]>;
   undoTransaction: (transactionId: string) => Promise<void>;
   undoBatchTransaction: (batchId: string) => Promise<void>;
   getStudentPoints: (studentId: string) => StudentPoints;
@@ -157,7 +175,6 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     updateClassroom: updateClassroomHook,
     deleteClassroom: deleteClassroomHook,
     updateClassroomPointsOptimistically,
-    setClassroomTotals,
   } = useClassrooms();
 
   const {
@@ -294,10 +311,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
   const resetBehaviorsToDefault = useCallback(async (): Promise<void> => {
     // Delete all current behaviors for this user
-    const { error: deleteError } = await supabase
-      .from('behaviors')
-      .delete()
-      .not('id', 'is', null); // Delete all rows
+    const { error: deleteError } = await supabase.from('behaviors').delete().not('id', 'is', null); // Delete all rows
 
     if (deleteError) {
       console.error('Error deleting behaviors:', deleteError);
@@ -305,9 +319,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     }
 
     // Insert default behaviors
-    const { error: insertError } = await supabase
-      .from('behaviors')
-      .insert(DEFAULT_BEHAVIORS);
+    const { error: insertError } = await supabase.from('behaviors').insert(DEFAULT_BEHAVIORS);
 
     if (insertError) {
       console.error('Error inserting default behaviors:', insertError);
@@ -349,7 +361,12 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
         throw err;
       }
     },
-    [behaviors, awardPointsHook, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
+    [
+      behaviors,
+      awardPointsHook,
+      updateStudentPointsOptimistically,
+      updateClassroomPointsOptimistically,
+    ]
   );
 
   const awardClassPoints = useCallback(
@@ -409,7 +426,13 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       return data || [];
     },
-    [behaviors, students, refetchTransactions, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
+    [
+      behaviors,
+      students,
+      refetchTransactions,
+      updateStudentPointsOptimistically,
+      updateClassroomPointsOptimistically,
+    ]
   );
 
   // Award points to specific students (atomic batch insert - all or nothing)
@@ -476,7 +499,13 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       return data || [];
     },
-    [behaviors, students, refetchTransactions, updateStudentPointsOptimistically, updateClassroomPointsOptimistically]
+    [
+      behaviors,
+      students,
+      refetchTransactions,
+      updateStudentPointsOptimistically,
+      updateClassroomPointsOptimistically,
+    ]
   );
 
   const undoTransaction = useCallback(
@@ -620,81 +649,43 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   // Mapped values for backwards compatibility
   // ============================================
 
-  // Track last valid totals per classroom to prevent flash during transitions
-  const lastValidTotalsRef = useRef<Map<string, { pointTotal: number; positiveTotal: number; negativeTotal: number }>>(new Map());
-
   // Map classrooms to app format
-  // Always use student_count for the students array length (used by sidebar)
-  // SINGLE SOURCE OF TRUTH: For active classroom, calculate totals from students[]
-  // This ensures sidebar matches ClassPointsBox (both use same student data)
-  // For inactive classrooms, use stored totals (user can't compare them to anything)
+  // Classroom totals come from useClassrooms (aggregated from student DB totals + realtime sync)
+  // Today/week totals only calculated for active classroom (not stored at classroom level)
   const mappedClassrooms: AppClassroom[] = useMemo(() => {
     return classrooms.map((c) => {
       // Create placeholder array matching student_count for consistent display
-      const placeholderStudents: AppStudent[] = Array.from(
-        { length: c.student_count },
-        (_, i) => ({ id: `placeholder-${i}`, name: '', pointTotal: 0, positiveTotal: 0, negativeTotal: 0, todayTotal: 0, thisWeekTotal: 0 })
-      );
+      const placeholderStudents: AppStudent[] = Array.from({ length: c.student_count }, (_, i) => ({
+        id: `placeholder-${i}`,
+        name: '',
+        pointTotal: 0,
+        positiveTotal: 0,
+        negativeTotal: 0,
+        todayTotal: 0,
+        thisWeekTotal: 0,
+      }));
 
       const isActive = c.id === activeClassroomId;
 
-      // For active classroom: calculate ALL totals from students[] (single source of truth)
-      // This ensures Sidebar and ClassPointsBox always show identical values
-      let pointTotal: number;
-      let positiveTotal: number | undefined;
-      let negativeTotal: number | undefined;
+      // ALWAYS use stored/aggregated totals from useClassrooms (single source of truth)
+      // These are maintained by:
+      // 1. Initial fetch: aggregated from student totals
+      // 2. Optimistic updates: updateClassroomPointsOptimistically
+      // 3. Realtime sync: refetch when student totals change (via DB trigger)
+      const pointTotal = c.point_total;
+      const positiveTotal = c.positive_total;
+      const negativeTotal = c.negative_total;
+
+      // Only calculate today/week totals for active classroom (not stored at classroom level)
       let todayTotal: number | undefined;
       let thisWeekTotal: number | undefined;
 
-      // CRITICAL: Verify students actually belong to THIS classroom before using them
-      // During classroom switch, activeClassroomId changes before students refetches
       const studentsMatchClassroom = students.length > 0 && students[0]?.classroom_id === c.id;
 
       if (isActive && studentsMatchClassroom) {
-        // Sum from students - single source of truth for all displays
-        pointTotal = students.reduce((sum, s) => sum + s.point_total, 0);
-        positiveTotal = students.reduce((sum, s) => sum + s.positive_total, 0);
-        negativeTotal = students.reduce((sum, s) => sum + s.negative_total, 0);
+        // Sum today/week totals from students for active classroom
         todayTotal = students.reduce((sum, s) => sum + s.today_total, 0);
         thisWeekTotal = students.reduce((sum, s) => sum + s.this_week_total, 0);
-
-        // Cache this as the valid value for this classroom
-        lastValidTotalsRef.current.set(c.id, { pointTotal, positiveTotal, negativeTotal });
-
-        // SYNC: Update stored totals if they don't match calculated totals
-        // This prevents flash on subsequent visits to this classroom
-        if (c.point_total !== pointTotal || c.positive_total !== positiveTotal || c.negative_total !== negativeTotal) {
-          // Use setTimeout to avoid updating state during render
-          const syncTotals = { pointTotal, positiveTotal: positiveTotal ?? 0, negativeTotal: negativeTotal ?? 0 };
-          setTimeout(() => {
-            setClassroomTotals(c.id, syncTotals);
-          }, 0);
-        }
-      } else if (isActive && !studentsMatchClassroom) {
-        // TRANSITION STATE: Students haven't loaded yet for this classroom
-        // Use the LAST VALID totals for this classroom to prevent flash
-        const lastValid = lastValidTotalsRef.current.get(c.id);
-        if (lastValid) {
-          // We have cached values from when this classroom was last active - use them
-          pointTotal = lastValid.pointTotal;
-          positiveTotal = lastValid.positiveTotal;
-          negativeTotal = lastValid.negativeTotal;
-        } else {
-          // First time viewing this classroom - show loading indicator instead of stale values
-          // Use NaN as sentinel value to indicate "loading" state
-          pointTotal = NaN;
-          positiveTotal = undefined;
-          negativeTotal = undefined;
-        }
-        todayTotal = undefined;
-        thisWeekTotal = undefined;
-      } else {
-        // Inactive classroom - use stored totals
-        pointTotal = c.point_total;
-        positiveTotal = c.positive_total;
-        negativeTotal = c.negative_total;
-        todayTotal = undefined;
-        thisWeekTotal = undefined;
       }
 
       return {
@@ -747,7 +738,8 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
     // CRITICAL: Verify students actually belong to THIS classroom
     // During classroom switch, activeClassroomId changes before students refetches
-    const studentsMatchClassroom = students.length === 0 || students[0]?.classroom_id === activeClassroomId;
+    const studentsMatchClassroom =
+      students.length === 0 || students[0]?.classroom_id === activeClassroomId;
 
     // Only use mappedStudents if they belong to this classroom
     const actualStudents = studentsMatchClassroom ? mappedStudents : [];
@@ -807,11 +799,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     clearStudentPoints,
   };
 
-  return (
-    <SupabaseAppContext.Provider value={value}>
-      {children}
-    </SupabaseAppContext.Provider>
-  );
+  return <SupabaseAppContext.Provider value={value}>{children}</SupabaseAppContext.Provider>;
 }
 
 export function useSupabaseApp() {

@@ -10,6 +10,7 @@ interface SeatCardProps {
   isDropTarget?: boolean;
   isDragging?: boolean;
   isEditing?: boolean;
+  showPointBreakdown?: boolean;
 }
 
 function SeatCardComponent({
@@ -20,6 +21,7 @@ function SeatCardComponent({
   isDropTarget = false,
   isDragging = false,
   isEditing: _isEditing = false,
+  showPointBreakdown = false,
 }: SeatCardProps) {
   // Reserved for future use
   void _onUnassign;
@@ -64,6 +66,20 @@ function SeatCardComponent({
           ${isDragging ? 'opacity-50' : ''}
         `}
       >
+        {/* Point totals badges - same as StudentPointCard */}
+        {showPointBreakdown && (
+          <>
+            {/* Positive points - top left */}
+            <div className="absolute top-1 left-1 bg-emerald-100 text-emerald-700 text-[9px] px-1 py-0.5 rounded-full font-medium">
+              +{student.positiveTotal}
+            </div>
+            {/* Negative points - top right */}
+            <div className="absolute top-1 right-1 bg-red-100 text-red-700 text-[9px] px-1 py-0.5 rounded-full font-medium">
+              {student.negativeTotal}
+            </div>
+          </>
+        )}
+
         {/* Avatar */}
         <div
           className={`w-10 h-10 rounded-full flex items-center justify-center ${avatarTextColor} font-bold text-base shadow-inner`}
@@ -78,7 +94,7 @@ function SeatCardComponent({
         </span>
 
         {/* Points */}
-        <span className={`text-sm font-bold ${pointsColor}`}>
+        <span className={`text-xs font-bold ${pointsColor}`}>
           {student.pointTotal >= 0 ? '+' : ''}
           {student.pointTotal}
         </span>

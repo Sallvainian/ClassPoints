@@ -338,6 +338,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
               classroomId={activeClassroom.id}
               students={activeClassroom.students}
               onClickStudent={handleStudentClick}
+              showPointBreakdown={settings.showPointTotals}
             />
           )}
         </div>

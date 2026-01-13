@@ -11,9 +11,15 @@ interface SeatingChartViewProps {
   classroomId: string;
   students: Student[];
   onClickStudent: (student: Student) => void;
+  showPointBreakdown?: boolean;
 }
 
-export function SeatingChartView({ classroomId, students, onClickStudent }: SeatingChartViewProps) {
+export function SeatingChartView({
+  classroomId,
+  students,
+  onClickStudent,
+  showPointBreakdown = false,
+}: SeatingChartViewProps) {
   const {
     chart,
     loading,
@@ -154,54 +160,51 @@ export function SeatingChartView({ classroomId, students, onClickStudent }: Seat
   // View mode - show seating chart with edit button
   return (
     <div className="p-4" ref={containerRef}>
-      {/* Header with controls */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-800">{chart.name}</h2>
-        <div className="flex items-center gap-4">
-          {/* Zoom controls */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={handleZoomOut}
-              disabled={scale <= MIN_ZOOM}
-              className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
-              title="Zoom out"
-            >
-              <span className="text-lg font-medium text-gray-600">−</span>
-            </button>
-            <button
-              onClick={handleFitToScreen}
-              className="px-2 h-8 text-sm text-gray-600 hover:bg-white rounded-md transition-colors min-w-[4rem]"
-              title="Fit to screen"
-            >
-              {Math.round(scale * 100)}%
-            </button>
-            <button
-              onClick={handleZoomIn}
-              disabled={scale >= MAX_ZOOM}
-              className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
-              title="Zoom in"
-            >
-              <span className="text-lg font-medium text-gray-600">+</span>
-            </button>
-          </div>
+      {/* Header - chart name */}
+      <h2 className="text-lg font-semibold text-gray-800 mb-2">{chart.name}</h2>
 
-          {/* Other controls */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setHideRoomElements(!hideRoomElements)}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                hideRoomElements
-                  ? 'bg-gray-100 border-gray-300 text-gray-700'
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              {hideRoomElements ? 'Show' : 'Hide'} Room Elements
-            </button>
-            <Button onClick={handleOpenEditor} variant="secondary" size="sm">
-              Edit Seating Chart
-            </Button>
-          </div>
+      {/* Controls - stacked above chart */}
+      <div className="flex items-center gap-2 mb-4">
+        {/* Zoom controls */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <button
+            onClick={handleZoomOut}
+            disabled={scale <= MIN_ZOOM}
+            className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+            title="Zoom out"
+          >
+            <span className="text-lg font-medium text-gray-600">−</span>
+          </button>
+          <button
+            onClick={handleFitToScreen}
+            className="px-2 h-8 text-sm text-gray-600 hover:bg-white rounded-md transition-colors min-w-[4rem]"
+            title="Fit to screen"
+          >
+            {Math.round(scale * 100)}%
+          </button>
+          <button
+            onClick={handleZoomIn}
+            disabled={scale >= MAX_ZOOM}
+            className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+            title="Zoom in"
+          >
+            <span className="text-lg font-medium text-gray-600">+</span>
+          </button>
         </div>
+
+        <button
+          onClick={() => setHideRoomElements(!hideRoomElements)}
+          className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            hideRoomElements
+              ? 'bg-gray-100 border-gray-300 text-gray-700'
+              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          {hideRoomElements ? 'Show' : 'Hide'} Room Elements
+        </button>
+        <Button onClick={handleOpenEditor} variant="secondary" size="sm">
+          Edit Seating Chart
+        </Button>
       </div>
 
       {/* Seating chart canvas - scaled to fit container */}
@@ -217,6 +220,7 @@ export function SeatingChartView({ classroomId, students, onClickStudent }: Seat
           students={students}
           onClickStudent={onClickStudent}
           hideRoomElements={hideRoomElements}
+          showPointBreakdown={showPointBreakdown}
         />
       </div>
     </div>
