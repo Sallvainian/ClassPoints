@@ -40,3 +40,4 @@ playwright-report/
 test-results/
 .playwright-mcp/
 _bmad/
+.auth/

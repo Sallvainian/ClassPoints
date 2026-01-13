@@ -11,8 +11,8 @@
     "typecheck": "tsc --noEmit",
     "preview": "dotenvx run -f .env.local -- vite preview",
     "test": "vitest",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
+    "test:e2e": "dotenvx run -f .env.local -- playwright test",
+    "test:e2e:ui": "dotenvx run -f .env.local -- playwright test --ui",
     "migrate": "dotenvx run -f .env.local -- tsx scripts/migrate-data.ts",
     "prepare": "simple-git-hooks"
   },
