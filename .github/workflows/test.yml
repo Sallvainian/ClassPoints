@@ -103,7 +103,6 @@ jobs:
     name: Flaky Test Detection
     runs-on: ubuntu-latest
     needs: lint
-    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v4
 
