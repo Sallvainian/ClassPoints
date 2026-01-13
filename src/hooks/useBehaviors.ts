@@ -15,6 +15,15 @@ interface UseBehaviorsReturn {
   refetch: () => Promise<void>;
 }
 
+// Sort behaviors by category (ascending) then points (descending)
+const sortBehaviors = (behaviors: Behavior[]): Behavior[] =>
+  [...behaviors].sort((a, b) => {
+    if (a.category !== b.category) {
+      return a.category.localeCompare(b.category);
+    }
+    return b.points - a.points; // Descending by points
+  });
+
 export function useBehaviors(): UseBehaviorsReturn {
   const [behaviors, setBehaviors] = useState<Behavior[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,11 +60,11 @@ export function useBehaviors(): UseBehaviorsReturn {
       setBehaviors((prev) => {
         // Avoid duplicates if we already added optimistically
         if (prev.some((b) => b.id === behavior.id)) return prev;
-        return [...prev, behavior];
+        return sortBehaviors([...prev, behavior]);
       });
     },
     onUpdate: (behavior) => {
-      setBehaviors((prev) => prev.map((b) => (b.id === behavior.id ? behavior : b)));
+      setBehaviors((prev) => sortBehaviors(prev.map((b) => (b.id === behavior.id ? behavior : b))));
     },
     onDelete: ({ id }) => {
       setBehaviors((prev) => prev.filter((b) => b.id !== id));
@@ -78,7 +87,7 @@ export function useBehaviors(): UseBehaviorsReturn {
       setBehaviors((prev) => {
         // Avoid duplicates if realtime subscription already added this behavior
         if (prev.some((b) => b.id === data.id)) return prev;
-        return [...prev, data];
+        return sortBehaviors([...prev, data]);
       });
       return data;
     },
@@ -99,17 +108,14 @@ export function useBehaviors(): UseBehaviorsReturn {
         return null;
       }
 
-      setBehaviors((prev) => prev.map((b) => (b.id === id ? data : b)));
+      setBehaviors((prev) => sortBehaviors(prev.map((b) => (b.id === id ? data : b))));
       return data;
     },
     []
   );
 
   const deleteBehavior = useCallback(async (id: string): Promise<boolean> => {
-    const { error: deleteError } = await supabase
-      .from('behaviors')
-      .delete()
-      .eq('id', id);
+    const { error: deleteError } = await supabase.from('behaviors').delete().eq('id', id);
 
     if (deleteError) {
       setError(new Error(deleteError.message));

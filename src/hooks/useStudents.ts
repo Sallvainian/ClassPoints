@@ -30,6 +30,17 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Helper to calculate date boundaries for today/this week
+  const getDateBoundaries = useCallback(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = now.getDay();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
+    startOfWeek.setHours(0, 0, 0, 0);
+    return { startOfToday, startOfWeek };
+  }, []);
+
   const fetchStudents = useCallback(async () => {
     if (!classroomId) {
       setStudents([]);
@@ -40,6 +51,7 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
     setLoading(true);
     setError(null);
 
+    // Fetch students with stored lifetime totals (maintained by DB trigger)
     const { data, error: queryError } = await supabase
       .from('students')
       .select('*')
@@ -53,57 +65,57 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
       return;
     }
 
-    // Fetch all transactions for this classroom to calculate point totals per student
-    const { data: transactionData } = await supabase
-      .from('point_transactions')
-      .select('student_id, points, created_at')
-      .eq('classroom_id', classroomId);
+    // Get date boundaries for today/week calculations
+    const { startOfToday, startOfWeek } = getDateBoundaries();
 
-    // Calculate time boundaries for today/this week
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const day = now.getDay();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
-    startOfWeek.setHours(0, 0, 0, 0);
-
-    // Calculate point totals per student (total, positive, negative, today, thisWeek)
-    const pointTotals = new Map<string, { total: number; positive: number; negative: number; today: number; thisWeek: number }>();
-    (transactionData || []).forEach((t) => {
-      const current = pointTotals.get(t.student_id) || { total: 0, positive: 0, negative: 0, today: 0, thisWeek: 0 };
-      current.total += t.points;
-      if (t.points > 0) current.positive += t.points;
-      if (t.points < 0) current.negative += t.points;
-
-      const createdAt = new Date(t.created_at);
-      if (createdAt >= startOfToday) current.today += t.points;
-      if (createdAt >= startOfWeek) current.thisWeek += t.points;
-
-      pointTotals.set(t.student_id, current);
+    // Call RPC function to get today/this_week totals (only queries this week's transactions)
+    const { data: timeTotals, error: rpcError } = await supabase.rpc('get_student_time_totals', {
+      p_classroom_id: classroomId,
+      p_start_of_today: startOfToday.toISOString(),
+      p_start_of_week: startOfWeek.toISOString(),
     });
 
-    // Map students with point totals
+    if (rpcError) {
+      // Non-fatal: fall back to 0 for time-based totals
+      console.warn('Failed to fetch time-based totals:', rpcError.message);
+    }
+
+    // Create lookup map for time-based totals
+    const timeTotalsMap = new Map<string, { today_total: number; this_week_total: number }>();
+    (timeTotals || []).forEach(
+      (t: { student_id: string; today_total: number; this_week_total: number }) => {
+        timeTotalsMap.set(t.student_id, {
+          today_total: t.today_total,
+          this_week_total: t.this_week_total,
+        });
+      }
+    );
+
+    // Map students with stored lifetime totals + calculated time-based totals
     const studentsWithPoints: StudentWithPoints[] = (data || []).map((s) => {
-      const totals = pointTotals.get(s.id) || { total: 0, positive: 0, negative: 0, today: 0, thisWeek: 0 };
+      const timeTotals = timeTotalsMap.get(s.id) || { today_total: 0, this_week_total: 0 };
       return {
         ...s,
-        point_total: totals.total,
-        positive_total: totals.positive,
-        negative_total: totals.negative,
-        today_total: totals.today,
-        this_week_total: totals.thisWeek,
+        // Lifetime totals from stored columns (maintained by DB trigger)
+        point_total: s.point_total,
+        positive_total: s.positive_total,
+        negative_total: s.negative_total,
+        // Time-based totals from RPC function
+        today_total: timeTotals.today_total,
+        this_week_total: timeTotals.this_week_total,
       };
     });
     setStudents(studentsWithPoints);
 
     setLoading(false);
-  }, [classroomId]);
+  }, [classroomId, getDateBoundaries]);
 
   useEffect(() => {
     fetchStudents();
   }, [fetchStudents]);
 
   // Real-time subscription for student changes in this classroom
+  // Now includes stored point totals (maintained by DB trigger)
   useRealtimeSubscription<Student>({
     table: 'students',
     filter: classroomId ? `classroom_id=eq.${classroomId}` : undefined,
@@ -112,12 +124,14 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
       setStudents((prev) => {
         // Avoid duplicates if we already added optimistically
         if (prev.some((s) => s.id === student.id)) return prev;
-        // New students start with 0 points
+        // New students start with stored totals (should be 0 from DB)
         const studentWithPoints: StudentWithPoints = {
           ...student,
-          point_total: 0,
-          positive_total: 0,
-          negative_total: 0,
+          // Use stored totals from DB (defaults to 0 for new students)
+          point_total: student.point_total ?? 0,
+          positive_total: student.positive_total ?? 0,
+          negative_total: student.negative_total ?? 0,
+          // Time-based totals start at 0 (will be updated on next fetch)
           today_total: 0,
           this_week_total: 0,
         };
@@ -131,9 +145,11 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
             s.id === student.id
               ? {
                   ...student,
-                  point_total: s.point_total,
-                  positive_total: s.positive_total,
-                  negative_total: s.negative_total,
+                  // Use stored lifetime totals from server (updated by DB trigger)
+                  point_total: student.point_total ?? s.point_total,
+                  positive_total: student.positive_total ?? s.positive_total,
+                  negative_total: student.negative_total ?? s.negative_total,
+                  // Preserve client-side time-based totals (optimistic updates)
                   today_total: s.today_total,
                   this_week_total: s.this_week_total,
                 }
@@ -149,7 +165,8 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
 
   // Subscribe to point_transactions for DELETE events (undo)
   // Note: INSERT events are handled via optimistic updates in awardPoints/awardClassPoints
-  // to avoid race conditions and double-counting
+  // Note: Lifetime totals (point_total, positive_total, negative_total) are now maintained by DB trigger
+  // We still need to update time-based totals (today_total, this_week_total) on DELETE
   useRealtimeSubscription<
     { id: string; student_id: string; points: number; created_at: string },
     { id: string; student_id: string; points: number; created_at: string }
@@ -159,16 +176,10 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
     enabled: !!classroomId,
     // onInsert is intentionally omitted - we use optimistic updates instead
     onDelete: (oldTransaction) => {
-      // If we have full row data (REPLICA IDENTITY FULL), update directly
+      // If we have full row data (REPLICA IDENTITY FULL), update time-based totals
+      // Note: Lifetime totals are updated by DB trigger, we just need to update UI state
       if (oldTransaction.student_id && oldTransaction.points !== undefined) {
-        // Check if transaction was from today/this week
-        const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const day = now.getDay();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
-        startOfWeek.setHours(0, 0, 0, 0);
-
+        const { startOfToday, startOfWeek } = getDateBoundaries();
         const createdAt = new Date(oldTransaction.created_at);
         const wasToday = createdAt >= startOfToday;
         const wasThisWeek = createdAt >= startOfWeek;
@@ -178,11 +189,22 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
             s.id === oldTransaction.student_id
               ? {
                   ...s,
+                  // Lifetime totals: sync from optimistic update (DB trigger handles the real value)
+                  // We subtract here to match the optimistic rollback pattern
                   point_total: s.point_total - oldTransaction.points,
-                  positive_total: oldTransaction.points > 0 ? s.positive_total - oldTransaction.points : s.positive_total,
-                  negative_total: oldTransaction.points < 0 ? s.negative_total - oldTransaction.points : s.negative_total,
+                  positive_total:
+                    oldTransaction.points > 0
+                      ? s.positive_total - oldTransaction.points
+                      : s.positive_total,
+                  negative_total:
+                    oldTransaction.points < 0
+                      ? s.negative_total - oldTransaction.points
+                      : s.negative_total,
+                  // Time-based totals: update based on transaction date
                   today_total: wasToday ? s.today_total - oldTransaction.points : s.today_total,
-                  this_week_total: wasThisWeek ? s.this_week_total - oldTransaction.points : s.this_week_total,
+                  this_week_total: wasThisWeek
+                    ? s.this_week_total - oldTransaction.points
+                    : s.this_week_total,
                 }
               : s
           )
@@ -213,12 +235,12 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
         return null;
       }
 
-      // New students start with 0 points
+      // Use stored totals from DB (defaults to 0 for new students)
       const studentWithPoints: StudentWithPoints = {
         ...data,
-        point_total: 0,
-        positive_total: 0,
-        negative_total: 0,
+        point_total: data.point_total ?? 0,
+        positive_total: data.positive_total ?? 0,
+        negative_total: data.negative_total ?? 0,
         today_total: 0,
         this_week_total: 0,
       };
@@ -250,12 +272,12 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
         return [];
       }
 
-      // New students start with 0 points
+      // Use stored totals from DB (defaults to 0 for new students)
       const inserted: StudentWithPoints[] = (data || []).map((s) => ({
         ...s,
-        point_total: 0,
-        positive_total: 0,
-        negative_total: 0,
+        point_total: s.point_total ?? 0,
+        positive_total: s.positive_total ?? 0,
+        negative_total: s.negative_total ?? 0,
         today_total: 0,
         this_week_total: 0,
       }));
@@ -284,16 +306,18 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
         return null;
       }
 
-      // Preserve point totals when updating student
+      // Use stored lifetime totals from server, preserve time-based totals
       setStudents((prev) =>
         prev
           .map((s) =>
             s.id === id
               ? {
                   ...data,
-                  point_total: s.point_total,
-                  positive_total: s.positive_total,
-                  negative_total: s.negative_total,
+                  // Use stored lifetime totals from DB
+                  point_total: data.point_total ?? s.point_total,
+                  positive_total: data.positive_total ?? s.positive_total,
+                  negative_total: data.negative_total ?? s.negative_total,
+                  // Preserve time-based totals (from client)
                   today_total: s.today_total,
                   this_week_total: s.this_week_total,
                 }
@@ -307,10 +331,7 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
   );
 
   const removeStudent = useCallback(async (id: string): Promise<boolean> => {
-    const { error: deleteError } = await supabase
-      .from('students')
-      .delete()
-      .eq('id', id);
+    const { error: deleteError } = await supabase.from('students').delete().eq('id', id);
 
     if (deleteError) {
       setError(new Error(deleteError.message));
@@ -322,25 +343,22 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
   }, []);
 
   // Optimistically update student points before realtime event arrives
-  const updateStudentPointsOptimistically = useCallback(
-    (studentId: string, points: number) => {
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === studentId
-            ? {
-                ...s,
-                point_total: s.point_total + points,
-                positive_total: points > 0 ? s.positive_total + points : s.positive_total,
-                negative_total: points < 0 ? s.negative_total + points : s.negative_total,
-                today_total: s.today_total + points,
-                this_week_total: s.this_week_total + points,
-              }
-            : s
-        )
-      );
-    },
-    []
-  );
+  const updateStudentPointsOptimistically = useCallback((studentId: string, points: number) => {
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.id === studentId
+          ? {
+              ...s,
+              point_total: s.point_total + points,
+              positive_total: points > 0 ? s.positive_total + points : s.positive_total,
+              negative_total: points < 0 ? s.negative_total + points : s.negative_total,
+              today_total: s.today_total + points,
+              this_week_total: s.this_week_total + points,
+            }
+          : s
+      )
+    );
+  }, []);
 
   return {
     students,

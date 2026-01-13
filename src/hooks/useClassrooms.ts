@@ -19,7 +19,10 @@ interface UseClassroomsReturn {
   updateClassroom: (id: string, updates: Partial<Classroom>) => Promise<Classroom | null>;
   deleteClassroom: (id: string) => Promise<boolean>;
   updateClassroomPointsOptimistically: (classroomId: string, points: number) => void;
-  setClassroomTotals: (classroomId: string, totals: { pointTotal: number; positiveTotal: number; negativeTotal: number }) => void;
+  setClassroomTotals: (
+    classroomId: string,
+    totals: { pointTotal: number; positiveTotal: number; negativeTotal: number }
+  ) => void;
   refetch: () => Promise<void>;
 }
 
@@ -32,40 +35,37 @@ export function useClassrooms(): UseClassroomsReturn {
     setLoading(true);
     setError(null);
 
-    // Fetch classrooms with student count using Supabase's nested select
-    const { data, error: queryError } = await supabase
-      .from('classrooms')
-      .select('*, students(count)')
-      .order('name', { ascending: true });
+    // Fetch classrooms with student count (parallel with student totals)
+    const [classroomsResult, studentsResult] = await Promise.all([
+      supabase.from('classrooms').select('*, students(count)').order('name', { ascending: true }),
+      // Fetch all students with stored point totals for aggregation
+      supabase.from('students').select('classroom_id, point_total, positive_total, negative_total'),
+    ]);
 
-    if (queryError) {
-      setError(new Error(queryError.message));
+    if (classroomsResult.error) {
+      setError(new Error(classroomsResult.error.message));
       setClassrooms([]);
       setLoading(false);
       return;
     }
 
-    // Fetch all transactions to calculate point totals per classroom
-    const { data: transactionData } = await supabase
-      .from('point_transactions')
-      .select('classroom_id, points');
-
-    // Calculate point totals (net, positive, negative) per classroom
-    const pointTotals = new Map<string, { total: number; positive: number; negative: number }>();
-    (transactionData || []).forEach((t) => {
-      const current = pointTotals.get(t.classroom_id) || { total: 0, positive: 0, negative: 0 };
-      current.total += t.points;
-      if (t.points > 0) {
-        current.positive += t.points;
-      } else {
-        current.negative += t.points;
-      }
-      pointTotals.set(t.classroom_id, current);
+    // Aggregate student point totals by classroom
+    const classroomTotals = new Map<
+      string,
+      { total: number; positive: number; negative: number }
+    >();
+    (studentsResult.data || []).forEach((s) => {
+      const current = classroomTotals.get(s.classroom_id) || { total: 0, positive: 0, negative: 0 };
+      classroomTotals.set(s.classroom_id, {
+        total: current.total + (s.point_total || 0),
+        positive: current.positive + (s.positive_total || 0),
+        negative: current.negative + (s.negative_total || 0),
+      });
     });
 
-    // Map the response to include student_count and point totals
-    const classroomsWithCount: ClassroomWithCount[] = (data || []).map((c) => {
-      const totals = pointTotals.get(c.id) || { total: 0, positive: 0, negative: 0 };
+    // Map the response to include student_count and aggregated point totals
+    const classroomsWithCount: ClassroomWithCount[] = (classroomsResult.data || []).map((c) => {
+      const totals = classroomTotals.get(c.id) || { total: 0, positive: 0, negative: 0 };
       return {
         id: c.id,
         name: c.name,
@@ -95,7 +95,13 @@ export function useClassrooms(): UseClassroomsReturn {
         // Avoid duplicates if we already added optimistically
         if (prev.some((c) => c.id === classroom.id)) return prev;
         // New classrooms start with 0 students and 0 points, insert in sorted order
-        const newClassroom = { ...classroom, student_count: 0, point_total: 0, positive_total: 0, negative_total: 0 };
+        const newClassroom = {
+          ...classroom,
+          student_count: 0,
+          point_total: 0,
+          positive_total: 0,
+          negative_total: 0,
+        };
         return [...prev, newClassroom].sort((a, b) => a.name.localeCompare(b.name));
       });
     },
@@ -104,7 +110,13 @@ export function useClassrooms(): UseClassroomsReturn {
         prev
           .map((c) =>
             c.id === classroom.id
-              ? { ...classroom, student_count: c.student_count, point_total: c.point_total, positive_total: c.positive_total, negative_total: c.negative_total }
+              ? {
+                  ...classroom,
+                  student_count: c.student_count,
+                  point_total: c.point_total,
+                  positive_total: c.positive_total,
+                  negative_total: c.negative_total,
+                }
               : c
           )
           .sort((a, b) => a.name.localeCompare(b.name))
@@ -115,58 +127,69 @@ export function useClassrooms(): UseClassroomsReturn {
     },
   });
 
-  // Also subscribe to student changes to update counts
+  // Subscribe to student changes to update counts and point totals
+  // Students now have stored point totals (maintained by DB trigger)
   useRealtimeSubscription<
-    { id: string; classroom_id: string },
-    { id: string; classroom_id: string }
+    {
+      id: string;
+      classroom_id: string;
+      point_total: number;
+      positive_total: number;
+      negative_total: number;
+    },
+    {
+      id: string;
+      classroom_id: string;
+      point_total: number;
+      positive_total: number;
+      negative_total: number;
+    }
   >({
     table: 'students',
     onInsert: (student) => {
       setClassrooms((prev) =>
         prev.map((c) =>
-          c.id === student.classroom_id ? { ...c, student_count: c.student_count + 1 } : c
+          c.id === student.classroom_id
+            ? {
+                ...c,
+                student_count: c.student_count + 1,
+                // Add new student's point totals to classroom (should be 0 for new students)
+                point_total: c.point_total + (student.point_total || 0),
+                positive_total: c.positive_total + (student.positive_total || 0),
+                negative_total: c.negative_total + (student.negative_total || 0),
+              }
+            : c
         )
       );
+    },
+    onUpdate: () => {
+      // Student point totals changed (updated by DB trigger on transaction INSERT/DELETE)
+      // Refetch to get accurate classroom totals
+      // This is triggered when DB trigger updates student's stored totals
+      fetchClassrooms();
     },
     onDelete: (oldStudent) => {
       setClassrooms((prev) =>
         prev.map((c) =>
-          c.id === oldStudent.classroom_id ? { ...c, student_count: Math.max(0, c.student_count - 1) } : c
+          c.id === oldStudent.classroom_id
+            ? {
+                ...c,
+                student_count: Math.max(0, c.student_count - 1),
+                // Subtract deleted student's point totals from classroom
+                point_total: c.point_total - (oldStudent.point_total || 0),
+                positive_total: c.positive_total - (oldStudent.positive_total || 0),
+                negative_total: c.negative_total - (oldStudent.negative_total || 0),
+              }
+            : c
         )
       );
     },
   });
 
-  // Subscribe to point_transactions for DELETE events (undo)
-  // Note: INSERT events are handled via optimistic updates in awardPoints/awardClassPoints
-  // to avoid race conditions and double-counting
-  useRealtimeSubscription<
-    { id: string; classroom_id: string; points: number },
-    { id: string; classroom_id: string; points: number }
-  >({
-    table: 'point_transactions',
-    // onInsert is intentionally omitted - we use optimistic updates instead
-    onDelete: (oldTransaction) => {
-      // If we have full row data (REPLICA IDENTITY FULL), update directly
-      if (oldTransaction.classroom_id && oldTransaction.points !== undefined) {
-        setClassrooms((prev) =>
-          prev.map((c) => {
-            if (c.id !== oldTransaction.classroom_id) return c;
-            const isPositive = oldTransaction.points > 0;
-            return {
-              ...c,
-              point_total: c.point_total - oldTransaction.points,
-              positive_total: isPositive ? c.positive_total - oldTransaction.points : c.positive_total,
-              negative_total: !isPositive ? c.negative_total - oldTransaction.points : c.negative_total,
-            };
-          })
-        );
-      } else {
-        // Fallback: refetch all classrooms if we don't have full row data
-        fetchClassrooms();
-      }
-    },
-  });
+  // Note: point_transactions subscription removed - no longer needed
+  // When transactions are inserted: optimistic updates handle UI immediately
+  // When transactions are deleted (undo): DB trigger updates student totals →
+  //   students subscription receives UPDATE → fetchClassrooms() is called
 
   const createClassroom = useCallback(async (name: string): Promise<Classroom | null> => {
     const newClassroom: NewClassroom = { name };
@@ -183,7 +206,13 @@ export function useClassrooms(): UseClassroomsReturn {
     }
 
     // New classrooms start with 0 students and 0 points, insert in sorted order
-    const classroomWithCount: ClassroomWithCount = { ...data, student_count: 0, point_total: 0, positive_total: 0, negative_total: 0 };
+    const classroomWithCount: ClassroomWithCount = {
+      ...data,
+      student_count: 0,
+      point_total: 0,
+      positive_total: 0,
+      negative_total: 0,
+    };
     setClassrooms((prev) => {
       // Avoid duplicates if realtime subscription already added this classroom
       if (prev.some((c) => c.id === data.id)) return prev;
@@ -208,7 +237,15 @@ export function useClassrooms(): UseClassroomsReturn {
 
       setClassrooms((prev) =>
         prev.map((c) =>
-          c.id === id ? { ...data, student_count: c.student_count, point_total: c.point_total, positive_total: c.positive_total, negative_total: c.negative_total } : c
+          c.id === id
+            ? {
+                ...data,
+                student_count: c.student_count,
+                point_total: c.point_total,
+                positive_total: c.positive_total,
+                negative_total: c.negative_total,
+              }
+            : c
         )
       );
       return data;
@@ -217,10 +254,7 @@ export function useClassrooms(): UseClassroomsReturn {
   );
 
   const deleteClassroom = useCallback(async (id: string): Promise<boolean> => {
-    const { error: deleteError } = await supabase
-      .from('classrooms')
-      .delete()
-      .eq('id', id);
+    const { error: deleteError } = await supabase.from('classrooms').delete().eq('id', id);
 
     if (deleteError) {
       setError(new Error(deleteError.message));
@@ -232,27 +266,27 @@ export function useClassrooms(): UseClassroomsReturn {
   }, []);
 
   // Optimistically update classroom points before realtime event arrives
-  const updateClassroomPointsOptimistically = useCallback(
-    (classroomId: string, points: number) => {
-      setClassrooms((prev) =>
-        prev.map((c) =>
-          c.id === classroomId
-            ? {
-                ...c,
-                point_total: c.point_total + points,
-                positive_total: points > 0 ? c.positive_total + points : c.positive_total,
-                negative_total: points < 0 ? c.negative_total + points : c.negative_total,
-              }
-            : c
-        )
-      );
-    },
-    []
-  );
+  const updateClassroomPointsOptimistically = useCallback((classroomId: string, points: number) => {
+    setClassrooms((prev) =>
+      prev.map((c) =>
+        c.id === classroomId
+          ? {
+              ...c,
+              point_total: c.point_total + points,
+              positive_total: points > 0 ? c.positive_total + points : c.positive_total,
+              negative_total: points < 0 ? c.negative_total + points : c.negative_total,
+            }
+          : c
+      )
+    );
+  }, []);
 
   // Set absolute totals for a classroom (used to sync stale stored values with calculated values)
   const setClassroomTotals = useCallback(
-    (classroomId: string, totals: { pointTotal: number; positiveTotal: number; negativeTotal: number }) => {
+    (
+      classroomId: string,
+      totals: { pointTotal: number; positiveTotal: number; negativeTotal: number }
+    ) => {
       setClassrooms((prev) =>
         prev.map((c) =>
           c.id === classroomId

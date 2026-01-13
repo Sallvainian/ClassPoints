@@ -463,6 +463,9 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
         .flatMap((g) => g.seats)
         .find((s) => s.studentId === studentId);
 
+      // Guard: if student is already in this seat, no-op
+      if (currentSeat?.id === seatId) return;
+
       // Optimistic update FIRST for instant feedback
       setChart((prev) =>
         prev
@@ -641,8 +644,12 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     async (students: Student[]) => {
       if (!chart) return;
 
+      // Validate input
+      if (!students || students.length === 0) return;
+
       // Get all available seats
       const allSeats = chart.groups.flatMap((g) => g.seats);
+      if (allSeats.length === 0) return;
 
       // Shuffle students (Fisher-Yates)
       const shuffled = [...students];
@@ -651,25 +658,79 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
 
-      // Clear all seats first
-      for (const seat of allSeats) {
-        await supabase.from('seating_seats').update({ student_id: null }).eq('id', seat.id);
-      }
-
-      // Assign shuffled students to seats
-      const assignments: Array<{ seatId: string; studentId: string }> = [];
+      // Build assignment map for optimistic update
+      const newAssignments = new Map<string, string | null>();
+      allSeats.forEach((seat) => newAssignments.set(seat.id, null)); // Clear all first
       for (let i = 0; i < Math.min(shuffled.length, allSeats.length); i++) {
-        await supabase
-          .from('seating_seats')
-          .update({ student_id: shuffled[i].id })
-          .eq('id', allSeats[i].id);
-        assignments.push({ seatId: allSeats[i].id, studentId: shuffled[i].id });
+        newAssignments.set(allSeats[i].id, shuffled[i].id);
       }
 
-      // Refetch to get accurate state
-      await fetchChart();
+      // Store old state for rollback
+      const oldAssignments = new Map<string, string | null>();
+      allSeats.forEach((seat) => oldAssignments.set(seat.id, seat.studentId));
+
+      // Optimistic update FIRST
+      setChart((prev) =>
+        prev
+          ? {
+              ...prev,
+              groups: prev.groups.map((g) => ({
+                ...g,
+                seats: g.seats.map((s) => ({
+                  ...s,
+                  studentId: newAssignments.get(s.id) ?? null,
+                })),
+              })),
+              updatedAt: Date.now(),
+            }
+          : null
+      );
+
+      try {
+        // Batch clear all seats first (single query)
+        const seatIds = allSeats.map((s) => s.id);
+        const { error: clearError } = await supabase
+          .from('seating_seats')
+          .update({ student_id: null })
+          .in('id', seatIds);
+
+        if (clearError) throw new Error(clearError.message);
+
+        // Batch assign students using individual updates (Supabase doesn't support bulk update with different values)
+        // But we can run them in parallel using Promise.all
+        const assignPromises = [];
+        for (let i = 0; i < Math.min(shuffled.length, allSeats.length); i++) {
+          assignPromises.push(
+            supabase
+              .from('seating_seats')
+              .update({ student_id: shuffled[i].id })
+              .eq('id', allSeats[i].id)
+          );
+        }
+
+        const results = await Promise.all(assignPromises);
+        const failedAssign = results.find((r) => r.error);
+        if (failedAssign?.error) throw new Error(failedAssign.error.message);
+      } catch (err) {
+        // Rollback optimistic update on error
+        setChart((prev) =>
+          prev
+            ? {
+                ...prev,
+                groups: prev.groups.map((g) => ({
+                  ...g,
+                  seats: g.seats.map((s) => ({
+                    ...s,
+                    studentId: oldAssignments.get(s.id) ?? null,
+                  })),
+                })),
+              }
+            : null
+        );
+        setError(err instanceof Error ? err : new Error('Failed to randomize assignments'));
+      }
     },
-    [chart, fetchChart]
+    [chart]
   );
 
   // Add a room element

@@ -134,6 +134,10 @@ export interface Database {
           created_at: string;
           id: string;
           name: string;
+          // Stored point totals (maintained by DB trigger)
+          point_total: number;
+          positive_total: number;
+          negative_total: number;
         };
         Insert: {
           avatar_color?: string | null;
@@ -141,6 +145,10 @@ export interface Database {
           created_at?: string;
           id?: string;
           name: string;
+          // Defaults to 0 in DB
+          point_total?: number;
+          positive_total?: number;
+          negative_total?: number;
         };
         Update: {
           avatar_color?: string | null;
@@ -148,6 +156,9 @@ export interface Database {
           created_at?: string;
           id?: string;
           name?: string;
+          point_total?: number;
+          positive_total?: number;
+          negative_total?: number;
         };
         Relationships: [
           {
@@ -395,7 +406,18 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      get_student_time_totals: {
+        Args: {
+          p_classroom_id: string;
+          p_start_of_today: string;
+          p_start_of_week: string;
+        };
+        Returns: {
+          student_id: string;
+          today_total: number;
+          this_week_total: number;
+        }[];
+      };
     };
     Enums: {
       behavior_category: BehaviorCategory;
