@@ -14,7 +14,7 @@ declare global {
 
 import { createContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from './AuthContext';
+import { useAuth } from '../hooks/useContextHooks';
 import type { UserSoundSettings, UpdateUserSoundSettings } from '../types/database';
 import {
   type SoundId,
