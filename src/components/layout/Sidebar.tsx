@@ -3,7 +3,11 @@ import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input, Modal } from '../ui';
 
-export function Sidebar() {
+interface SidebarProps {
+  onNavigateHome?: () => void;
+}
+
+export function Sidebar({ onNavigateHome }: SidebarProps) {
   const { classrooms, activeClassroomId, setActiveClassroom, createClassroom } = useApp();
   const { user, signOut } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -32,8 +36,19 @@ export function Sidebar() {
         <p className="text-xs text-blue-200 mt-1">Behavior Tracker</p>
       </div>
 
+      {/* Dashboard Navigation */}
+      <div className="px-4 pt-4">
+        <button
+          onClick={() => onNavigateHome?.()}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-100 hover:bg-white/10 rounded-lg transition-colors"
+        >
+          <span>📊</span>
+          Dashboard
+        </button>
+      </div>
+
       {/* Create Button */}
-      <div className="p-4">
+      <div className="p-4 pt-2">
         <Button
           onClick={() => setIsCreateModalOpen(true)}
           className="w-full bg-white/20 hover:bg-white/30 text-white border-0"
