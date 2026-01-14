@@ -15,15 +15,30 @@ import {
 } from '../assets/sounds';
 
 // Mock AuthContext - must be before SoundContext import
-vi.mock('../contexts/AuthContext', () => ({
-  useAuth: vi.fn().mockReturnValue({
+// vi.mock is hoisted, so we can't use external variables
+vi.mock('../contexts/AuthContext', () => {
+  // All mock data must be defined inside the factory
+  const mockAuthContextValue = {
     user: { id: 'test-user-id' },
     session: { access_token: 'test-token' },
     loading: false,
     error: null,
-  }),
-  AuthProvider: ({ children }: { children: ReactNode }) => children,
-}));
+    signUp: vi.fn(),
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    resetPassword: vi.fn(),
+    updatePassword: vi.fn(),
+    clearError: vi.fn(),
+  };
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { createContext: createCtx } = require('react');
+  const MockAuthContext = createCtx(mockAuthContextValue);
+  return {
+    AuthContext: MockAuthContext,
+    useAuth: vi.fn().mockReturnValue(mockAuthContextValue),
+    AuthProvider: ({ children }: { children: ReactNode }) => children,
+  };
+});
 
 // Mock Supabase client
 vi.mock('../lib/supabase', () => ({
@@ -223,17 +238,13 @@ describe('useSoundEffects', () => {
       result.current.playPositive();
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[SoundEffects:TEST] playPositive called'
-    );
+    expect(consoleSpy).toHaveBeenCalledWith('[SoundEffects:TEST] playPositive called');
 
     act(() => {
       result.current.playNegative();
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[SoundEffects:TEST] playNegative called'
-    );
+    expect(consoleSpy).toHaveBeenCalledWith('[SoundEffects:TEST] playNegative called');
 
     consoleSpy.mockRestore();
   });
@@ -317,8 +328,7 @@ describe('validateAudioUrl', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: {
-        get: (name: string) =>
-          name === 'content-type' ? 'text/plain' : null,
+        get: (name: string) => (name === 'content-type' ? 'text/plain' : null),
       },
     }) as unknown as typeof fetch;
 
@@ -335,8 +345,7 @@ describe('validateAudioUrl', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: {
-        get: (name: string) =>
-          name === 'content-type' ? 'audio/mpeg' : null,
+        get: (name: string) => (name === 'content-type' ? 'audio/mpeg' : null),
       },
     }) as unknown as typeof fetch;
 

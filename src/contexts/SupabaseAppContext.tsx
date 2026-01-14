@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
+import { createContext, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { useClassrooms } from '../hooks/useClassrooms';
 import { useStudents } from '../hooks/useStudents';
@@ -159,7 +159,8 @@ interface SupabaseAppContextValue {
   clearStudentPoints: (classroomId: string, studentId: string) => Promise<void>;
 }
 
-const SupabaseAppContext = createContext<SupabaseAppContextValue | null>(null);
+// Exported for use by useContextHooks.ts - components should import useSupabaseApp from hooks
+export const SupabaseAppContext = createContext<SupabaseAppContextValue | null>(null);
 
 const UNDO_WINDOW_MS = 10000; // 10 seconds for undo
 
@@ -589,7 +590,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       // No studentIds provided - return zeros (sidebar uses stored classroom totals)
       return { total: 0, positiveTotal: 0, negativeTotal: 0, today: 0, thisWeek: 0 };
     },
-    [getStudentPointsStored, students]
+    [getStudentPointsStored]
   );
 
   const getRecentUndoableAction = useCallback((): UndoableAction | null => {
@@ -802,10 +803,6 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   return <SupabaseAppContext.Provider value={value}>{children}</SupabaseAppContext.Provider>;
 }
 
-export function useSupabaseApp() {
-  const context = useContext(SupabaseAppContext);
-  if (!context) {
-    throw new Error('useSupabaseApp must be used within SupabaseAppProvider');
-  }
-  return context;
-}
+// Re-export useSupabaseApp from hooks for backwards compatibility
+// Components should import from './hooks/useContextHooks' or './hooks' instead
+export { useSupabaseApp } from '../hooks/useContextHooks';

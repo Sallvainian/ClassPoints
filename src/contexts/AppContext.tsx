@@ -9,7 +9,11 @@
  * import { useApp } from './contexts/HybridAppContext';
  */
 
-export { useApp, useHybridApp, HybridAppProvider } from './HybridAppContext';
+// Re-export hooks from hooks file (non-components in separate re-export)
+export { useApp, useHybridApp } from '../hooks/useContextHooks';
+
+// Re-export provider components
+export { HybridAppProvider } from './HybridAppContext';
 
 // Re-export the provider as AppProvider for backwards compatibility
 export { HybridAppProvider as AppProvider } from './HybridAppContext';
