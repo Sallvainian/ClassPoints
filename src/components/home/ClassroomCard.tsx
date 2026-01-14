@@ -1,16 +1,8 @@
 import { memo, useCallback } from 'react';
-
-interface ClassroomCardClassroom {
-  id: string;
-  name: string;
-  students: { id: string; name: string }[];
-  pointTotal?: number;
-  positiveTotal?: number;
-  negativeTotal?: number;
-}
+import type { AppClassroom } from '../../contexts/HybridAppContext';
 
 interface ClassroomCardProps {
-  classroom: ClassroomCardClassroom;
+  classroom: AppClassroom;
   onClick: (classroomId: string) => void;
 }
 

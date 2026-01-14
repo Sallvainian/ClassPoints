@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ClassroomCard } from './ClassroomCard';
@@ -11,7 +11,8 @@ interface TeacherDashboardProps {
 }
 
 export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
-  const { classrooms, createClassroom, loading } = useApp();
+  const { classrooms, createClassroom, loading, error } = useApp();
+  const [createError, setCreateError] = useState<string | null>(null);
   const { user } = useAuth();
 
   const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Teacher';
@@ -37,7 +38,15 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
   );
 
   const handleCreateClassroom = useCallback(async () => {
-    await createClassroom('New Classroom');
+    setCreateError(null);
+    try {
+      const result = await createClassroom('New Classroom');
+      if (!result) {
+        setCreateError('Failed to create classroom. Please try again.');
+      }
+    } catch {
+      setCreateError('Failed to create classroom. Please try again.');
+    }
   }, [createClassroom]);
 
   // Loading state - show spinner while data loads
@@ -47,6 +56,22 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
         <div className="text-center">
           <div className="text-4xl mb-2 animate-pulse">⏳</div>
           <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state - failed to load data
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50 p-8">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Unable to load dashboard</h2>
+          <p className="text-gray-600 mb-6">
+            {error.message || 'Something went wrong. Please try again.'}
+          </p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
         </div>
       </div>
     );
@@ -65,6 +90,7 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
           <Button onClick={handleCreateClassroom} size="lg">
             + Create Your First Classroom
           </Button>
+          {createError && <p className="text-red-500 text-sm mt-4">{createError}</p>}
         </div>
       </div>
     );

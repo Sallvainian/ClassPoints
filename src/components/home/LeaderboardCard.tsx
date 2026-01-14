@@ -1,5 +1,16 @@
-import { useState, useEffect, useMemo, memo, useRef, useCallback } from 'react';
+import { useMemo, memo } from 'react';
 import { getAvatarColorForName, needsDarkText } from '../../utils';
+import {
+  getOverallLeaders,
+  getTodayStars,
+  getClassChampions,
+  getThisWeekLeaders,
+  getBestBehaved,
+  getRisingStars,
+  type LeaderboardEntry,
+} from '../../utils/leaderboardCalculations';
+import { useRotatingCategory } from '../../hooks';
+import type { AppStudent, AppClassroom } from '../../contexts/HybridAppContext';
 
 type LeaderboardCategory =
   | 'overall'
@@ -9,26 +20,9 @@ type LeaderboardCategory =
   | 'bestBehaved'
   | 'risingStars';
 
-interface LeaderboardStudent {
-  id: string;
-  name: string;
-  avatarColor?: string;
-  pointTotal: number;
-  positiveTotal: number;
-  negativeTotal: number;
-  todayTotal: number;
-  thisWeekTotal: number;
-}
-
-interface LeaderboardClassroom {
-  id: string;
-  name: string;
-  students: LeaderboardStudent[];
-}
-
 interface LeaderboardCardProps {
-  students: LeaderboardStudent[];
-  classrooms: LeaderboardClassroom[];
+  students: AppStudent[];
+  classrooms: AppClassroom[];
 }
 
 const CATEGORY_ORDER: LeaderboardCategory[] = [
@@ -49,126 +43,38 @@ const CATEGORY_CONFIG: Record<LeaderboardCategory, { title: string; icon: string
   risingStars: { title: 'Rising Stars', icon: '🚀' },
 };
 
-const MILESTONES = [1, 5, 10, 25, 50, 69, 75, 100];
-
-interface LeaderboardEntry {
-  student: LeaderboardStudent;
-  value: number | string;
-  subtitle?: string;
+function getEmptyMessage(category: LeaderboardCategory): string {
+  switch (category) {
+    case 'todayStars':
+      return 'No points awarded today yet';
+    case 'risingStars':
+      return 'No milestone achievers yet';
+    default:
+      return 'Add students to see the leaderboard';
+  }
 }
 
 function LeaderboardCardComponent({ students, classrooms }: LeaderboardCardProps) {
-  const [activeCategory, setActiveCategory] = useState<LeaderboardCategory>('overall');
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
-
-  // Rotate to next category
-  const rotateCategory = useCallback(() => {
-    setActiveCategory((current) => {
-      const currentIndex = CATEGORY_ORDER.indexOf(current);
-      return CATEGORY_ORDER[(currentIndex + 1) % CATEGORY_ORDER.length];
-    });
-  }, []);
-
-  // Start/restart the auto-rotation interval
-  const startInterval = useCallback(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(rotateCategory, 7000);
-  }, [rotateCategory]);
-
-  // Handle manual category selection (resets timer)
-  const handleCategorySelect = useCallback(
-    (category: LeaderboardCategory) => {
-      setActiveCategory(category);
-      startInterval();
-    },
-    [startInterval]
-  );
-
-  // Auto-rotate through categories every 7 seconds
-  useEffect(() => {
-    startInterval();
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [startInterval]);
+  const { activeCategory, selectCategory } = useRotatingCategory({
+    categories: CATEGORY_ORDER,
+    intervalMs: 7000,
+  });
 
   // Calculate leaderboard entries based on active category
   const entries = useMemo((): LeaderboardEntry[] => {
     switch (activeCategory) {
       case 'overall':
-        return [...students]
-          .sort((a, b) => b.pointTotal - a.pointTotal)
-          .slice(0, 5)
-          .map((student) => ({
-            student,
-            value: student.pointTotal,
-          }));
-
+        return getOverallLeaders(students);
       case 'todayStars':
-        return [...students]
-          .filter((s) => s.todayTotal > 0)
-          .sort((a, b) => b.todayTotal - a.todayTotal)
-          .slice(0, 5)
-          .map((student) => ({
-            student,
-            value: student.todayTotal,
-            subtitle: 'today',
-          }));
-
-      case 'classChampions': {
-        const champions: LeaderboardEntry[] = [];
-        for (const classroom of classrooms) {
-          const champion = [...classroom.students].sort((a, b) => b.pointTotal - a.pointTotal)[0];
-          if (champion) {
-            champions.push({
-              student: champion,
-              value: champion.pointTotal,
-              subtitle: classroom.name,
-            });
-          }
-        }
-        return champions.slice(0, 5);
-      }
-
+        return getTodayStars(students);
+      case 'classChampions':
+        return getClassChampions(classrooms);
       case 'thisWeek':
-        return [...students]
-          .filter((s) => s.thisWeekTotal > 0)
-          .sort((a, b) => b.thisWeekTotal - a.thisWeekTotal)
-          .slice(0, 5)
-          .map((student) => ({
-            student,
-            value: student.thisWeekTotal,
-            subtitle: 'this week',
-          }));
-
-      case 'bestBehaved': {
-        return [...students]
-          .filter((s) => s.positiveTotal > 0)
-          .map((student) => {
-            const negAbs = Math.abs(student.negativeTotal ?? 0);
-            const divisor = Math.max(1, Number.isFinite(negAbs) ? negAbs : 0);
-            const ratio = student.positiveTotal / divisor;
-            return { student, ratio };
-          })
-          .sort((a, b) => b.ratio - a.ratio)
-          .slice(0, 5)
-          .map(({ student, ratio }) => ({
-            student,
-            value: ratio === Infinity || !Number.isFinite(ratio) ? '∞' : ratio.toFixed(1),
-            subtitle: 'ratio',
-          }));
-      }
-
+        return getThisWeekLeaders(students);
+      case 'bestBehaved':
+        return getBestBehaved(students);
       case 'risingStars':
-        return [...students]
-          .filter((s) => MILESTONES.includes(s.pointTotal))
-          .sort((a, b) => b.pointTotal - a.pointTotal)
-          .slice(0, 5)
-          .map((student) => ({
-            student,
-            value: `${student.pointTotal} pts`,
-            subtitle: 'milestone reached!',
-          }));
+        return getRisingStars(students);
     }
   }, [activeCategory, students, classrooms]);
 
@@ -191,11 +97,7 @@ function LeaderboardCardComponent({ students, classrooms }: LeaderboardCardProps
           ))
         ) : (
           <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-            {activeCategory === 'todayStars'
-              ? 'No points awarded today yet'
-              : activeCategory === 'risingStars'
-                ? 'No milestone achievers yet'
-                : 'Add students to see the leaderboard'}
+            {getEmptyMessage(activeCategory)}
           </div>
         )}
       </div>
@@ -205,7 +107,7 @@ function LeaderboardCardComponent({ students, classrooms }: LeaderboardCardProps
         {CATEGORY_ORDER.map((category) => (
           <button
             key={category}
-            onClick={() => handleCategorySelect(category)}
+            onClick={() => selectCategory(category)}
             className={`w-2 h-2 rounded-full transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
               category === activeCategory
                 ? 'bg-blue-500 scale-125'

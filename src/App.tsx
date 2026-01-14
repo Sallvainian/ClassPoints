@@ -15,7 +15,7 @@ import { hasLocalStorageData } from './utils/migrateToSupabase';
 type View = 'home' | 'dashboard' | 'settings' | 'migration';
 
 function AppContent() {
-  const { setActiveClassroom } = useApp();
+  const { classrooms, setActiveClassroom } = useApp();
   const [view, setView] = useState<View>(() => {
     // Check if we need to show migration wizard
     if (hasLocalStorageData()) {
@@ -42,6 +42,11 @@ function AppContent() {
         {view === 'home' ? (
           <TeacherDashboard
             onSelectClassroom={(id) => {
+              const exists = classrooms.some((c) => c.id === id);
+              if (!exists) {
+                console.error('Classroom not found:', id);
+                return;
+              }
               setActiveClassroom(id);
               setView('dashboard');
             }}
