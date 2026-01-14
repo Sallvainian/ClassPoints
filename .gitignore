@@ -41,3 +41,4 @@ test-results/
 .playwright-mcp/
 _bmad/
 .auth/
+_bmad-output/
