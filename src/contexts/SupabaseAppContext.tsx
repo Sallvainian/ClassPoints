@@ -349,7 +349,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       // Optimistically update student and classroom points before awaiting the transaction
       updateStudentPointsOptimistically(studentId, pointsToAward);
-      updateClassroomPointsOptimistically(classroomId, pointsToAward);
+      updateClassroomPointsOptimistically(classroomId, studentId, pointsToAward);
 
       try {
         const result = await awardPointsHook(studentId, classroomId, behavior, note);
@@ -357,7 +357,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         // Rollback optimistic updates on error
         updateStudentPointsOptimistically(studentId, -pointsToAward);
-        updateClassroomPointsOptimistically(classroomId, -pointsToAward);
+        updateClassroomPointsOptimistically(classroomId, studentId, -pointsToAward);
         throw err;
       }
     },
@@ -380,14 +380,14 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       // Store rollback info before optimistic updates
       const pointsPerStudent = behavior.points;
-      const totalPoints = pointsPerStudent * students.length;
       const affectedStudentIds = students.map((s) => s.id);
 
       // Optimistically update all students' and classroom points before awaiting the transaction
+      // CRITICAL: Update each student individually so student_summary gets updated (prevents double-counting)
       students.forEach((student) => {
         updateStudentPointsOptimistically(student.id, pointsPerStudent);
+        updateClassroomPointsOptimistically(classroomId, student.id, pointsPerStudent);
       });
-      updateClassroomPointsOptimistically(classroomId, totalPoints);
 
       // Generate a batch_id to group these transactions for undo
       const batchId = crypto.randomUUID();
@@ -412,11 +412,11 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       if (insertError) {
         console.error('Error awarding class points:', insertError);
 
-        // Rollback optimistic updates
+        // Rollback optimistic updates (must rollback each student individually)
         affectedStudentIds.forEach((studentId) => {
           updateStudentPointsOptimistically(studentId, -pointsPerStudent);
+          updateClassroomPointsOptimistically(classroomId, studentId, -pointsPerStudent);
         });
-        updateClassroomPointsOptimistically(classroomId, -totalPoints);
 
         throw new Error('Failed to award points to class. Please try again.');
       }
@@ -452,14 +452,14 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       // Store rollback info before optimistic updates
       const pointsPerStudent = behavior.points;
-      const totalPoints = pointsPerStudent * validStudents.length;
       const affectedStudentIds = validStudents.map((s) => s.id);
 
       // Optimistically update all selected students' and classroom points
+      // CRITICAL: Update each student individually so student_summary gets updated (prevents double-counting)
       validStudents.forEach((student) => {
         updateStudentPointsOptimistically(student.id, pointsPerStudent);
+        updateClassroomPointsOptimistically(classroomId, student.id, pointsPerStudent);
       });
-      updateClassroomPointsOptimistically(classroomId, totalPoints);
 
       // Generate a batch_id to group these transactions for undo
       const batchId = crypto.randomUUID();
@@ -485,11 +485,11 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       if (insertError) {
         console.error('Error awarding points to students:', insertError);
 
-        // Rollback optimistic updates
+        // Rollback optimistic updates (must rollback each student individually)
         affectedStudentIds.forEach((studentId) => {
           updateStudentPointsOptimistically(studentId, -pointsPerStudent);
+          updateClassroomPointsOptimistically(classroomId, studentId, -pointsPerStudent);
         });
-        updateClassroomPointsOptimistically(classroomId, -totalPoints);
 
         throw new Error('Failed to award points to selected students. Please try again.');
       }

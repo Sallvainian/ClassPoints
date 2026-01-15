@@ -33,7 +33,11 @@ interface UseClassroomsReturn {
   createClassroom: (name: string) => Promise<Classroom | null>;
   updateClassroom: (id: string, updates: Partial<Classroom>) => Promise<Classroom | null>;
   deleteClassroom: (id: string) => Promise<boolean>;
-  updateClassroomPointsOptimistically: (classroomId: string, points: number) => void;
+  updateClassroomPointsOptimistically: (
+    classroomId: string,
+    studentId: string,
+    points: number
+  ) => void;
   refetch: () => Promise<void>;
 }
 
@@ -386,21 +390,38 @@ export function useClassrooms(): UseClassroomsReturn {
     return true;
   }, []);
 
-  // Optimistically update classroom points before realtime event arrives
-  const updateClassroomPointsOptimistically = useCallback((classroomId: string, points: number) => {
-    setClassrooms((prev) =>
-      prev.map((c) =>
-        c.id === classroomId
-          ? {
-              ...c,
-              point_total: c.point_total + points,
-              positive_total: points > 0 ? c.positive_total + points : c.positive_total,
-              negative_total: points < 0 ? c.negative_total + points : c.negative_total,
-            }
-          : c
-      )
-    );
-  }, []);
+  // Optimistically update classroom points AND student_summary before realtime event arrives
+  // CRITICAL: Must update student_summaries so realtime delta calculation is 0 for our own changes
+  const updateClassroomPointsOptimistically = useCallback(
+    (classroomId: string, studentId: string, points: number) => {
+      setClassrooms((prev) =>
+        prev.map((c) =>
+          c.id === classroomId
+            ? {
+                ...c,
+                point_total: c.point_total + points,
+                positive_total: points > 0 ? c.positive_total + points : c.positive_total,
+                negative_total: points < 0 ? c.negative_total + points : c.negative_total,
+                // Update student_summary so realtime delta = 0
+                student_summaries: c.student_summaries.map((s) =>
+                  s.id === studentId
+                    ? {
+                        ...s,
+                        point_total: s.point_total + points,
+                        positive_total: points > 0 ? s.positive_total + points : s.positive_total,
+                        negative_total: points < 0 ? s.negative_total + points : s.negative_total,
+                        today_total: s.today_total + points,
+                        this_week_total: s.this_week_total + points,
+                      }
+                    : s
+                ),
+              }
+            : c
+        )
+      );
+    },
+    []
+  );
 
   return {
     classrooms,
