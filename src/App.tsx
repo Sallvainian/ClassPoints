@@ -38,7 +38,18 @@ function AppContent() {
 
   return (
     <>
-      <Layout onNavigateHome={() => setView('home')}>
+      <Layout
+        onNavigateHome={() => setView('home')}
+        onSelectClassroom={(id) => {
+          const exists = classrooms.some((c) => c.id === id);
+          if (!exists) {
+            console.error('Classroom not found:', id);
+            return;
+          }
+          setActiveClassroom(id);
+          setView('dashboard');
+        }}
+      >
         {view === 'home' ? (
           <TeacherDashboard
             onSelectClassroom={(id) => {

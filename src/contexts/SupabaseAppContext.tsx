@@ -654,15 +654,16 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
   // Today/week totals only calculated for active classroom (not stored at classroom level)
   const mappedClassrooms: AppClassroom[] = useMemo(() => {
     return classrooms.map((c) => {
-      // Create placeholder array matching student_count for consistent display
-      const placeholderStudents: AppStudent[] = Array.from({ length: c.student_count }, (_, i) => ({
-        id: `placeholder-${i}`,
-        name: '',
-        pointTotal: 0,
-        positiveTotal: 0,
-        negativeTotal: 0,
-        todayTotal: 0,
-        thisWeekTotal: 0,
+      // Map student summaries to AppStudent format for dashboard display
+      const summaryStudents: AppStudent[] = c.student_summaries.map((s) => ({
+        id: s.id,
+        name: s.name,
+        avatarColor: s.avatar_color || undefined,
+        pointTotal: s.point_total,
+        positiveTotal: s.positive_total,
+        negativeTotal: s.negative_total,
+        todayTotal: s.today_total,
+        thisWeekTotal: s.this_week_total,
       }));
 
       const isActive = c.id === activeClassroomId;
@@ -691,7 +692,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       return {
         id: c.id,
         name: c.name,
-        students: placeholderStudents,
+        students: summaryStudents,
         createdAt: new Date(c.created_at).getTime(),
         updatedAt: new Date(c.updated_at).getTime(),
         pointTotal,

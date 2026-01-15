@@ -5,9 +5,10 @@ import { Button, Input, Modal } from '../ui';
 
 interface SidebarProps {
   onNavigateHome?: () => void;
+  onSelectClassroom?: (classroomId: string) => void;
 }
 
-export function Sidebar({ onNavigateHome }: SidebarProps) {
+export function Sidebar({ onNavigateHome, onSelectClassroom }: SidebarProps) {
   const { classrooms, activeClassroomId, setActiveClassroom, createClassroom } = useApp();
   const { user, signOut } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -74,7 +75,13 @@ export function Sidebar({ onNavigateHome }: SidebarProps) {
               return (
                 <li key={classroom.id}>
                   <button
-                    onClick={() => setActiveClassroom(classroom.id)}
+                    onClick={() => {
+                      if (onSelectClassroom) {
+                        onSelectClassroom(classroom.id);
+                      } else {
+                        setActiveClassroom(classroom.id);
+                      }
+                    }}
                     className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all ${
                       isActive
                         ? 'bg-white/25 text-white font-medium shadow-inner'

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRealtimeSubscription } from './useRealtimeSubscription';
 import { getRandomAvatarColor } from '../utils';
+import { getDateBoundaries } from '../utils/dateUtils';
 import type { Student, NewStudent, UpdateStudent } from '../types/database';
 
 // Extended student type with point totals
@@ -30,16 +31,36 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Helper to calculate date boundaries for today/this week
-  const getDateBoundaries = useCallback(() => {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const day = now.getDay();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
-    startOfWeek.setHours(0, 0, 0, 0);
-    return { startOfToday, startOfWeek };
-  }, []);
+  // Fetch only time-based totals (for refresh without full refetch)
+  const fetchTimeTotals = useCallback(async () => {
+    if (!classroomId) return;
+
+    const { startOfToday, startOfWeek } = getDateBoundaries();
+    const { data: timeTotals } = await supabase.rpc('get_student_time_totals', {
+      p_classroom_id: classroomId,
+      p_start_of_today: startOfToday.toISOString(),
+      p_start_of_week: startOfWeek.toISOString(),
+    });
+
+    if (timeTotals) {
+      const totalsMap = new Map(
+        timeTotals.map(
+          (t: { student_id: string; today_total: number; this_week_total: number }) => [
+            t.student_id,
+            t,
+          ]
+        )
+      );
+      setStudents((prev) =>
+        prev.map((s) => {
+          const totals = totalsMap.get(s.id);
+          return totals
+            ? { ...s, today_total: totals.today_total, this_week_total: totals.this_week_total }
+            : s;
+        })
+      );
+    }
+  }, [classroomId]);
 
   const fetchStudents = useCallback(async () => {
     if (!classroomId) {
@@ -108,11 +129,25 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
     setStudents(studentsWithPoints);
 
     setLoading(false);
-  }, [classroomId, getDateBoundaries]);
+  }, [classroomId]);
 
   useEffect(() => {
     fetchStudents();
   }, [fetchStudents]);
+
+  // Refresh time totals when tab becomes visible (handles day boundary transitions)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && classroomId) {
+        fetchTimeTotals();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [classroomId, fetchTimeTotals]);
 
   // Real-time subscription for student changes in this classroom
   // Now includes stored point totals (maintained by DB trigger)
@@ -157,6 +192,8 @@ export function useStudents(classroomId: string | null): UseStudentsReturn {
           )
           .sort((a, b) => a.name.localeCompare(b.name))
       );
+      // Note: Time totals are preserved from optimistic updates above
+      // They refresh on tab visibility change or full page reload
     },
     onDelete: ({ id }) => {
       setStudents((prev) => prev.filter((s) => s.id !== id));

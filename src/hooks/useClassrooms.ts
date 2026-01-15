@@ -1,7 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRealtimeSubscription } from './useRealtimeSubscription';
+import { getDateBoundaries } from '../utils/dateUtils';
 import type { Classroom, NewClassroom, UpdateClassroom } from '../types/database';
+
+// Student summary for dashboard display (minimal data for leaderboard)
+// Includes time-based totals fetched via RPC for today/weekly leaderboards
+export interface StudentSummary {
+  id: string;
+  name: string;
+  avatar_color: string | null;
+  point_total: number;
+  positive_total: number;
+  negative_total: number;
+  today_total: number;
+  this_week_total: number;
+}
 
 // Extended classroom type with student count and point totals
 export interface ClassroomWithCount extends Classroom {
@@ -9,6 +23,7 @@ export interface ClassroomWithCount extends Classroom {
   point_total: number;
   positive_total: number;
   negative_total: number;
+  student_summaries: StudentSummary[];
 }
 
 interface UseClassroomsReturn {
@@ -31,11 +46,16 @@ export function useClassrooms(): UseClassroomsReturn {
     setLoading(true);
     setError(null);
 
-    // Fetch classrooms with student count (parallel with student totals)
+    // Fetch classrooms with student count (parallel with student data)
     const [classroomsResult, studentsResult] = await Promise.all([
       supabase.from('classrooms').select('*, students(count)').order('name', { ascending: true }),
-      // Fetch all students with stored point totals for aggregation
-      supabase.from('students').select('classroom_id, point_total, positive_total, negative_total'),
+      // Fetch all students with stored point totals for dashboard leaderboard
+      // Note: today_total and this_week_total require separate RPC call, so we set to 0 for dashboard
+      supabase
+        .from('students')
+        .select(
+          'id, classroom_id, name, avatar_color, point_total, positive_total, negative_total'
+        ),
     ]);
 
     if (classroomsResult.error) {
@@ -45,23 +65,71 @@ export function useClassrooms(): UseClassroomsReturn {
       return;
     }
 
-    // Aggregate student point totals by classroom
-    const classroomTotals = new Map<
-      string,
-      { total: number; positive: number; negative: number }
-    >();
-    (studentsResult.data || []).forEach((s) => {
-      const current = classroomTotals.get(s.classroom_id) || { total: 0, positive: 0, negative: 0 };
-      classroomTotals.set(s.classroom_id, {
-        total: current.total + (s.point_total || 0),
-        positive: current.positive + (s.positive_total || 0),
-        negative: current.negative + (s.negative_total || 0),
-      });
+    // Fetch time-based totals for all classrooms in parallel
+    const { startOfToday, startOfWeek } = getDateBoundaries();
+    const classroomIds = (classroomsResult.data || []).map((c) => c.id);
+
+    const timeTotalsPromises = classroomIds.map((classroomId) =>
+      supabase.rpc('get_student_time_totals', {
+        p_classroom_id: classroomId,
+        p_start_of_today: startOfToday.toISOString(),
+        p_start_of_week: startOfWeek.toISOString(),
+      })
+    );
+
+    const timeTotalsResults = await Promise.all(timeTotalsPromises);
+
+    // Create lookup map: studentId -> { today_total, this_week_total }
+    const timeTotalsMap = new Map<string, { today: number; week: number }>();
+    timeTotalsResults.forEach((result) => {
+      (result.data || []).forEach(
+        (row: { student_id: string; today_total: number; this_week_total: number }) => {
+          timeTotalsMap.set(row.student_id, {
+            today: row.today_total || 0,
+            week: row.this_week_total || 0,
+          });
+        }
+      );
     });
 
-    // Map the response to include student_count and aggregated point totals
+    // Group students by classroom and aggregate totals
+    const classroomData = new Map<
+      string,
+      { total: number; positive: number; negative: number; students: StudentSummary[] }
+    >();
+    (studentsResult.data || []).forEach((s) => {
+      const current = classroomData.get(s.classroom_id) || {
+        total: 0,
+        positive: 0,
+        negative: 0,
+        students: [],
+      };
+      current.total += s.point_total || 0;
+      current.positive += s.positive_total || 0;
+      current.negative += s.negative_total || 0;
+      // Get time totals from RPC results
+      const timeTotals = timeTotalsMap.get(s.id);
+      current.students.push({
+        id: s.id,
+        name: s.name,
+        avatar_color: s.avatar_color,
+        point_total: s.point_total || 0,
+        positive_total: s.positive_total || 0,
+        negative_total: s.negative_total || 0,
+        today_total: timeTotals?.today || 0,
+        this_week_total: timeTotals?.week || 0,
+      });
+      classroomData.set(s.classroom_id, current);
+    });
+
+    // Map the response to include student_count, aggregated point totals, and student summaries
     const classroomsWithCount: ClassroomWithCount[] = (classroomsResult.data || []).map((c) => {
-      const totals = classroomTotals.get(c.id) || { total: 0, positive: 0, negative: 0 };
+      const data = classroomData.get(c.id) || {
+        total: 0,
+        positive: 0,
+        negative: 0,
+        students: [],
+      };
       return {
         id: c.id,
         name: c.name,
@@ -69,9 +137,10 @@ export function useClassrooms(): UseClassroomsReturn {
         updated_at: c.updated_at,
         user_id: c.user_id,
         student_count: (c.students as { count: number }[])?.[0]?.count ?? 0,
-        point_total: totals.total,
-        positive_total: totals.positive,
-        negative_total: totals.negative,
+        point_total: data.total,
+        positive_total: data.positive,
+        negative_total: data.negative,
+        student_summaries: data.students,
       };
     });
     setClassrooms(classroomsWithCount);
@@ -91,12 +160,13 @@ export function useClassrooms(): UseClassroomsReturn {
         // Avoid duplicates if we already added optimistically
         if (prev.some((c) => c.id === classroom.id)) return prev;
         // New classrooms start with 0 students and 0 points, insert in sorted order
-        const newClassroom = {
+        const newClassroom: ClassroomWithCount = {
           ...classroom,
           student_count: 0,
           point_total: 0,
           positive_total: 0,
           negative_total: 0,
+          student_summaries: [],
         };
         return [...prev, newClassroom].sort((a, b) => a.name.localeCompare(b.name));
       });
@@ -112,6 +182,7 @@ export function useClassrooms(): UseClassroomsReturn {
                   point_total: c.point_total,
                   positive_total: c.positive_total,
                   negative_total: c.negative_total,
+                  student_summaries: c.student_summaries,
                 }
               : c
           )
@@ -123,12 +194,14 @@ export function useClassrooms(): UseClassroomsReturn {
     },
   });
 
-  // Subscribe to student changes to update counts and point totals
+  // Subscribe to student changes to update counts, point totals, and student summaries
   // Students now have stored point totals (maintained by DB trigger)
   useRealtimeSubscription<
     {
       id: string;
       classroom_id: string;
+      name: string;
+      avatar_color: string | null;
       point_total: number;
       positive_total: number;
       negative_total: number;
@@ -136,6 +209,8 @@ export function useClassrooms(): UseClassroomsReturn {
     {
       id: string;
       classroom_id: string;
+      name: string;
+      avatar_color: string | null;
       point_total: number;
       positive_total: number;
       negative_total: number;
@@ -153,16 +228,62 @@ export function useClassrooms(): UseClassroomsReturn {
                 point_total: c.point_total + (student.point_total || 0),
                 positive_total: c.positive_total + (student.positive_total || 0),
                 negative_total: c.negative_total + (student.negative_total || 0),
+                // Add student to summaries
+                student_summaries: [
+                  ...c.student_summaries,
+                  {
+                    id: student.id,
+                    name: student.name,
+                    avatar_color: student.avatar_color,
+                    point_total: student.point_total || 0,
+                    positive_total: student.positive_total || 0,
+                    negative_total: student.negative_total || 0,
+                    today_total: 0, // Computed separately for active classroom
+                    this_week_total: 0, // Computed separately for active classroom
+                  },
+                ],
               }
             : c
         )
       );
     },
-    onUpdate: () => {
+    onUpdate: (student) => {
       // Student point totals changed (updated by DB trigger on transaction INSERT/DELETE)
-      // Refetch to get accurate classroom totals
-      // This is triggered when DB trigger updates student's stored totals
-      fetchClassrooms();
+      // Update in place to avoid flicker - don't refetch everything
+      setClassrooms((prev) =>
+        prev.map((c) => {
+          if (c.id !== student.classroom_id) return c;
+
+          // Find the old student to calculate delta
+          const oldStudent = c.student_summaries.find((s) => s.id === student.id);
+          const oldTotal = oldStudent?.point_total || 0;
+          const oldPositive = oldStudent?.positive_total || 0;
+          const oldNegative = oldStudent?.negative_total || 0;
+
+          // Calculate deltas
+          const totalDelta = (student.point_total || 0) - oldTotal;
+          const positiveDelta = (student.positive_total || 0) - oldPositive;
+          const negativeDelta = (student.negative_total || 0) - oldNegative;
+
+          return {
+            ...c,
+            point_total: c.point_total + totalDelta,
+            positive_total: c.positive_total + positiveDelta,
+            negative_total: c.negative_total + negativeDelta,
+            student_summaries: c.student_summaries.map((s) =>
+              s.id === student.id
+                ? {
+                    ...s,
+                    point_total: student.point_total || 0,
+                    positive_total: student.positive_total || 0,
+                    negative_total: student.negative_total || 0,
+                    // Preserve time totals from initial load
+                  }
+                : s
+            ),
+          };
+        })
+      );
     },
     onDelete: (oldStudent) => {
       setClassrooms((prev) =>
@@ -175,6 +296,8 @@ export function useClassrooms(): UseClassroomsReturn {
                 point_total: c.point_total - (oldStudent.point_total || 0),
                 positive_total: c.positive_total - (oldStudent.positive_total || 0),
                 negative_total: c.negative_total - (oldStudent.negative_total || 0),
+                // Remove student from summaries
+                student_summaries: c.student_summaries.filter((s) => s.id !== oldStudent.id),
               }
             : c
         )
@@ -208,6 +331,7 @@ export function useClassrooms(): UseClassroomsReturn {
       point_total: 0,
       positive_total: 0,
       negative_total: 0,
+      student_summaries: [],
     };
     setClassrooms((prev) => {
       // Avoid duplicates if realtime subscription already added this classroom
@@ -240,6 +364,7 @@ export function useClassrooms(): UseClassroomsReturn {
                 point_total: c.point_total,
                 positive_total: c.positive_total,
                 negative_total: c.negative_total,
+                student_summaries: c.student_summaries,
               }
             : c
         )
