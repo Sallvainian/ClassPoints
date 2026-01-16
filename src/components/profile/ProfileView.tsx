@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApp } from '../../contexts/AppContext';
 import { supabase } from '../../lib/supabase';
 import { Button, Input } from '../ui';
 import { DeleteClassroomModal } from './DeleteClassroomModal';
 import type { Classroom } from '../../types';
+
+const MIN_PASSWORD_LENGTH = 6;
 
 interface ProfileViewProps {
   onClose: () => void;
@@ -34,6 +36,21 @@ export function ProfileView({ onClose }: ProfileViewProps) {
   // Classroom deletion
   const [classroomToDelete, setClassroomToDelete] = useState<Classroom | null>(null);
 
+  // Auto-clear success messages with proper cleanup
+  useEffect(() => {
+    if (nameSuccess) {
+      const timeoutId = setTimeout(() => setNameSuccess(false), 3000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [nameSuccess]);
+
+  useEffect(() => {
+    if (passwordSuccess) {
+      const timeoutId = setTimeout(() => setPasswordSuccess(false), 3000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [passwordSuccess]);
+
   const userEmail = user?.email || '';
   const currentDisplayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'User';
 
@@ -58,15 +75,14 @@ export function ProfileView({ onClose }: ProfileViewProps) {
     } else {
       setNameSuccess(true);
       setIsEditingName(false);
-      setTimeout(() => setNameSuccess(false), 3000);
     }
   };
 
   const handleChangePassword = async () => {
     if (!newPassword || newPassword !== confirmPassword) return;
 
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters');
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
       return;
     }
 
@@ -85,7 +101,6 @@ export function ProfileView({ onClose }: ProfileViewProps) {
       setNewPassword('');
       setConfirmPassword('');
       setShowPasswordForm(false);
-      setTimeout(() => setPasswordSuccess(false), 3000);
     }
   };
 
@@ -260,6 +275,9 @@ export function ProfileView({ onClose }: ProfileViewProps) {
                               classroom.pointTotal >= 0 ? 'text-green-600' : 'text-red-600'
                             }
                           >
+                            <span className="sr-only">
+                              {classroom.pointTotal >= 0 ? 'positive' : 'negative'}{' '}
+                            </span>
                             {classroom.pointTotal >= 0 ? '+' : ''}
                             {classroom.pointTotal} points
                           </span>

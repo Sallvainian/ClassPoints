@@ -33,6 +33,10 @@ const DEFAULT_BEHAVIORS: NewBehavior[] = [
   { name: 'Late', points: -1, icon: '⏰', category: 'negative', is_custom: false },
 ];
 
+// Manual adjustment constants
+const MANUAL_ADJUSTMENT_NAME = 'Manual Adjustment';
+const MANUAL_ADJUSTMENT_ICON = '✏️';
+
 // Types matching the original app interface (for backwards compatibility)
 interface AppStudent {
   id: string;
@@ -682,8 +686,8 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
           student_id: studentId,
           classroom_id: classroomId,
           behavior_id: null, // No behavior template
-          behavior_name: 'Manual Adjustment',
-          behavior_icon: '✏️',
+          behavior_name: MANUAL_ADJUSTMENT_NAME,
+          behavior_icon: MANUAL_ADJUSTMENT_ICON,
           points: delta,
           note: note || `Set points to ${targetPoints}`,
         })
@@ -700,7 +704,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
 
       return data;
     },
-    [students, refetchTransactions]
+    [students, supabase, refetchTransactions]
   );
 
   // Reset all points for a classroom (deletes all transactions)
@@ -719,7 +723,7 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
       // Refetch transactions to update state (DB trigger resets student totals)
       refetchTransactions();
     },
-    [refetchTransactions]
+    [supabase, refetchTransactions]
   );
 
   // ============================================

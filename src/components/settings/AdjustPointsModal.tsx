@@ -27,13 +27,19 @@ export function AdjustPointsModal({ student, isOpen, onClose, onConfirm }: Adjus
       setNote('');
       setError(null);
     }
-  }, [isOpen, student?.id, student?.pointTotal]);
+  }, [isOpen, student?.id]);
 
   if (!student) return null;
 
   const currentPoints = student.pointTotal;
   const parsedTarget = parseInt(targetPoints, 10);
-  const isValidNumber = !isNaN(parsedTarget);
+  const MAX_POINTS = 99999;
+  const MIN_POINTS = -99999;
+  const isValidNumber =
+    !isNaN(parsedTarget) &&
+    isFinite(parsedTarget) &&
+    parsedTarget >= MIN_POINTS &&
+    parsedTarget <= MAX_POINTS;
   const delta = isValidNumber ? parsedTarget - currentPoints : 0;
   const hasChange = isValidNumber && delta !== 0;
 

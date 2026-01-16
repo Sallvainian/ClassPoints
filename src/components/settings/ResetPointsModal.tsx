@@ -25,7 +25,7 @@ export function ResetPointsModal({ classroom, isOpen, onClose, onConfirm }: Rese
       setConfirmationText('');
       setError(null);
     }
-  }, [isOpen, classroom?.id]);
+  }, [isOpen]);
 
   if (!classroom) return null;
 
@@ -43,6 +43,7 @@ export function ResetPointsModal({ classroom, isOpen, onClose, onConfirm }: Rese
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reset points');
+    } finally {
       setSaving(false);
     }
   };

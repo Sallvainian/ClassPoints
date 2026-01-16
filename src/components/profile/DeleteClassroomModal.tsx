@@ -22,7 +22,7 @@ export function DeleteClassroomModal({
     if (isOpen) {
       setConfirmationText('');
     }
-  }, [isOpen, classroom?.id]);
+  }, [isOpen]);
 
   if (!classroom) return null;
 

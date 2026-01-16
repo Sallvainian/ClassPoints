@@ -206,6 +206,9 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
                               student.pointTotal >= 0 ? 'text-green-600' : 'text-red-600'
                             }`}
                           >
+                            <span className="sr-only">
+                              {student.pointTotal >= 0 ? 'positive' : 'negative'}{' '}
+                            </span>
                             ({student.pointTotal >= 0 ? '+' : ''}
                             {student.pointTotal} pts)
                           </span>
