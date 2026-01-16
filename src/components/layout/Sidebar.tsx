@@ -5,10 +5,11 @@ import { Button, Input, Modal } from '../ui';
 
 interface SidebarProps {
   onNavigateHome?: () => void;
+  onNavigateProfile?: () => void;
   onSelectClassroom?: (classroomId: string) => void;
 }
 
-export function Sidebar({ onNavigateHome, onSelectClassroom }: SidebarProps) {
+export function Sidebar({ onNavigateHome, onNavigateProfile, onSelectClassroom }: SidebarProps) {
   const { classrooms, activeClassroomId, setActiveClassroom, createClassroom } = useApp();
   const { user, signOut } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -134,15 +135,18 @@ export function Sidebar({ onNavigateHome, onSelectClassroom }: SidebarProps) {
 
       {/* User Account Section */}
       <div className="p-4 border-t border-blue-500">
-        <div className="flex items-center gap-3 mb-3">
+        <button
+          onClick={() => onNavigateProfile?.()}
+          className="w-full flex items-center gap-3 mb-3 p-2 -m-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+        >
           <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-medium">
             {displayName.charAt(0).toUpperCase()}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-left">
             <p className="text-sm font-medium text-white truncate">{displayName}</p>
             <p className="text-xs text-blue-200 truncate">{userEmail}</p>
           </div>
-        </div>
+        </button>
         <button
           onClick={signOut}
           className="w-full text-left px-3 py-2 text-sm text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"

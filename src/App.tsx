@@ -9,10 +9,11 @@ import { MigrationWizard } from './components/migration/MigrationWizard';
 import { Layout } from './components/layout';
 import { DashboardView } from './components/dashboard';
 import { ClassSettingsView } from './components/settings';
+import { ProfileView } from './components/profile';
 import { TeacherDashboard } from './components/home';
 import { hasLocalStorageData } from './utils/migrateToSupabase';
 
-type View = 'home' | 'dashboard' | 'settings' | 'migration';
+type View = 'home' | 'dashboard' | 'settings' | 'migration' | 'profile';
 
 function AppContent() {
   const { classrooms, setActiveClassroom } = useApp();
@@ -40,6 +41,7 @@ function AppContent() {
     <>
       <Layout
         onNavigateHome={() => setView('home')}
+        onNavigateProfile={() => setView('profile')}
         onSelectClassroom={(id) => {
           const exists = classrooms.some((c) => c.id === id);
           if (!exists) {
@@ -64,6 +66,8 @@ function AppContent() {
           />
         ) : view === 'dashboard' ? (
           <DashboardView onOpenSettings={() => setView('settings')} />
+        ) : view === 'profile' ? (
+          <ProfileView onClose={() => setView('home')} />
         ) : (
           <ClassSettingsView onClose={() => setView('dashboard')} />
         )}
