@@ -3,6 +3,8 @@ import { useApp } from '../../contexts/AppContext';
 import { getAvatarColorForName } from '../../utils';
 import { Button, Input, Modal } from '../ui';
 import { ImportStudentsModal } from '../classes/ImportStudentsModal';
+import { AdjustPointsModal } from './AdjustPointsModal';
+import { ResetPointsModal } from './ResetPointsModal';
 
 interface ClassSettingsViewProps {
   onClose: () => void;
@@ -18,10 +20,18 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
     removeStudent,
     updateStudent,
     setActiveClassroom,
+    adjustStudentPoints,
+    resetClassroomPoints,
   } = useApp();
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [studentToAdjust, setStudentToAdjust] = useState<{
+    id: string;
+    name: string;
+    pointTotal: number;
+  } | null>(null);
   const [newStudentName, setNewStudentName] = useState('');
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editingStudentName, setEditingStudentName] = useState('');
@@ -122,11 +132,7 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
             <h2 className="text-sm font-semibold text-gray-700">
               Students ({activeClassroom.students.length})
             </h2>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setIsImportModalOpen(true)}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setIsImportModalOpen(true)}>
               Import
             </Button>
           </div>
@@ -186,11 +192,27 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
                       <div className="flex items-center gap-3">
                         <div
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
-                          style={{ backgroundColor: student.avatarColor || getAvatarColorForName(student.name) }}
+                          style={{
+                            backgroundColor:
+                              student.avatarColor || getAvatarColorForName(student.name),
+                          }}
                         >
                           {student.name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-medium text-gray-900">{student.name}</span>
+                        <div>
+                          <span className="font-medium text-gray-900">{student.name}</span>
+                          <span
+                            className={`text-sm ml-2 ${
+                              student.pointTotal >= 0 ? 'text-green-600' : 'text-red-600'
+                            }`}
+                          >
+                            <span className="sr-only">
+                              {student.pointTotal >= 0 ? 'positive' : 'negative'}{' '}
+                            </span>
+                            ({student.pointTotal >= 0 ? '+' : ''}
+                            {student.pointTotal} pts)
+                          </span>
+                        </div>
                       </div>
                       <div className="flex gap-1">
                         <Button
@@ -199,6 +221,19 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
                           onClick={() => handleStartEditStudent(student.id, student.name)}
                         >
                           Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setStudentToAdjust({
+                              id: student.id,
+                              name: student.name,
+                              pointTotal: student.pointTotal,
+                            })
+                          }
+                        >
+                          Adjust
                         </Button>
                         <Button
                           variant="ghost"
@@ -220,15 +255,30 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
         {/* Danger Zone */}
         <section className="pt-4 border-t">
           <h2 className="text-sm font-semibold text-red-600 mb-3">Danger Zone</h2>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+
+          {/* Reset Points */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+            <h3 className="font-medium text-amber-800 mb-2">Reset All Points</h3>
             <p className="text-sm text-gray-700 mb-3">
-              Deleting this classroom will remove all students and their point history.
-              This action cannot be undone.
+              Clear all point history for this classroom. Student roster will be preserved.
             </p>
             <Button
-              variant="danger"
-              onClick={() => setIsDeleteConfirmOpen(true)}
+              variant="secondary"
+              className="border-amber-300 text-amber-800 hover:bg-amber-100"
+              onClick={() => setIsResetModalOpen(true)}
             >
+              Reset All Points
+            </Button>
+          </div>
+
+          {/* Delete Classroom */}
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 className="font-medium text-red-800 mb-2">Delete Classroom</h3>
+            <p className="text-sm text-gray-700 mb-3">
+              Deleting this classroom will remove all students and their point history. This action
+              cannot be undone.
+            </p>
+            <Button variant="danger" onClick={() => setIsDeleteConfirmOpen(true)}>
               Delete Classroom
             </Button>
           </div>
@@ -249,14 +299,11 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
         title="Delete Classroom?"
       >
         <p className="text-gray-600 mb-4">
-          Are you sure you want to delete "{activeClassroom.name}"? This will remove
-          all {activeClassroom.students.length} students and their point history.
+          Are you sure you want to delete "{activeClassroom.name}"? This will remove all{' '}
+          {activeClassroom.students.length} students and their point history.
         </p>
         <div className="flex justify-end gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => setIsDeleteConfirmOpen(false)}
-          >
+          <Button variant="secondary" onClick={() => setIsDeleteConfirmOpen(false)}>
             Cancel
           </Button>
           <Button variant="danger" onClick={handleDeleteClassroom}>
@@ -264,6 +311,26 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
           </Button>
         </div>
       </Modal>
+
+      {/* Adjust Points Modal */}
+      <AdjustPointsModal
+        student={studentToAdjust}
+        isOpen={studentToAdjust !== null}
+        onClose={() => setStudentToAdjust(null)}
+        onConfirm={async (studentId, targetPoints, note) => {
+          await adjustStudentPoints(activeClassroom.id, studentId, targetPoints, note);
+        }}
+      />
+
+      {/* Reset Points Modal */}
+      <ResetPointsModal
+        classroom={activeClassroom}
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onConfirm={async (classroomId) => {
+          await resetClassroomPoints(classroomId);
+        }}
+      />
     </div>
   );
 }

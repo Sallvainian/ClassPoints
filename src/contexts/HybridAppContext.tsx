@@ -142,6 +142,13 @@ interface HybridAppContextValue {
   getClassroomTransactions: (classroomId: string, limit?: number) => DbPointTransaction[];
   getRecentUndoableAction: () => UndoableAction | null;
   clearStudentPoints: (classroomId: string, studentId: string) => Promise<void>;
+  adjustStudentPoints: (
+    classroomId: string,
+    studentId: string,
+    targetPoints: number,
+    note?: string
+  ) => Promise<DbPointTransaction | null>;
+  resetClassroomPoints: (classroomId: string) => Promise<void>;
 }
 
 const HybridAppContext = createContext<HybridAppContextValue | null>(null);
@@ -205,6 +212,8 @@ function HybridAppProviderInner({ children }: { children: ReactNode }) {
     getClassroomTransactions: supabaseApp.getClassroomTransactions,
     getRecentUndoableAction: supabaseApp.getRecentUndoableAction,
     clearStudentPoints: supabaseApp.clearStudentPoints,
+    adjustStudentPoints: supabaseApp.adjustStudentPoints,
+    resetClassroomPoints: supabaseApp.resetClassroomPoints,
   };
 
   return <HybridAppContext.Provider value={value}>{children}</HybridAppContext.Provider>;

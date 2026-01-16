@@ -33,6 +33,10 @@ const DEFAULT_BEHAVIORS: NewBehavior[] = [
   { name: 'Late', points: -1, icon: '⏰', category: 'negative', is_custom: false },
 ];
 
+// Manual adjustment constants
+const MANUAL_ADJUSTMENT_NAME = 'Manual Adjustment';
+const MANUAL_ADJUSTMENT_ICON = '✏️';
+
 // Types matching the original app interface (for backwards compatibility)
 interface AppStudent {
   id: string;
@@ -157,6 +161,13 @@ interface SupabaseAppContextValue {
   getClassroomTransactions: (classroomId: string, limit?: number) => DbPointTransaction[];
   getRecentUndoableAction: () => UndoableAction | null;
   clearStudentPoints: (classroomId: string, studentId: string) => Promise<void>;
+  adjustStudentPoints: (
+    classroomId: string,
+    studentId: string,
+    targetPoints: number,
+    note?: string
+  ) => Promise<DbPointTransaction | null>;
+  resetClassroomPoints: (classroomId: string) => Promise<void>;
 }
 
 const SupabaseAppContext = createContext<SupabaseAppContextValue | null>(null);
@@ -645,6 +656,76 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     [clearStudentPointsHook]
   );
 
+  // Adjust student points to a target value (creates manual adjustment transaction)
+  const adjustStudentPoints = useCallback(
+    async (
+      classroomId: string,
+      studentId: string,
+      targetPoints: number,
+      note?: string
+    ): Promise<DbPointTransaction | null> => {
+      // Find the student to get current points
+      const student = students.find((s) => s.id === studentId);
+      if (!student) {
+        console.error('Student not found for adjustment:', studentId);
+        return null;
+      }
+
+      const currentTotal = student.point_total || 0;
+      const delta = targetPoints - currentTotal;
+
+      // Skip if no change needed
+      if (delta === 0) {
+        return null;
+      }
+
+      // Create a manual adjustment transaction
+      const { data, error: insertError } = await supabase
+        .from('point_transactions')
+        .insert({
+          student_id: studentId,
+          classroom_id: classroomId,
+          behavior_id: null, // No behavior template
+          behavior_name: MANUAL_ADJUSTMENT_NAME,
+          behavior_icon: MANUAL_ADJUSTMENT_ICON,
+          points: delta,
+          note: note || `Set points to ${targetPoints}`,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Error adjusting student points:', insertError);
+        throw new Error('Failed to adjust points. Please try again.');
+      }
+
+      // Refetch transactions to update state (DB trigger handles totals)
+      refetchTransactions();
+
+      return data;
+    },
+    [students, supabase, refetchTransactions]
+  );
+
+  // Reset all points for a classroom (deletes all transactions)
+  const resetClassroomPoints = useCallback(
+    async (classroomId: string): Promise<void> => {
+      const { error: deleteError } = await supabase
+        .from('point_transactions')
+        .delete()
+        .eq('classroom_id', classroomId);
+
+      if (deleteError) {
+        console.error('Error resetting classroom points:', deleteError);
+        throw new Error('Failed to reset points. Please try again.');
+      }
+
+      // Refetch transactions to update state (DB trigger resets student totals)
+      refetchTransactions();
+    },
+    [supabase, refetchTransactions]
+  );
+
   // ============================================
   // Mapped values for backwards compatibility
   // ============================================
@@ -798,6 +879,8 @@ export function SupabaseAppProvider({ children }: { children: ReactNode }) {
     getClassroomTransactions,
     getRecentUndoableAction,
     clearStudentPoints,
+    adjustStudentPoints,
+    resetClassroomPoints,
   };
 
   return <SupabaseAppContext.Provider value={value}>{children}</SupabaseAppContext.Provider>;
