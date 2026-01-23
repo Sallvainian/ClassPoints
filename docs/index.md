@@ -1,0 +1,129 @@
+# ClassPoints Documentation Index
+
+## Project Overview
+
+**ClassPoints** is a classroom behavior management web application for teachers to track student points through positive and negative behaviors.
+
+| Attribute            | Value                                   |
+| -------------------- | --------------------------------------- |
+| **Type**             | Single Page Application (SPA)           |
+| **Architecture**     | Component-based with BaaS               |
+| **Primary Language** | TypeScript                              |
+| **Framework**        | React 18.3                              |
+| **Backend**          | Supabase (PostgreSQL + Auth + Realtime) |
+
+## Quick Reference
+
+### Tech Stack
+
+- **Frontend:** React 18 + TypeScript + Vite 6.0
+- **Styling:** Tailwind CSS 4.1
+- **State:** React Context + Custom Hooks
+- **Backend:** Supabase BaaS (PostgreSQL 15+)
+- **Testing:** Vitest (unit) + Playwright (E2E)
+
+### Entry Points
+
+- **Application:** `src/main.tsx` → `src/App.tsx`
+- **State API:** `useApp()` from `src/contexts/HybridAppContext.tsx`
+- **Database:** `src/lib/supabase.ts`
+
+### Key Commands
+
+```bash
+npm run dev          # Start dev server
+npm run build        # Production build
+npm run test         # Unit tests
+npm run test:e2e     # E2E tests
+```
+
+## Generated Documentation
+
+### Architecture & Design
+
+- [Architecture Overview](./architecture.md) - System design, patterns, and decisions
+- [Data Models](./data-models.md) - Database schema, 10 tables, relationships
+- [State Management](./state-management.md) - React Context architecture, hooks, data flow
+
+### Implementation Reference
+
+- [Component Inventory](./component-inventory.md) - 53 React components by feature domain
+- [Source Tree Analysis](./source-tree-analysis.md) - Directory structure, file organization
+- [Development Guide](./development-guide.md) - Setup, workflows, debugging
+
+## CLAUDE.md Reference
+
+The project's [CLAUDE.md](../CLAUDE.md) contains:
+
+- Project overview and architecture diagram
+- Code conventions and file organization
+- Database tables with RLS requirements
+- Common operations checklists
+- Development commands
+- Environment variable setup
+
+## Additional Documentation
+
+### Project Root
+
+- [README.md](../README.md) - Quick start instructions
+- [CLAUDE.md](../CLAUDE.md) - AI assistant instructions
+
+### .claude/rules/
+
+- [components.md](../.claude/rules/components.md) - Component patterns
+- [contexts.md](../.claude/rules/contexts.md) - Context patterns
+- [hooks.md](../.claude/rules/hooks.md) - Hook patterns
+- [state-management.md](../.claude/rules/state-management.md) - State architecture
+- [testing.md](../.claude/rules/testing.md) - Testing patterns
+- [utils.md](../.claude/rules/utils.md) - Utility patterns
+
+## Database Schema Quick Reference
+
+| Table                 | Purpose                                         |
+| --------------------- | ----------------------------------------------- |
+| `classrooms`          | Teacher's classroom containers                  |
+| `students`            | Students with denormalized point totals         |
+| `behaviors`           | Point behavior templates (+1 to +5 or -1 to -5) |
+| `point_transactions`  | Immutable audit log of point awards             |
+| `seating_charts`      | Classroom seating canvas                        |
+| `seating_groups`      | Table groupings (A, B, C...)                    |
+| `seating_seats`       | Individual seats with student assignment        |
+| `room_elements`       | Static classroom elements (desks, doors)        |
+| `user_sound_settings` | Per-user sound preferences                      |
+| `layout_presets`      | Saved seating layouts                           |
+
+## Feature Domains
+
+| Domain                  | Components | Hooks                               |
+| ----------------------- | ---------- | ----------------------------------- |
+| **Authentication**      | 5          | AuthContext                         |
+| **Classroom Dashboard** | 8          | useClassrooms, useStudents          |
+| **Point Management**    | 6          | useTransactions, useBehaviors       |
+| **Seating Charts**      | 8          | useSeatingChart, useLayoutPresets   |
+| **Settings**            | 5          | useSoundEffects, useDisplaySettings |
+
+## Getting Started
+
+### For New Developers
+
+1. Read [Development Guide](./development-guide.md) for setup
+2. Review [Architecture](./architecture.md) for system understanding
+3. Study [State Management](./state-management.md) before writing code
+
+### For Adding Features
+
+1. Review [Component Inventory](./component-inventory.md) for existing patterns
+2. Check [Data Models](./data-models.md) if adding database tables
+3. Follow patterns in [.claude/rules/](../.claude/rules/)
+
+### For AI Assistants
+
+1. Start with this index for navigation
+2. Reference [CLAUDE.md](../CLAUDE.md) for conventions
+3. Check specific docs as needed for detailed information
+
+---
+
+_Generated by BMAD Document Project Workflow v1.2.0_
+_Last updated: 2026-01-23_
