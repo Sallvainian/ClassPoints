@@ -1,6 +1,9 @@
-# Component Patterns
+---
+paths:
+  - 'src/components/**/*.tsx'
+---
 
-**Applies to:** `src/components/**/*.tsx`
+# Component Patterns
 
 ---
 

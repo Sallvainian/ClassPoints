@@ -1,6 +1,10 @@
-# Utility Patterns
+---
+paths:
+  - 'src/utils/**/*.ts'
+  - 'src/types/**/*.ts'
+---
 
-**Applies to:** `src/utils/**/*.ts`
+# Utility Patterns
 
 ---
 

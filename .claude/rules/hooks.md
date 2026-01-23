@@ -1,6 +1,10 @@
-# Hook Patterns
+---
+paths:
+  - 'src/hooks/**/*.ts'
+  - 'src/hooks/**/*.tsx'
+---
 
-**Applies to:** `src/hooks/**/*.ts`
+# Hook Patterns
 
 ---
 

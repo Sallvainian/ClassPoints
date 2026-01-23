@@ -1,6 +1,11 @@
-# Testing Patterns
+---
+paths:
+  - 'src/test/**/*.test.ts'
+  - 'src/test/**/*.test.tsx'
+  - 'e2e/**/*.spec.ts'
+---
 
-**Applies to:** `src/test/**/*.test.ts`, `e2e/**/*.ts`
+# Testing Patterns
 
 ---
 

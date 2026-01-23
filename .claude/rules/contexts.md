@@ -1,6 +1,9 @@
-# Context Patterns
+---
+paths:
+  - 'src/contexts/**/*.tsx'
+---
 
-**Applies to:** `src/contexts/**/*.tsx`
+# Context Patterns
 
 ---
 

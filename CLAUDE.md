@@ -1,203 +1,136 @@
-# ClassPoints - Claude Code Instructions
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-ClassPoints is a classroom behavior management web app for teachers to track student points. Built with React 18 + TypeScript + Vite + Supabase.
-
-## Architecture
-
-```
-UI Components → React Context → Custom Hooks → Supabase Client → PostgreSQL
-```
-
-**Key Contexts (in provider order):**
-1. `AuthProvider` - Supabase authentication
-2. `AuthGuard` - Route protection
-3. `HybridAppProvider` - Online/offline mode switching
-4. `AppContext` - Unified API facade for components
-
-## Code Conventions
-
-### File Organization
-- Components: `src/components/{feature}/ComponentName.tsx`
-- Hooks: `src/hooks/useHookName.ts`
-- Types: `src/types/`
-- Utils: `src/utils/`
-
-### Naming
-- Components: PascalCase (`StudentGrid.tsx`)
-- Hooks: camelCase with `use` prefix (`useClassrooms.ts`)
-- Types: PascalCase interfaces (`Classroom`, `Student`)
-
-### Component Patterns
-```tsx
-// Functional components with TypeScript props
-interface ComponentProps {
-  prop: Type;
-}
-
-export function Component({ prop }: ComponentProps) {
-  // Hooks at top
-  const { data } = useApp();
-
-  // Event handlers
-  const handleClick = () => {};
-
-  // Early returns for loading/error states
-  if (loading) return <Loading />;
-
-  // Main render
-  return <div>...</div>;
-}
-```
-
-### State Management
-- Use `useApp()` hook for app-wide state access
-- Local state with `useState` for component-specific state
-- Never access contexts directly in components - use `useApp()` facade
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `src/App.tsx` | Root component with provider hierarchy |
-| `src/contexts/AppContext.tsx` | Main state facade - READ THIS FIRST for data operations |
-| `src/contexts/HybridAppContext.tsx` | Online/offline switching logic |
-| `src/contexts/SupabaseAppContext.tsx` | Full Supabase data layer |
-| `src/hooks/useRealtimeSubscription.ts` | Generic realtime subscription hook |
-| `src/lib/supabase.ts` | Supabase client initialization |
-| `supabase/migrations/001_initial_schema.sql` | Database schema with RLS |
-
-## Database
-
-### Tables
-- `classrooms` - User's classrooms
-- `students` - Students in classrooms
-- `behaviors` - Point behavior templates
-- `point_transactions` - Awarded points history
-
-### Important: Row Level Security
-All tables have RLS. When adding new tables:
-```sql
-ALTER TABLE new_table ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own data" ON new_table
-  FOR SELECT USING (user_id = auth.uid());
--- Add INSERT, UPDATE, DELETE policies
-```
-
-### Important: Realtime DELETE events
-Tables need `REPLICA IDENTITY FULL` for complete DELETE payloads:
-```sql
-ALTER TABLE table_name REPLICA IDENTITY FULL;
-```
-
-## Common Operations
-
-### Adding a new component
-1. Create in appropriate `src/components/{feature}/` directory
-2. Export from component's index if exists
-3. Use `useApp()` for state access
-
-### Adding a new hook
-1. Create in `src/hooks/useHookName.ts`
-2. Export from `src/hooks/index.ts`
-3. Follow existing hook patterns
-
-### Adding a new database table
-1. Create migration in `supabase/migrations/`
-2. Add RLS policies
-3. Add types to `src/types/database.ts`
-4. Add domain types to `src/types/index.ts`
-5. Create hook for data access
-
-### Modifying state operations
-1. Update `SupabaseAppContext.tsx` for Supabase operations
-2. Update `HybridAppContext.tsx` if it affects online/offline behavior
-3. Expose through `AppContext.tsx` if needed by components
+ClassPoints is a React classroom management app for teachers to track student behavior points. It uses Supabase for real-time data synchronization and supports offline fallback.
 
 ## Commands
 
 ```bash
-npm run dev          # Start dev server (localhost:5173)
-npm run dev:host     # Start dev server exposed to network
-npm run build        # Production build
-npm run lint         # ESLint check
-npm run test         # Vitest unit tests
-npm run test:e2e     # Playwright E2E tests
+npm run dev          # Start dev server (http://localhost:5173)
+npm run build        # TypeScript compile + Vite build
+npm run lint         # ESLint
+npm run typecheck    # TypeScript check (tsc --noEmit)
+npm test             # Vitest unit tests (watch mode)
+npm run test:e2e     # Playwright E2E tests (requires TEST_EMAIL, TEST_PASSWORD env vars)
+npm run test:e2e:ui  # Playwright with UI
 ```
 
-## Environment Variables
+**Single test file:** `npm test -- src/test/specificFile.test.ts`
 
-**Using dotenvx for encrypted secrets.**
+**Pre-commit hook:** Runs lint-staged + typecheck automatically.
 
-| File | Purpose | Git |
-|------|---------|-----|
-| `.env.local` | Encrypted env vars | ✅ Committed |
-| `.env.keys` | Private decryption keys | ❌ Never commit |
-| `.env.example` | Template for reference | ✅ Committed |
+## Architecture
 
-### Running locally
-```bash
-npm run dev        # dotenvx is built into npm scripts
-npm run dev:host   # expose to network
+### Context Hierarchy (Order Matters)
+
+```
+AuthProvider          → User authentication (Supabase Auth)
+  AuthGuard           → Route protection
+    SoundProvider     → Sound effects
+      HybridAppProvider → Main app state
+        AppContent    → Views and routing
 ```
 
-### Required variables (in `.env.local`):
+### Data Flow Pattern
+
+**Single Source of Truth:** All components access state via `useApp()` hook - never import contexts directly.
+
+```tsx
+// ALWAYS do this:
+const { classrooms, students, awardPoints } = useApp();
+
+// NEVER do this:
+const context = useContext(AppContext); // Wrong
 ```
-VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
+
+### Context Layer Responsibilities
+
+| Context              | Purpose                                    | Notes           |
+| -------------------- | ------------------------------------------ | --------------- |
+| `AuthContext`        | Supabase auth, session                     | Use `useAuth()` |
+| `HybridAppContext`   | Unified state facade with offline fallback | Use `useApp()`  |
+| `SupabaseAppContext` | Supabase operations, realtime sync         | Internal only   |
+
+### Data Hooks (Feature-Level)
+
+Each domain has a dedicated hook with CRUD + realtime subscriptions:
+
+- `useClassrooms` - Classroom management with student summaries
+- `useStudents` - Student data with stored point totals
+- `useBehaviors` - Behavior templates (positive/negative)
+- `useTransactions` - Point transactions with batch support
+- `useSeatingChart` - Seating chart editor state
+
+### Realtime Subscriptions
+
+Use `useRealtimeSubscription` for Supabase realtime:
+
+```tsx
+useRealtimeSubscription<DbStudent>({
+  table: 'students',
+  filter: classroomId ? `classroom_id=eq.${classroomId}` : undefined,
+  onInsert: (student) => setStudents((prev) => [...prev, transform(student)]),
+  onUpdate: (student) =>
+    setStudents((prev) => prev.map((s) => (s.id === student.id ? transform(student) : s))),
+  onDelete: ({ id }) => setStudents((prev) => prev.filter((s) => s.id !== id)),
+});
 ```
 
-### CI/CD Setup
-Set `DOTENV_PRIVATE_KEY_LOCAL` as a secret in your CI environment.
+**Critical:** Always cleanup subscriptions in useEffect return.
 
-## Testing
+### Optimistic Updates Pattern
 
-- **Unit tests:** `src/test/` with Vitest
-- **E2E tests:** `e2e/` with Playwright
-- E2E tests require `TEST_EMAIL` and `TEST_PASSWORD` env vars
+Updates follow this sequence for responsive UI:
 
-## Gotchas
+1. Update local state immediately
+2. Send request to Supabase
+3. On error: rollback local state and let realtime resync
 
-1. **Hooks order matters** - All hooks must be called before any early returns
-2. **Realtime subscriptions** - Clean up on unmount to prevent memory leaks
-3. **Optimistic updates** - UI updates before server confirmation
-4. **Batch operations** - Use `batch_id` for class-wide awards (enables batch undo)
-5. **Offline mode** - App works without Supabase using localStorage fallback
+### Point Totals
+
+Student point totals (`point_total`, `positive_total`, `negative_total`, `today_total`, `this_week_total`) are stored in the database and maintained by DB triggers. Components read stored totals, not recalculated from transactions.
 
 ## Types
 
-### Core Domain Types
-```typescript
-type BehaviorCategory = 'positive' | 'negative';
+- `src/types/index.ts` - App-level types (Student, Classroom, Behavior)
+- `src/types/database.ts` - Supabase schema types with convenience aliases
+- `src/types/seatingChart.ts` - Seating chart specific types
 
-interface Behavior {
-  id: string; name: string; points: number;
-  icon: string; category: BehaviorCategory;
-  isCustom: boolean; createdAt: number;
-}
+Database types use `snake_case`, app types use `camelCase`. Contexts handle the mapping.
 
-interface Student {
-  id: string; name: string; avatarColor?: string;
-}
+## Environment Variables
 
-interface Classroom {
-  id: string; name: string; students: Student[];
-  createdAt: number; updatedAt: number; pointTotal?: number;
-}
+Required in `.env.local`:
 
-interface PointTransaction {
-  id: string; studentId: string; classroomId: string;
-  behaviorId: string; behaviorName: string; behaviorIcon: string;
-  points: number; timestamp: number; note?: string;
-}
+```
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
 ```
 
-## Documentation
+For E2E tests:
 
-Full documentation available in `docs/`:
-- [Architecture](docs/architecture.md)
-- [Data Models](docs/data-models.md)
-- [Tech Stack](docs/tech-stack.md)
-- [Source Tree](docs/source-tree.md)
+```
+TEST_EMAIL=...
+TEST_PASSWORD=...
+```
+
+## Project-Specific Rules
+
+Detailed patterns in `.claude/rules/`:
+
+- `components.md` - Component structure, naming, props
+- `contexts.md` - Context hierarchy, state operations
+- `hooks.md` - Hook patterns, cleanup requirements
+- `state-management.md` - Global/feature/local state layers
+- `testing.md` - Vitest and Playwright patterns
+- `utils.md` - Utility function patterns
+
+### Key Constraints
+
+1. **Hooks before returns:** All hooks must be called before any early returns
+2. **No direct context access:** Always use `useApp()`, never import context directly
+3. **Cleanup subscriptions:** Every realtime subscription needs cleanup
+4. **Optimistic updates:** UI updates before server confirmation, rollback on error
