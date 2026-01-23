@@ -3,12 +3,6 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
 
 jobs:
   claude-review:
@@ -37,18 +31,76 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Please review this pull request and provide feedback on:
-            - Code quality and best practices
-            - Potential bugs or issues
-            - Performance considerations
-            - Security concerns
-            - Test coverage
+            ## Code Review Instructions
 
-            Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
+            Review this pull request using the project-specific rules below. Be constructive and helpful.
 
-            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
+            ## PROJECT RULES - ClassPoints
 
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
+            ### Component Patterns
+            - **Files:** PascalCase (`StudentGrid.tsx`)
+            - **Props interfaces:** `{ComponentName}Props`
+            - **Structure:** 1) ALL hooks first (before conditionals) 2) Event handlers 3) Early returns AFTER hooks 4) Main render
+            - **REQUIRED:** Use `useApp()` hook for app-wide state - never access contexts directly
+            - **REQUIRED:** Export named functions (not default exports)
+            - **CRITICAL:** All hooks must be called before any early returns
+            - **AVOID:** Inline styles - use Tailwind classes
+            - **AVOID:** Prop drilling - use `useApp()` instead
+
+            ### Context Hierarchy (Order Matters!)
+            ```
+            AuthProvider → AuthGuard → HybridAppProvider → AppContent
+            ```
+            - Components MUST use `useApp()` - never import `AppContext`, `HybridAppContext`, etc. directly
+            - `useApp()` is the single facade for all data operations
+
+            ### Hook Patterns
+            - **Files:** camelCase with `use` prefix (`useClassrooms.ts`)
+            - **CRITICAL:** Always clean up subscriptions in useEffect return (memory leak prevention)
+            - **REQUIRED:** Use `useCallback` for functions returned to consumers
+            - **REQUIRED:** Handle loading and error states
+            - **NEVER:** Omit dependencies in useEffect/useCallback
+
+            ### Supabase Patterns
+            - ALWAYS destructure `{ data, error }` - check error FIRST
+            - ALWAYS cleanup subscriptions in useEffect return
+            - Use optimistic updates: Update UI immediately, sync with server, rollback on error
+            - RLS is automatic - queries only return allowed rows
+            - Database uses `snake_case`, app uses `camelCase` - transform at context boundary
+
+            ### State Management
+            - **Global:** `AppContext` + `useApp()` (user, classrooms, active classroom)
+            - **Feature:** Custom hooks with Supabase backing (`useSeatingChart`, `useLayoutPresets`)
+            - **Local:** `useState`, `useReducer` (modal state, form inputs)
+            - Always use optimistic updates for responsive UI
+
+            ### Testing Patterns
+            - **Unit tests:** `src/test/` with Vitest
+            - **E2E tests:** `e2e/` with Playwright
+            - Mock Supabase client for unit tests (don't hit real API)
+            - Use `data-testid` attributes for E2E selectors
+            - Test behavior, not implementation details
+            - NEVER test internal state, test observable behavior
+
+            ## Review Checklist
+
+            Check the PR for:
+            1. **Hooks Order:** All hooks called before any early returns
+            2. **Context Usage:** Uses `useApp()`, not direct context access
+            3. **Cleanup:** All useEffect subscriptions have cleanup returns
+            4. **Dependencies:** useEffect/useCallback have correct dependency arrays
+            5. **Error Handling:** Supabase calls check error before using data
+            6. **Type Safety:** Props interfaces defined, explicit return types
+            7. **Naming:** PascalCase components, camelCase hooks, named exports
+            8. **Tests:** Behavior-focused tests, mocked Supabase, no implementation details
+
+            ## Output Format
+
+            Use `gh pr comment` to post your review with this structure:
+            - **Summary:** Brief overview of changes
+            - **Issues Found:** Critical issues that must be fixed
+            - **Suggestions:** Non-blocking improvements
+            - **Positive Feedback:** What was done well
+
           claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
 

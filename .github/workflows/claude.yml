@@ -23,7 +23,7 @@ jobs:
       pull-requests: read
       issues: read
       id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -35,16 +35,49 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-
-          # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
+          # System prompt with project rules - Claude will follow these while executing the tagged comment
+          prompt: |
+            ## ClassPoints Project Rules
 
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
+            When working on this codebase, follow these patterns:
+
+            ### Component Patterns
+            - PascalCase files and components (`StudentGrid.tsx`)
+            - Props interfaces: `{ComponentName}Props`
+            - Structure: 1) ALL hooks first 2) Event handlers 3) Early returns AFTER hooks 4) Render
+            - Use `useApp()` for app-wide state - never access contexts directly
+            - Export named functions, not default exports
+            - All hooks must be called before any early returns
+            - Use Tailwind classes, avoid inline styles
+
+            ### Context & State
+            - Provider hierarchy: AuthProvider → AuthGuard → HybridAppProvider → AppContent
+            - Components MUST use `useApp()` - never import contexts directly
+            - Global state via `useApp()`, Feature state via custom hooks, Local state via useState
+            - Always use optimistic updates: Update UI → sync server → rollback on error
+
+            ### Hooks
+            - camelCase with `use` prefix (`useClassrooms.ts`)
+            - ALWAYS clean up subscriptions in useEffect return
+            - Use `useCallback` for functions returned to consumers
+            - Never omit dependencies in useEffect/useCallback
+
+            ### Supabase
+            - Always destructure `{ data, error }` and check error FIRST
+            - Always cleanup subscriptions in useEffect
+            - Database uses `snake_case`, app uses `camelCase` - transform at context boundary
+            - RLS is automatic - queries only return allowed rows
+
+            ### Testing
+            - Unit tests in `src/test/` with Vitest, E2E in `e2e/` with Playwright
+            - Mock Supabase for unit tests
+            - Use `data-testid` for E2E selectors
+            - Test behavior, not implementation details
+
+            ---
+
+            Now execute the task from the comment that tagged you.
 
