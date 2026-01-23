@@ -154,6 +154,15 @@ export function Sidebar({ onNavigateHome, onNavigateProfile, onSelectClassroom }
           <span>🚪</span>
           Sign Out
         </button>
+        <a
+          href="https://github.com/Sallvainian/ClassPoints/blob/main/docs/PRIVACY_POLICY.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full text-left px-3 py-2 text-xs text-blue-200 hover:text-white transition-colors flex items-center gap-2 mt-2"
+        >
+          <span>🔒</span>
+          Privacy Policy
+        </a>
       </div>
 
       {/* Create Classroom Modal */}
