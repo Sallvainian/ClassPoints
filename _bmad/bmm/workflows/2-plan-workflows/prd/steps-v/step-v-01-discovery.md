@@ -68,7 +68,6 @@ This file contains the BMAD PRD philosophy, standards, and validation criteria t
 ### 2. Discover PRD to Validate
 
 **If PRD path provided as invocation parameter:**
-
 - Use provided path
 
 **If no PRD path provided:**
@@ -107,7 +106,6 @@ For each document listed in `inputDocuments`:
 - Note any documents that fail to load
 
 **Build list of loaded input documents:**
-
 - Product Brief (if present)
 - Research documents (if present)
 - Other reference materials (if present)
@@ -121,7 +119,6 @@ For each document listed in `inputDocuments`:
 **Are there any additional reference documents you'd like me to include in this validation?**
 
 These could include:
-
 - Additional research or context documents
 - Project documentation not tracked in frontmatter
 - Standards or compliance documents
@@ -136,7 +133,6 @@ Please provide paths to any additional documents, or type 'none' to proceed."
 Create validation report at: `{validationReportPath}`
 
 **Initialize with frontmatter:**
-
 ```yaml
 ---
 validationTarget: '{prd_path}'
@@ -148,7 +144,6 @@ validationStatus: IN_PROGRESS
 ```
 
 **Initial content:**
-
 ```markdown
 # PRD Validation Report
 
@@ -171,7 +166,6 @@ validationStatus: IN_PROGRESS
 **PRD to Validate:** {prd_path}
 
 **Input Documents Loaded:**
-
 - PRD: {prd_name} ✓
 - Product Brief: {count} {if count > 0}✓{else}(none found){/if}
 - Research: {count} {if count > 0}✓{else}(none found){/if}
