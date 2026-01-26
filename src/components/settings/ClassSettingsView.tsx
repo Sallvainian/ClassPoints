@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
-import { getAvatarColorForName } from '../../utils';
+import { getAvatarColorForName, exportClassroomToCombinedCSV } from '../../utils';
 import { Button, Input, Modal } from '../ui';
 import { ImportStudentsModal } from '../classes/ImportStudentsModal';
 import { AdjustPointsModal } from './AdjustPointsModal';
@@ -22,11 +22,14 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
     setActiveClassroom,
     adjustStudentPoints,
     resetClassroomPoints,
+    getClassroomTransactions,
   } = useApp();
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isClearStudentsOpen, setIsClearStudentsOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [studentToAdjust, setStudentToAdjust] = useState<{
     id: string;
     name: string;
@@ -88,6 +91,30 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
   const handleCancelStudentEdit = () => {
     setEditingStudentId(null);
     setEditingStudentName('');
+  };
+
+  const handleExportData = () => {
+    if (!activeClassroom) return;
+    setIsExporting(true);
+    try {
+      const transactions = getClassroomTransactions(activeClassroom.id);
+      exportClassroomToCombinedCSV({
+        classroomName: activeClassroom.name,
+        students: activeClassroom.students,
+        transactions,
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleClearAllStudents = async () => {
+    if (!activeClassroom) return;
+    // Remove all students one by one (cascades to transactions via DB)
+    for (const student of activeClassroom.students) {
+      await removeStudent(activeClassroom.id, student.id);
+    }
+    setIsClearStudentsOpen(false);
   };
 
   // Sort students alphabetically
@@ -252,6 +279,24 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
           )}
         </section>
 
+        {/* Data Management */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Data Management</h2>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h3 className="font-medium text-gray-800 mb-2">Export Classroom Data</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Download a CSV file containing all students and point history for this classroom.
+            </p>
+            <Button
+              variant="secondary"
+              onClick={handleExportData}
+              disabled={isExporting || activeClassroom.students.length === 0}
+            >
+              {isExporting ? 'Exporting...' : 'Export to CSV'}
+            </Button>
+          </div>
+        </section>
+
         {/* Danger Zone */}
         <section className="pt-4 border-t">
           <h2 className="text-sm font-semibold text-red-600 mb-3">Danger Zone</h2>
@@ -268,6 +313,23 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
               onClick={() => setIsResetModalOpen(true)}
             >
               Reset All Points
+            </Button>
+          </div>
+
+          {/* Clear All Students */}
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+            <h3 className="font-medium text-orange-800 mb-2">Clear All Students</h3>
+            <p className="text-sm text-gray-700 mb-3">
+              Remove all students from this classroom. The classroom will be preserved but all
+              student data and point history will be deleted.
+            </p>
+            <Button
+              variant="secondary"
+              className="border-orange-300 text-orange-800 hover:bg-orange-100"
+              onClick={() => setIsClearStudentsOpen(true)}
+              disabled={activeClassroom.students.length === 0}
+            >
+              Clear All Students
             </Button>
           </div>
 
@@ -331,6 +393,31 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
           await resetClassroomPoints(classroomId);
         }}
       />
+
+      {/* Clear All Students Confirmation Modal */}
+      <Modal
+        isOpen={isClearStudentsOpen}
+        onClose={() => setIsClearStudentsOpen(false)}
+        title="Clear All Students?"
+      >
+        <p className="text-gray-600 mb-4">
+          Are you sure you want to remove all {activeClassroom.students.length} student
+          {activeClassroom.students.length !== 1 ? 's' : ''} from "{activeClassroom.name}"? This
+          will delete all student data and point history. The classroom itself will be preserved.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setIsClearStudentsOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleClearAllStudents}
+            disabled={activeClassroom.students.length === 0}
+          >
+            Clear All Students
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
