@@ -4,16 +4,16 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "dotenvx run -f .env.local -- vite",
-    "dev:host": "dotenvx run -f .env.local -- vite --host",
-    "build": "tsc -b && dotenvx run -f .env.local -- vite build",
+    "dev": "vite",
+    "dev:host": "vite --host",
+    "build": "tsc -b && vite build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "preview": "dotenvx run -f .env.local -- vite preview",
+    "preview": "vite preview",
     "test": "vitest",
-    "test:e2e": "dotenvx run -f .env.local -- playwright test",
-    "test:e2e:ui": "dotenvx run -f .env.local -- playwright test --ui",
-    "migrate": "dotenvx run -f .env.local -- tsx scripts/migrate-data.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "migrate": "tsx scripts/migrate-data.ts",
     "prepare": "simple-git-hooks"
   },
   "dependencies": {
@@ -25,7 +25,6 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
-    "@dotenvx/dotenvx": "^1.51.4",
     "@eslint/js": "^9.39.2",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4.1.18",

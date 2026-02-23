@@ -80,15 +80,18 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
       - name: Run tests with retry
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 15
           max_attempts: 2
           retry_on: error
-          command: npm run test:e2e -- --shard=${{ matrix.shard }}/4
+          command: doppler run -- npm run test:e2e -- --shard=${{ matrix.shard }}/4
         env:
-          DOTENV_PRIVATE_KEY_LOCAL: ${{ secrets.DOTENV_PRIVATE_KEY_LOCAL }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_DEV }}
 
       - name: Upload test results
         if: failure()
@@ -133,14 +136,17 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
       - name: Run burn-in loop (10 iterations)
         run: |
           for i in {1..10}; do
             echo "🔥 Burn-in iteration $i/10"
-            npm run test:e2e || exit 1
+            doppler run -- npm run test:e2e || exit 1
           done
         env:
-          DOTENV_PRIVATE_KEY_LOCAL: ${{ secrets.DOTENV_PRIVATE_KEY_LOCAL }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_DEV }}
 
       - name: Upload failure artifacts
         if: failure()

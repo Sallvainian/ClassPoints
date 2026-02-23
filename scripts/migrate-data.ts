@@ -71,18 +71,9 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
-  // Try to load from .env.local
-  const envPath = path.join(__dirname, '..', '.env.local');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf-8');
-    const lines = envContent.split('\n');
-    for (const line of lines) {
-      const [key, ...valueParts] = line.split('=');
-      const value = valueParts.join('=').trim();
-      if (key === 'VITE_SUPABASE_URL') process.env.VITE_SUPABASE_URL = value;
-      if (key === 'VITE_SUPABASE_ANON_KEY') process.env.VITE_SUPABASE_ANON_KEY = value;
-    }
-  }
+  console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables.');
+  console.error('Run with: doppler run -- tsx scripts/migrate-data.ts');
+  process.exit(1);
 }
 
 const supabase = createClient<Database>(
@@ -108,7 +99,9 @@ async function authenticate(): Promise<string | null> {
   console.log('\n=== Supabase Authentication ===\n');
 
   // Check if already logged in
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (user) {
     console.log(`Already logged in as: ${user.email}`);
     return user.id;
@@ -164,7 +157,7 @@ async function migrateData(data: LocalStorageData, userId: string): Promise<void
   console.log('\n=== Starting Migration ===\n');
   console.log(`Classrooms: ${data.classrooms.length}`);
   console.log(`Students: ${data.classrooms.reduce((sum, c) => sum + c.students.length, 0)}`);
-  console.log(`Custom behaviors: ${data.behaviors.filter(b => b.isCustom).length}`);
+  console.log(`Custom behaviors: ${data.behaviors.filter((b) => b.isCustom).length}`);
   console.log(`Transactions: ${data.transactions.length}`);
   console.log('');
 
@@ -228,14 +221,12 @@ async function migrateData(data: LocalStorageData, userId: string): Promise<void
 
   // 3. Map existing behaviors and migrate custom ones
   console.log('\nMapping behaviors...');
-  const { data: existingBehaviors } = await supabase
-    .from('behaviors')
-    .select('id, name');
+  const { data: existingBehaviors } = await supabase.from('behaviors').select('id, name');
 
   if (existingBehaviors) {
     for (const behavior of data.behaviors) {
       const existing = existingBehaviors.find(
-        b => b.name.toLowerCase() === behavior.name.toLowerCase()
+        (b) => b.name.toLowerCase() === behavior.name.toLowerCase()
       );
       if (existing) {
         behaviorIdMap.set(behavior.id, existing.id);
@@ -245,7 +236,7 @@ async function migrateData(data: LocalStorageData, userId: string): Promise<void
   }
 
   // Migrate custom behaviors
-  const customBehaviors = data.behaviors.filter(b => b.isCustom);
+  const customBehaviors = data.behaviors.filter((b) => b.isCustom);
   for (const behavior of customBehaviors) {
     if (behaviorIdMap.has(behavior.id)) continue; // Already mapped
 
@@ -306,9 +297,7 @@ async function migrateData(data: LocalStorageData, userId: string): Promise<void
     }
 
     if (transformedBatch.length > 0) {
-      const { error } = await supabase
-        .from('point_transactions')
-        .insert(transformedBatch);
+      const { error } = await supabase.from('point_transactions').insert(transformedBatch);
 
       if (error) {
         console.error(`  Batch failed: ${error.message}`);
