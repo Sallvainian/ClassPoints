@@ -81,7 +81,7 @@ jobs:
         run: npx playwright install-deps chromium
 
       - name: Install Doppler CLI
-        uses: dopplerhq/cli-action@v3
+        uses: dopplerhq/cli-action@v4
 
       - name: Run tests with retry
         uses: nick-fields/retry@v3
@@ -137,7 +137,7 @@ jobs:
         run: npx playwright install-deps chromium
 
       - name: Install Doppler CLI
-        uses: dopplerhq/cli-action@v3
+        uses: dopplerhq/cli-action@v4
 
       - name: Run burn-in loop (10 iterations)
         run: |
