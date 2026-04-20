@@ -14,7 +14,9 @@ npm run build        # TypeScript compile + Vite build
 npm run lint         # ESLint
 npm run typecheck    # TypeScript check (tsc --noEmit)
 npm test             # Vitest unit tests (watch mode)
-npm run test:e2e     # Playwright E2E tests (requires TEST_EMAIL, TEST_PASSWORD env vars)
+npm run test:seed    # Seed the test user into the LOCAL Supabase stack
+npm run test:e2e     # Playwright E2E (loads .env.test; refuses to run against hosted Supabase)
+npm run test:e2e:local # Same as test:e2e, but seeds the test user first
 npm run test:e2e:ui  # Playwright with UI
 ```
 
@@ -109,12 +111,17 @@ VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 ```
 
-For E2E tests:
+For E2E tests — use a LOCAL Supabase stack, never hit hosted:
 
+```bash
+# One-time setup
+npx supabase start                    # boots Postgres/Realtime/Auth on 127.0.0.1
+cp .env.test.example .env.test        # then fill in anon + service-role keys from `npx supabase status`
+npm run test:seed                     # creates the test user in local auth
+npm run test:e2e:local                # runs full suite against local stack
 ```
-TEST_EMAIL=...
-TEST_PASSWORD=...
-```
+
+`playwright.config.ts` throws if `VITE_SUPABASE_URL` isn't `127.0.0.1` or `localhost` — deliberate guardrail so E2E runs can never write to the hosted database. `.env.test` holds local credentials and is gitignored; `.env.test.example` is the committed template.
 
 ## Project-Specific Rules
 

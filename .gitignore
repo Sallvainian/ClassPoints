@@ -27,6 +27,11 @@ dist-ssr
 # .env.keys contains private keys - NEVER commit
 .env.keys
 .envrc
+# .env.test holds local Supabase credentials for E2E — ignored, use .env.test.example as a template
+.env.test
+
+# Supabase CLI transient state
+supabase/.temp/
 
 # AI tooling folders (local configs, not project code)
 .agent/
