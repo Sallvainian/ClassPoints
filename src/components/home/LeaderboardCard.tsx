@@ -10,7 +10,7 @@ import {
   type LeaderboardEntry,
 } from '../../utils/leaderboardCalculations';
 import { useRotatingCategory } from '../../hooks';
-import type { AppStudent, AppClassroom } from '../../contexts/HybridAppContext';
+import type { AppStudent, AppClassroom } from '../../types';
 
 type LeaderboardCategory =
   | 'overall'

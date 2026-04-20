@@ -1,4 +1,4 @@
-import type { AppStudent, AppClassroom } from '../contexts/HybridAppContext';
+import type { AppStudent, AppClassroom } from '../types';
 
 /**
  * Milestone point values for "Rising Stars" category

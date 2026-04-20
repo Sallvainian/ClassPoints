@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { SoundProvider } from './contexts/SoundContext';
-import { HybridAppProvider } from './contexts/HybridAppContext';
-import { useApp } from './contexts/AppContext';
+import { AppProvider, useApp } from './contexts/AppContext';
 import { AuthGuard } from './components/auth/AuthGuard';
 import { SyncStatus } from './components/common/SyncStatus';
 import { MigrationWizard } from './components/migration/MigrationWizard';
@@ -82,9 +81,9 @@ export default function App() {
     <AuthProvider>
       <AuthGuard>
         <SoundProvider>
-          <HybridAppProvider>
+          <AppProvider>
             <AppContent />
-          </HybridAppProvider>
+          </AppProvider>
         </SoundProvider>
       </AuthGuard>
     </AuthProvider>

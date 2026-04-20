@@ -53,7 +53,16 @@ export interface Classroom {
   createdAt: number;
   updatedAt: number;
   pointTotal?: number; // Pre-fetched total points for sidebar display
+  positiveTotal?: number; // Total positive points
+  negativeTotal?: number; // Total negative points
+  todayTotal?: number; // Points awarded today
+  thisWeekTotal?: number; // Points awarded this week
 }
+
+// Aliases retained for existing call sites; prefer the unprefixed names above for new code.
+export type AppStudent = Student;
+export type AppClassroom = Classroom;
+export type AppBehavior = Behavior;
 
 // Application state
 export interface AppState {
