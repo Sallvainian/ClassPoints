@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ClassPoints is a React classroom management app for teachers to track student behavior points. It uses Supabase for real-time data synchronization and supports offline fallback.
+ClassPoints is a React classroom management app for teachers to track student behavior points. It uses Supabase for real-time data synchronization.
 
 ## Commands
 
@@ -30,7 +30,7 @@ npm run test:e2e:ui  # Playwright with UI
 AuthProvider          → User authentication (Supabase Auth)
   AuthGuard           → Route protection
     SoundProvider     → Sound effects
-      HybridAppProvider → Main app state
+      AppProvider     → Main app state (Supabase + realtime)
         AppContent    → Views and routing
 ```
 
@@ -48,11 +48,10 @@ const context = useContext(AppContext); // Wrong
 
 ### Context Layer Responsibilities
 
-| Context              | Purpose                                    | Notes           |
-| -------------------- | ------------------------------------------ | --------------- |
-| `AuthContext`        | Supabase auth, session                     | Use `useAuth()` |
-| `HybridAppContext`   | Unified state facade with offline fallback | Use `useApp()`  |
-| `SupabaseAppContext` | Supabase operations, realtime sync         | Internal only   |
+| Context       | Purpose                            | Notes           |
+| ------------- | ---------------------------------- | --------------- |
+| `AuthContext` | Supabase auth, session             | Use `useAuth()` |
+| `AppContext`  | Supabase operations, realtime sync | Use `useApp()`  |
 
 ### Data Hooks (Feature-Level)
 

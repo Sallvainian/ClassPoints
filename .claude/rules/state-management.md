@@ -297,9 +297,11 @@ export function useStudents(classroomId: string): UseStudentsReturn {
 ### Generic Hooks
 
 ```ts
-// Reusable async state hook
+// Reusable async state hook — uses AbortController to actually cancel
+// in-flight requests (not just suppress setState after unmount).
+// Pattern precedent: src/utils/validateAudioUrl.ts
 function useAsyncState<T>(
-  asyncFn: () => Promise<T>,
+  asyncFn: (signal: AbortSignal) => Promise<T>,
   deps: DependencyList
 ): { data: T | null; loading: boolean; error: Error | null } {
   const [data, setData] = useState<T | null>(null);
@@ -307,21 +309,19 @@ function useAsyncState<T>(
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
-    asyncFn()
+    asyncFn(controller.signal)
       .then((result) => {
-        if (!cancelled) setData(result);
+        if (!controller.signal.aborted) setData(result);
       })
       .catch((err) => {
-        if (!cancelled) setError(err);
+        if (!controller.signal.aborted) setError(err);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
   }, deps);
 
   return { data, loading, error };
@@ -341,30 +341,3 @@ Before merging, verify:
 - [ ] Realtime subscriptions properly cleaned up
 - [ ] No state updates in render phase
 - [ ] Loading states prevent UI flash
-
----
-
-## Migration Path (if needed)
-
-If you need to add Zustand/Jotai later:
-
-1. **Zustand** for complex global state with actions:
-
-   ```ts
-   const useStore = create<State>((set) => ({
-     students: [],
-     addStudent: (s) => set((state) => ({ students: [...state.students, s] })),
-   }));
-   ```
-
-2. **Jotai** for atomic, bottom-up state:
-   ```ts
-   const studentsAtom = atom<Student[]>([]);
-   const studentCountAtom = atom((get) => get(studentsAtom).length);
-   ```
-
-Current architecture (Context + hooks) is sufficient for ClassPoints scale. Only migrate if:
-
-- Context re-renders become a measurable performance issue
-- You need state persistence beyond localStorage
-- You need time-travel debugging
