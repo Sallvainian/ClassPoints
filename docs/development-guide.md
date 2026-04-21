@@ -1,376 +1,215 @@
-# Development Guide - ClassPoints
+# Development Guide
+
+_Last generated: 2026-04-21_
+
+This is the bootstrap guide for a new developer coming to ClassPoints. Read `CLAUDE.md` alongside it — that doc has the same info in more concise form, tuned for AI agents.
+
+---
 
 ## Prerequisites
 
-- **Node.js:** v20+ (LTS recommended)
-- **npm:** v10+ (comes with Node.js)
-- **Supabase Account:** For backend services
-- **[fnox](https://github.com/jdx/fnox):** Install with `mise use -g fnox`
-- **age private key:** Obtained from the project maintainer
+| Tool           | Version             | Why                                                                                                             |
+| -------------- | ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Node.js        | `24` (see `.nvmrc`) | Runtime                                                                                                         |
+| npm            | ships with Node     | Package manager                                                                                                 |
+| `fnox`         | latest              | Decrypts `fnox.toml` secrets at runtime. Install via `mise` or `brew install jdx/tap/fnox`.                     |
+| `age`          | any recent          | Required by fnox.                                                                                               |
+| Age key        | project-private     | Without the matching key, fnox can't decrypt `fnox.toml` — you won't have Supabase credentials. Ask a teammate. |
+| `supabase` CLI | `^2.92`             | Required for local stack + E2E. Shipped as a dev dependency — `npx supabase <cmd>` works out of the box.        |
+| Docker         | any modern          | Required by `supabase start` to run Postgres/Realtime/Auth/Storage locally.                                     |
 
-## Quick Start
+Without a working fnox setup, you will not be able to run `npm run dev`/`build`/`preview` — they are wrapped in `fnox exec --`. Do not attempt to unwrap them in `package.json`; instead, fix fnox.
 
-```bash
-# Clone and install
-git clone <repository-url>
-cd ClassPoints
-npm install
+---
 
-# Install fnox
-mise use -g fnox
-
-# Put your age private key at ~/.age/key.txt (0600 perms).
-# Get the key material from the project maintainer.
-
-# Start development server (fnox injects secrets from fnox.toml)
-npm run dev
-```
-
-The app will be available at `http://localhost:5173`.
-
-## Environment Setup
-
-### Required Environment Variables
-
-ClassPoints uses **fnox** with the **age** provider. Encrypted secrets live in
-`fnox.toml` at the project root and are safe to commit. At runtime `fnox exec`
-decrypts them with your local age private key and exports them as env vars.
-
-| File                | Purpose                                   | Git              |
-| ------------------- | ----------------------------------------- | ---------------- |
-| `fnox.toml`         | Encrypted secrets + provider config       | Committed        |
-| `~/.age/key.txt`    | Your age private key (local, per-machine) | **NEVER commit** |
-| `.env.test`         | Local Supabase creds for E2E              | Gitignored       |
-| `.env.test.example` | Template reference                        | Committed        |
-
-**Secrets stored in `fnox.toml`:**
-
-```
-VITE_SUPABASE_URL
-VITE_SUPABASE_ANON_KEY
-VITE_TEST_EMAIL
-VITE_TEST_PASSWORD
-```
-
-View / rotate secrets:
+## First-time Setup
 
 ```bash
-fnox list                              # list keys (values redacted)
-fnox get VITE_SUPABASE_URL             # print one value
-printf 'new-value' | fnox set -p age KEY  # overwrite (piped from stdin)
+# 1. Install deps
+nvm use                    # Node 24 per .nvmrc
+npm ci
+
+# 2. Install fnox (one-time, machine-wide)
+mise use -g fnox@latest    # or: brew install jdx/tap/fnox
+
+# 3. Import the age key
+age-keygen -o ~/.config/fnox/age.txt  # If creating — ask team for the shared key instead
+
+# 4. Smoke-test fnox
+fnox exec -- printenv VITE_SUPABASE_URL  # Should print the Supabase project URL
+
+# 5. Start the dev server
+npm run dev                # → http://localhost:5173/ClassPoints/
 ```
 
-### Getting the Age Private Key
+`vite.config.ts` serves the app under `/ClassPoints/` (subpath deploy for GitHub Pages) — visiting `http://localhost:5173/` redirects or 404s; use the `/ClassPoints/` prefix.
 
-1. Ask the project maintainer for the age private key.
-2. Save it to `~/.age/key.txt` (mode 600):
-   ```bash
-   mkdir -p ~/.age && chmod 700 ~/.age
-   printf 'AGE-SECRET-KEY-…' > ~/.age/key.txt && chmod 600 ~/.age/key.txt
-   ```
-3. Verify: `fnox exec -- printenv VITE_SUPABASE_URL` prints the real URL.
-4. Run: `npm run dev` should start without "Missing Supabase environment variables".
+---
 
-### CI/CD Setup
-
-Set `FNOX_AGE_KEY` as a GitHub Actions secret (the full contents of
-`~/.age/key.txt`). `.github/workflows/test.yml` installs fnox via
-`jdx/mise-action` and calls `fnox exec --` to inject secrets.
-
-## npm Scripts
-
-| Command               | Description                          |
-| --------------------- | ------------------------------------ |
-| `npm run dev`         | Start dev server (localhost:5173)    |
-| `npm run dev:host`    | Start dev server exposed to network  |
-| `npm run build`       | Production build                     |
-| `npm run preview`     | Preview production build             |
-| `npm run lint`        | Run ESLint                           |
-| `npm run typecheck`   | Run TypeScript type checking         |
-| `npm run test`        | Run unit tests (Vitest, watch mode)  |
-| `npm run test:e2e`    | Run E2E tests (Playwright, headless) |
-| `npm run test:e2e:ui` | Run E2E tests with Playwright UI     |
-
-## Development Workflow
-
-### 1. Feature Branch
+## Daily Commands
 
 ```bash
-git checkout -b feature/your-feature-name
+npm run dev                # Start dev server (localhost:5173/ClassPoints)
+npm run dev:host           # Same but binds 0.0.0.0 (for LAN testing)
+npm run build              # Typecheck + Vite production build → dist/
+npm run preview            # Serve the production build locally (fnox-wrapped)
+
+npm run lint               # ESLint (flat config)
+npm run typecheck          # tsc -b --noEmit
+
+npm test                   # Vitest watch mode
+npm test -- --run          # Vitest run once (CI mode)
+npm test -- src/test/TeacherDashboard.test.tsx  # Single file
 ```
 
-### 2. Development Loop
+**Pre-commit hook** (installed by `npm install` via `simple-git-hooks`):
+
+1. `lint-staged` — runs `eslint --fix` + `prettier --write` on staged `{ts,tsx,js,jsx,json,css,md}` files.
+2. `npm run typecheck` — blocks commit on type errors.
+
+If a hook fails, **fix the issue and make a NEW commit** — do not `--amend` (the prior commit already went through; amending rewrites unrelated history). Do not `--no-verify` unless you have a reason you'd say out loud to the team.
+
+---
+
+## Local E2E Setup
+
+E2E tests must hit a **local** Supabase stack. `playwright.config.ts` refuses to run otherwise — the URL hostname must be loopback, RFC1918, or Tailscale CGNAT.
 
 ```bash
-# Start dev server
-npm run dev
+# Terminal 1 — start the local Supabase stack (boots Postgres/Realtime/Auth/Storage on 127.0.0.1)
+npx supabase start
+# Capture the printed anon key and service-role key.
 
-# In another terminal, run tests in watch mode
-npm run test
+# One-time setup
+cp .env.test.example .env.test
+# Edit .env.test — paste the anon key and service-role key.
 
-# Check types periodically
-npm run typecheck
+# Terminal 2 — seed the test user
+npm run test:seed          # Creates VITE_TEST_EMAIL in local Auth with email_confirm=true
+
+# Run E2E
+npm run test:e2e:local     # Seeds then runs Playwright
+# OR
+npm run test:e2e           # Runs without seeding (assumes test user exists)
+npm run test:e2e:ui        # Playwright UI
 ```
 
-### 3. Pre-commit Checks
+Notes:
 
-Git hooks automatically run on commit:
+- `.env.test` is gitignored. `.env.test.example` is the committed template.
+- `playwright.config.ts` spawns its own dev server (`reuseExistingServer: false`) — this is intentional. A manually-started dev server might be pointed at hosted Supabase. Never flip this to `true`.
+- Playwright uses `fullyParallel: true`. Every spec must clean up after itself in `afterEach`/`afterAll`, including removing any rows it inserted.
+- Authentication is handled once by `e2e/auth.setup.ts` and stored at `.auth/user.json` — specs reuse it via `storageState`. Don't add per-test sign-in flows.
 
-- `lint-staged` - ESLint fix on staged files
-- `typecheck` - Full TypeScript check
-
-### 4. Manual Checks Before PR
-
-```bash
-npm run lint
-npm run typecheck
-npm run test
-npm run test:e2e
-```
-
-## Code Organization
-
-### Adding a New Component
-
-1. Create in appropriate feature folder:
-
-   ```
-   src/components/{feature}/ComponentName.tsx
-   ```
-
-2. Follow the component pattern:
-
-   ```tsx
-   interface ComponentProps {
-     prop: Type;
-   }
-
-   export function Component({ prop }: ComponentProps) {
-     const { data } = useApp(); // Always use useApp()
-     // ...
-   }
-   ```
-
-3. Export from barrel file:
-   ```typescript
-   // src/components/{feature}/index.ts
-   export { Component } from './Component';
-   ```
-
-### Adding a New Hook
-
-1. Create in hooks folder:
-
-   ```
-   src/hooks/useHookName.ts
-   ```
-
-2. Follow the hook pattern:
-
-   ```typescript
-   export function useHookName(param: Type): ReturnType {
-     const [state, setState] = useState<Type | null>(null);
-     // ...
-     return { state, actions };
-   }
-   ```
-
-3. Export from barrel:
-   ```typescript
-   // src/hooks/index.ts
-   export { useHookName } from './useHookName';
-   ```
-
-### Adding a Database Table
-
-1. Create migration file:
-
-   ```
-   supabase/migrations/XXX_description.sql
-   ```
-
-2. Add RLS policies:
-
-   ```sql
-   ALTER TABLE new_table ENABLE ROW LEVEL SECURITY;
-   CREATE POLICY "Users can view own data" ON new_table
-     FOR SELECT USING (user_id = auth.uid());
-   ```
-
-3. Add types to `src/types/database.ts`
-
-4. Add domain types to `src/types/index.ts`
-
-5. Create hook for data access
-
-### Realtime Considerations
-
-For tables with realtime subscriptions, set `REPLICA IDENTITY FULL`:
-
-```sql
-ALTER TABLE table_name REPLICA IDENTITY FULL;
-```
-
-This ensures DELETE events include full row data.
-
-## Testing
-
-### Unit Tests
-
-Location: `src/test/`
-
-```bash
-# Run all tests
-npm run test
-
-# Run specific test
-npm run test -- studentParser
-
-# Run with coverage
-npm run test -- --coverage
-```
-
-Pattern:
-
-```typescript
-import { describe, it, expect } from 'vitest';
-
-describe('functionName', () => {
-  it('should handle expected case', () => {
-    const result = functionName(input);
-    expect(result).toBe(expected);
-  });
-});
-```
-
-### E2E Tests
-
-Location: `e2e/`
-
-```bash
-# Run headless
-npm run test:e2e
-
-# Run with UI
-npm run test:e2e:ui
-```
-
-Requires `TEST_EMAIL` and `TEST_PASSWORD` in environment.
+---
 
 ## Debugging
 
-### Browser DevTools
+### Supabase
 
-1. React DevTools extension for component inspection
-2. Network tab for Supabase API calls
-3. Application > Local Storage for persisted state
+- **Inspect current env:** `fnox exec -- printenv VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY`
+- **Open local Supabase Studio:** `npx supabase status` prints the Studio URL (usually `http://127.0.0.1:54323`).
+- **Tail local logs:** `npx supabase logs db` (or `realtime`, `auth`, `storage`).
+- **Regenerate types:** `npx supabase gen types typescript --project-id <id> > src/types/database.ts`. Do this after any schema change.
 
-### Supabase Dashboard
+### Realtime subscriptions
 
-Access your project at `https://supabase.com/dashboard/project/{project-id}`:
+If a realtime subscription isn't firing:
 
-- Table Editor for data inspection
-- SQL Editor for queries
-- Logs for debugging
-- Auth for user management
+1. Check the table is in the publication: `SELECT * FROM pg_publication_tables WHERE pubname = 'supabase_realtime';`
+2. For DELETE events: verify `REPLICA IDENTITY FULL`. Without it, DELETE payloads have only the PK.
+3. Check the filter syntax. PostgREST format: `classroom_id=eq.<uuid>`. Typos silently match no rows.
+4. The `useRealtimeSubscription` helper logs via `onStatusChange` — pass a callback to surface `CHANNEL_ERROR` / `TIMED_OUT` states.
 
-### VS Code Extensions
+### Optimistic updates double-counting
 
-Recommended:
-
-- ESLint
-- Prettier
-- Tailwind CSS IntelliSense
-- TypeScript Importer
-
-## Common Tasks
-
-### Reset Local Database
-
-```sql
--- In Supabase SQL Editor
-TRUNCATE classrooms CASCADE;
-```
-
-### Clear localStorage
-
-```javascript
-// Browser console
-localStorage.clear();
-```
-
-### Test with Different User
-
-```javascript
-// Browser console
-await window.__SUPABASE_CLIENT__.auth.signOut();
-```
-
-### Check Supabase Connection
-
-```javascript
-// Browser console
-const { data, error } = await window.__SUPABASE_CLIENT__.from('classrooms').select('*');
-console.log({ data, error });
-```
-
-## Deployment
-
-### Build for Production
-
-```bash
-npm run build
-```
-
-Output is in `dist/` directory.
-
-### Preview Production Build
-
-```bash
-npm run preview
-```
-
-### CI/CD
-
-GitHub Actions workflows:
-
-- `test.yml` - Run tests on PR
-- `deploy.yml` - Deploy to production
-- `claude.yml` - Claude Code automation
-- `claude-code-review.yml` - Automated code review
-
-## Troubleshooting
+Symptom: awarding 1 point shows +2 momentarily, then settles.
+Cause: the optimistic update wasn't mirrored onto both levels (student row AND classroom summary). The realtime UPDATE event's delta calculation then re-applies the delta.
+Fix: ensure `updateStudentPointsOptimistically` AND `updateClassroomPointsOptimistically` are BOTH called together; see `AppContext.awardPoints`.
 
 ### "Missing Supabase environment variables"
 
-Your age private key isn't set up or `fnox exec` isn't wrapping the command. Check:
+Means `fnox exec` wasn't in the npm script. Re-install fnox or import the age key. Do not hard-code URLs in `src/lib/supabase.ts`.
 
-1. `fnox exec -- printenv VITE_SUPABASE_URL` prints a URL. If it's empty:
-2. Confirm `~/.age/key.txt` exists and contains a line starting `AGE-SECRET-KEY-…`
-3. Confirm `package.json` scripts use `fnox exec -- vite …` (not plain `vite`)
-4. `fnox doctor` for further diagnostics
+---
 
-### "useApp must be used within HybridAppProvider"
+## CI / GitHub Actions
 
-Component is outside the provider hierarchy. Check that it's rendered within `<App>`.
+Four workflows in `.github/workflows/`:
 
-### Realtime Not Working
+### `test.yml` — Pushes/PRs to `main` and `develop`
 
-1. Check table has realtime enabled in Supabase dashboard
-2. Verify RLS policies allow access
-3. Check for `REPLICA IDENTITY FULL` on table
+Jobs, in order:
 
-### Type Errors After Schema Change
+1. `lint` — ESLint + `tsc` typecheck.
+2. `test` — Playwright E2E sharded 4 ways (`--shard=N/4`). Up to 2 retries per shard, 15-min timeout, `fnox exec -- npm run test:e2e`. Requires `FNOX_AGE_KEY` secret.
+3. `burn-in` — Runs the entire E2E suite 10 times in a loop to detect flaky tests. Runs in parallel with `test` (both depend on `lint`).
+4. `test-summary` — Branch-protection gate; fails if any prior job failed.
 
-Regenerate types:
+Also runs weekly Monday 6am UTC via cron.
 
-```bash
-npx supabase gen types typescript --project-id PROJECT_ID > src/types/database.ts
-```
+### `deploy.yml` — Push to `main` → GitHub Pages
 
-### ESLint/Prettier Conflicts
+Build → lint → typecheck → unit tests (`--run`) → Vite build → upload-pages-artifact → deploy-pages. Uses `FNOX_AGE_KEY` secret.
 
-```bash
-npm run lint -- --fix
-npx prettier --write .
-```
+### `claude.yml` / `claude-code-review.yml`
+
+Claude Code integration + automated PR review. Not part of the build/test pipeline; independent.
+
+---
+
+## Deployment
+
+Deployed to **GitHub Pages** at a subpath. `vite.config.ts` sets `base: '/ClassPoints/'` — this prefixes every asset URL, so the app only works when served from `/ClassPoints/` (or locally under `http://localhost:5173/ClassPoints/`).
+
+- Production URL: the `deploy.yml` workflow's `github-pages` environment prints it — typically `https://<org>.github.io/ClassPoints/`.
+- Build artifact is `dist/` (gitignored).
+- The deploy uses the repo's built-in GitHub Pages integration — no third-party hosts, no DNS setup.
+- Secrets needed: `FNOX_AGE_KEY` GitHub Actions secret. Without it, the build can't decrypt the Supabase URL/key.
+- No separate staging environment.
+
+### What the build includes
+
+`npm run build` runs:
+
+1. `tsc -b` — incremental TypeScript project build (references `tsconfig.app.json` + `tsconfig.node.json`).
+2. `vite build` — production bundle into `dist/` using the Vite 6 build pipeline. With `@vitejs/plugin-react`. Tree-shaking, code-splitting, minification enabled by default.
+
+The five lazy-imported routes (`MigrationWizard`, `DashboardView`, `ClassSettingsView`, `ProfileView`, `TeacherDashboard`) plus `SeatingChartEditor` produce separate chunks.
+
+---
+
+## Conventions
+
+### Code style
+
+- **Named exports** for components (`export function Foo()`). Default exports break HMR with `eslint-plugin-react-refresh`.
+- **Hooks-before-returns** — all hooks at the top of the component, early returns after. `eslint-plugin-react-hooks` catches most violations.
+- **No direct context imports from components.** Always `const { … } = useApp()` / `useAuth()` etc. — never `useContext(AppContext)`.
+- **No barrels in component folders.** The hook barrel `src/hooks/index.ts` is the one intentional exception.
+- **Comments:** default to none. Only write a comment for a non-obvious _why_: hidden constraint, subtle invariant, workaround. Don't reference PRs/tickets/authors in code.
+- **TypeScript strict.** Flags: `strict`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `noUncheckedSideEffectImports`. Delete unused imports; don't silence with `_`.
+- **Prettier**: `semi: true`, `singleQuote: true`, `tabWidth: 2`, `trailingComma: 'es5'`, `printWidth: 100`.
+
+### Testing
+
+- **Unit tests** (`src/test/**`, `src/**/__tests__/**`): Vitest + jsdom + Testing Library. **Mock `@/lib/supabase`** at the module boundary — don't hit the network. Assert on observable behavior (Testing Library queries), not hook internals.
+- **E2E tests** (`e2e/**`): Playwright Chromium against LOCAL Supabase only. Use `data-testid` attributes for selectors over fragile text/CSS selectors. No `setTimeout`/arbitrary waits — use auto-waiting locators and `findBy*` / `waitFor`.
+- **`tdd-guard-vitest`** is wired up and will surface when tests are added without a prior red state.
+
+### Adding a new feature
+
+1. If new DB state is needed: create `supabase/migrations/<NNN>_<description>.sql` (zero-padded sequential). Include the table, RLS policies, any triggers, and realtime / `REPLICA IDENTITY FULL` settings together. Regenerate types.
+2. Add/update types in `src/types/database.ts` (DB snake_case) and `src/types/index.ts` (app camelCase) + the `transformX` at the context/hook boundary.
+3. If the data needs CRUD + realtime: add a data hook under `src/hooks/` matching the `{ data, loading, error, refetch }` + optimistic helper shape of the existing hooks. Compose it into `AppContext` if it's app-wide.
+4. Add components under `src/components/<feature>/`. Prefer extending an existing feature folder over creating a new one.
+5. Add unit tests under `src/test/` (or `src/<feature>/__tests__/`). Add E2E coverage for user-visible flows.
+
+### What NOT to do
+
+- Don't run E2E against hosted Supabase, "even just once to check prod parity." The private-URL guard exists for this reason.
+- Don't modify `playwright.config.ts`'s private-URL guard without explicit approval.
+- Don't aggregate `point_transactions[]` client-side to display totals — read from stored columns on `students`.
+- Don't introduce icons from Heroicons/FontAwesome — use `lucide-react`.
+- Don't introduce CSS Modules / styled-components / emotion — use Tailwind v4 utility classes. Inline `style={{}}` is only allowed for `@dnd-kit` transforms.
+- Don't introduce state containers (Redux, Zustand, TanStack Query, Jotai). The app uses Context + hand-rolled hooks; extend those.

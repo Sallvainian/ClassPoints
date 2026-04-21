@@ -1,68 +1,80 @@
 {
   "workflow_version": "1.2.0",
   "timestamps": {
-    "started": "2026-01-23T15:00:00Z",
-    "last_updated": "2026-01-23T15:45:00Z",
-    "completed": "2026-01-23T15:45:00Z"
+    "started": "2026-04-21T14:00:00Z",
+    "last_updated": "2026-04-21T15:25:00Z",
+    "completed": "2026-04-21T15:25:00Z"
   },
-  "mode": "initial_scan",
+  "mode": "full_rescan",
   "scan_level": "exhaustive",
   "project_root": "/Users/sallvain/Projects/ClassPoints",
-  "output_folder": "/Users/sallvain/Projects/ClassPoints/docs",
+  "project_knowledge": "/Users/sallvain/Projects/ClassPoints/docs",
   "completed_steps": [
     {
       "step": "step_1",
       "status": "completed",
-      "timestamp": "2026-01-23T15:05:00Z",
-      "summary": "Classified as monolith with 1 part, web project type"
+      "timestamp": "2026-04-21T14:00:00Z",
+      "summary": "monolith, 1 part, web"
     },
     {
       "step": "step_2",
       "status": "completed",
-      "timestamp": "2026-01-23T15:08:00Z",
-      "summary": "Found 10 existing docs including CLAUDE.md and code pattern rules"
+      "timestamp": "2026-04-21T14:05:00Z",
+      "summary": "11 existing docs catalogued; 6 BMad docs to overwrite; 8 legacy-*.md moved to docs/legacy/"
     },
     {
       "step": "step_3",
       "status": "completed",
-      "timestamp": "2026-01-23T15:12:00Z",
-      "summary": "Tech stack: React 18 + TypeScript + Vite + Supabase BaaS"
+      "timestamp": "2026-04-21T14:10:00Z",
+      "summary": "Tech stack: React 18.3 + TS 5.9 strict + Vite 6 + Tailwind v4 + Supabase 2.90. No TanStack Query present."
     },
     {
       "step": "step_4",
       "status": "completed",
-      "timestamp": "2026-01-23T15:30:00Z",
-      "summary": "Conditional analysis: data models (10 tables), state management (3 contexts), UI components (53), deployment (4 GitHub workflows)"
+      "timestamp": "2026-04-21T14:55:00Z",
+      "summary": "Conditional analysis: data-models.md (10 tables, 7 triggers, 1 RPC), state-management.md (4 contexts, 12 hooks incl. useRealtimeSubscription helper), component-inventory.md (45 components, 14 folders)"
     },
     {
       "step": "step_5",
       "status": "completed",
-      "timestamp": "2026-01-23T15:35:00Z",
-      "summary": "Source tree documented with critical directories and entry points"
+      "timestamp": "2026-04-21T15:05:00Z",
+      "summary": "source-tree-analysis.md written: annotated tree of src/, supabase/, e2e/, scripts/, .github/workflows/"
     },
     {
       "step": "step_6",
       "status": "completed",
-      "timestamp": "2026-01-23T15:38:00Z",
-      "summary": "Development guide created with setup, workflows, and debugging"
+      "timestamp": "2026-04-21T15:15:00Z",
+      "summary": "development-guide.md written: prerequisites (Node 24, fnox), daily commands, E2E setup, CI (4 workflows), deploy (GitHub Pages), conventions"
     },
     {
       "step": "step_8",
       "status": "completed",
-      "timestamp": "2026-01-23T15:42:00Z",
-      "summary": "Architecture documentation generated"
+      "timestamp": "2026-04-21T15:20:00Z",
+      "summary": "architecture.md written: executive summary, BaaS pattern diagram, data/app/component/test architecture, security boundaries, known drift"
+    },
+    {
+      "step": "step_9",
+      "status": "completed",
+      "timestamp": "2026-04-21T15:20:00Z",
+      "summary": "Supporting docs decision: deployment and contribution content folded into development-guide.md; project-overview into architecture.md. No standalone docs needed for single-part monolith."
     },
     {
       "step": "step_10",
       "status": "completed",
-      "timestamp": "2026-01-23T15:44:00Z",
-      "summary": "Master index generated with navigation and quick reference"
+      "timestamp": "2026-04-21T15:22:00Z",
+      "summary": "index.md written: Start Here table, quick reference, feature domain map, AI-instruction docs section, provenance"
+    },
+    {
+      "step": "step_11",
+      "status": "completed",
+      "timestamp": "2026-04-21T15:25:00Z",
+      "summary": "Validation complete: 7 files regenerated, ~93KB total. No _(To be generated)_ markers found. Legacy + archive dirs preserved."
     },
     {
       "step": "step_12",
       "status": "completed",
-      "timestamp": "2026-01-23T15:45:00Z",
-      "summary": "Workflow complete"
+      "timestamp": "2026-04-21T15:25:00Z",
+      "summary": "Workflow complete."
     }
   ],
   "current_step": "completed",
@@ -72,42 +84,48 @@
       "parts_count": 1,
       "primary_tech": "React 18 + TypeScript + Vite + Supabase"
     },
-    "existing_docs_count": 10,
+    "existing_docs_count": 11,
     "technology_stack": {
-      "language": "TypeScript 5.9",
-      "framework": "React 18.3",
-      "build_tool": "Vite 6.0",
-      "styling": "Tailwind CSS 4.1",
-      "backend": "Supabase BaaS",
-      "database": "PostgreSQL (via Supabase)",
+      "language": "TypeScript ~5.9.3 (strict)",
+      "framework": "React 18.3.1",
+      "build_tool": "Vite 6.0.5",
+      "styling": "Tailwind CSS 4.1.17",
+      "backend": "Supabase BaaS (supabase-js 2.90)",
+      "database": "PostgreSQL 15+ (via Supabase)",
       "unit_testing": "Vitest 4.0",
       "e2e_testing": "Playwright 1.57",
-      "state_management": "React Context + Custom Hooks",
-      "architecture_pattern": "Component-based SPA with BaaS"
+      "state_management": "React Context + hand-rolled hooks (NOT TanStack Query)",
+      "secrets": "fnox + age",
+      "architecture_pattern": "Client-only SPA with BaaS",
+      "deploy_base_path": "/ClassPoints/"
     },
     "conditional_analysis": {
-      "data_models": "10 tables across 3 domains (core, seating, settings)",
-      "state_management": "3-layer context architecture with useApp() facade",
-      "ui_components": "53 components in 12 feature domains",
-      "deployment": "4 GitHub Actions workflows (test, deploy, claude, code-review)"
-    }
+      "data_models": "10 tables, 2 enums, 1 RPC, 7 triggers, 5 realtime tables",
+      "state_management": "4 contexts (Auth/Theme/Sound/App), 13 hooks including useRealtimeSubscription",
+      "ui_components": "45 components in 14 feature folders (auth, behaviors, classes, common, dashboard, home, layout, migration, points, profile, seating, settings, students, ui)",
+      "deployment": "GitHub Pages via .github/workflows/deploy.yml; 4 workflows total (test, deploy, claude, claude-code-review)"
+    },
+    "drift_surfaced": [
+      "project-context.md describes TanStack Query in state management, but @tanstack/react-query is not in dependencies",
+      "Jan 23 index.md referenced HybridAppContext — actual file is AppContext.tsx",
+      "Jan 23 claimed 53 components in 12 domains — actual is 45 in 14 folders",
+      "Commit history showed Doppler migration but package.json still uses fnox (Doppler migration was reverted)",
+      "ThemeContext was added between Jan 23 and Apr 21 — was not in prior docs",
+      "seating_charts canvas_width DB default (1200) drifts from app-level DEFAULT (1600)"
+    ]
   },
   "project_types": [
-    {
-      "part_id": "main",
-      "project_type_id": "web",
-      "display_name": "Web Application"
-    }
+    { "part_id": "main", "project_type_id": "web", "display_name": "Web Application" }
   ],
   "outputs_generated": [
     "project-scan-report.json",
-    "data-models.md",
-    "state-management.md",
-    "component-inventory.md",
-    "source-tree-analysis.md",
-    "development-guide.md",
     "architecture.md",
-    "index.md"
+    "component-inventory.md",
+    "data-models.md",
+    "development-guide.md",
+    "index.md",
+    "source-tree-analysis.md",
+    "state-management.md"
   ],
   "resume_instructions": "Workflow completed successfully"
 }
