@@ -175,7 +175,7 @@ function TableGroupComponent({
       <div className="absolute" style={{ top: 40, left: 0, right: 0 }}>
         {/* 2x2 grid of seats with single outer border */}
         <div
-          className="grid grid-cols-2 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden"
+          className="grid grid-cols-2 border-2 border-dashed border-gray-300 dark:border-zinc-700 rounded-lg overflow-hidden"
           style={{ width: GROUP_WIDTH }}
         >
           {seat1 && (

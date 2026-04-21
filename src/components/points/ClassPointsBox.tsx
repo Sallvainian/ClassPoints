@@ -12,7 +12,7 @@ export function ClassPointsBox({ classPoints, studentCount, onClick }: ClassPoin
   return (
     <button
       onClick={onClick}
-      className="w-full bg-linear-to-r from-indigo-500 to-purple-600 text-white rounded-xl p-4 shadow-lg hover:shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] text-left"
+      className="w-full bg-linear-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 text-white rounded-xl p-4 shadow-lg dark:shadow-[0_0_0_1px_rgba(167,139,250,0.3)] hover:shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] text-left"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -27,14 +27,17 @@ export function ClassPointsBox({ classPoints, studentCount, onClick }: ClassPoin
 
         <div className="text-right">
           <div className="text-3xl font-bold">
-            {total >= 0 ? '+' : ''}{total}
+            {total >= 0 ? '+' : ''}
+            {total}
           </div>
           <div className="text-sm flex gap-3 justify-end">
             <span className="text-emerald-300">+{positiveTotal}</span>
             <span className="text-red-300">{negativeTotal}</span>
           </div>
           <div className="text-white/70 text-xs mt-1">
-            Today: {today >= 0 ? '+' : ''}{today} • Week: {thisWeek >= 0 ? '+' : ''}{thisWeek}
+            Today: {today >= 0 ? '+' : ''}
+            {today} • Week: {thisWeek >= 0 ? '+' : ''}
+            {thisWeek}
           </div>
         </div>
       </div>

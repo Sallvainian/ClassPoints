@@ -52,10 +52,10 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
   // Loading state - show spinner while data loads
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50">
+      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-zinc-900">
         <div className="text-center">
           <div className="text-4xl mb-2 animate-pulse">⏳</div>
-          <p className="text-gray-600">Loading your dashboard...</p>
+          <p className="text-gray-600 dark:text-zinc-400">Loading your dashboard...</p>
         </div>
       </div>
     );
@@ -64,11 +64,13 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
   // Error state - failed to load data
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50 p-8">
+      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-zinc-900 p-8">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Unable to load dashboard</h2>
-          <p className="text-gray-600 mb-6">
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-zinc-100 mb-2">
+            Unable to load dashboard
+          </h2>
+          <p className="text-gray-600 dark:text-zinc-400 mb-6">
             {error.message || 'Something went wrong. Please try again.'}
           </p>
           <Button onClick={() => window.location.reload()}>Retry</Button>
@@ -80,11 +82,13 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
   // Empty state - no classrooms
   if (classrooms.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50 p-8">
+      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-zinc-900 p-8">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">🎯</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome to ClassPoints!</h2>
-          <p className="text-gray-600 mb-6">
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-zinc-100 mb-2">
+            Welcome to ClassPoints!
+          </h2>
+          <p className="text-gray-600 dark:text-zinc-400 mb-6">
             Track student behavior and points with ease. Create your first classroom to get started.
           </p>
           <Button onClick={handleCreateClassroom} size="lg">
@@ -97,11 +101,15 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-50 p-6">
+    <div className="h-full overflow-y-auto bg-gray-50 dark:bg-zinc-900 p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Welcome back, {displayName}!</h1>
-        <p className="text-gray-600">Here&apos;s how your classes are doing today.</p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-zinc-100">
+          Welcome back, {displayName}!
+        </h1>
+        <p className="text-gray-600 dark:text-zinc-400">
+          Here&apos;s how your classes are doing today.
+        </p>
       </div>
 
       {/* Stats Row */}
@@ -136,7 +144,9 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
 
         {/* Classrooms Grid - takes 2 columns */}
         <div className="lg:col-span-2">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Your Classrooms</h2>
+          <h2 className="text-lg font-bold text-gray-800 dark:text-zinc-100 mb-4">
+            Your Classrooms
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {classrooms.map((classroom) => (
               <ClassroomCard

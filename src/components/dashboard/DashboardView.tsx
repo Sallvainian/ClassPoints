@@ -179,9 +179,9 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   // Loading state
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
-        <p className="text-gray-600">Loading your classroom...</p>
+      <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-zinc-500 p-8">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mb-4" />
+        <p className="text-gray-600 dark:text-zinc-400">Loading your classroom...</p>
       </div>
     );
   }
@@ -189,10 +189,12 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   // Error state
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8">
+      <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-zinc-500 p-8">
         <div className="text-6xl mb-4">⚠️</div>
-        <h2 className="text-xl font-bold text-gray-800 mb-2">Something went wrong</h2>
-        <p className="text-center text-red-600 mb-4 max-w-md">{error.message}</p>
+        <h2 className="text-xl font-bold text-gray-800 dark:text-zinc-100 mb-2">
+          Something went wrong
+        </h2>
+        <p className="text-center text-red-600 dark:text-red-400 mb-4 max-w-md">{error.message}</p>
         <Button onClick={() => window.location.reload()} variant="secondary">
           Retry
         </Button>
@@ -202,9 +204,11 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
   if (!activeClassroom) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8">
+      <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-zinc-500 p-8">
         <div className="text-8xl mb-6">🎓</div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome to ClassPoints!</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-zinc-100 mb-2">
+          Welcome to ClassPoints!
+        </h2>
         <p className="text-center mb-6 max-w-md">
           Create a classroom to start tracking student behavior and awarding points.
         </p>
@@ -218,12 +222,14 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3">
+      <div className="bg-white dark:bg-zinc-900 border-b dark:border-zinc-800 px-4 py-3">
         {/* Top row: Classroom name and core actions */}
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{activeClassroom.name}</h1>
-            <p className="text-sm text-gray-500">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-zinc-50">
+              {activeClassroom.name}
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-zinc-500">
               {activeClassroom.students.length} student
               {activeClassroom.students.length !== 1 ? 's' : ''}
             </p>
@@ -242,7 +248,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
           {/* Left side: Display controls */}
           <div className="flex items-center gap-3">
             {/* Card size toggle */}
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-zinc-950 rounded-lg p-0.5">
               {(['small', 'medium', 'large'] as CardSize[]).map((size) => (
                 <button
                   key={size}
@@ -251,8 +257,8 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
                     px-2 py-1 text-xs font-medium rounded-md transition-colors
                     ${
                       settings.cardSize === size
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-50 shadow-sm'
+                        : 'text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-50'
                     }
                   `}
                   title={`${size.charAt(0).toUpperCase() + size.slice(1)} cards`}
@@ -269,8 +275,8 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
                 px-2 py-1 text-xs font-medium rounded-lg transition-colors
                 ${
                   settings.showPointTotals
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-gray-100 text-gray-600 hover:text-gray-900'
+                    ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-gray-100 dark:bg-zinc-950 text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-50'
                 }
               `}
               title="Show positive/negative point totals"
@@ -285,8 +291,8 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
                 px-2 py-1 text-xs font-medium rounded-lg transition-colors
                 ${
                   showActivity
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300'
+                    : 'bg-gray-100 dark:bg-zinc-950 text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-50'
                 }
               `}
             >
@@ -302,7 +308,9 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       {/* Main Content */}
       <div className="flex-1 overflow-hidden flex">
         {/* Student Grid or Seating Chart based on view mode */}
-        <div className={`flex-1 overflow-y-auto bg-gray-50 ${showActivity ? 'border-r' : ''}`}>
+        <div
+          className={`flex-1 overflow-y-auto bg-gray-50 dark:bg-zinc-900 ${showActivity ? 'border-r dark:border-zinc-800' : ''}`}
+        >
           {settings.viewMode === 'alphabetical' ? (
             <>
               {/* Class Points Box - uses pre-calculated values from activeClassroom (single source of truth) */}
@@ -345,8 +353,8 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
         {/* Activity Sidebar */}
         {showActivity && (
-          <div className="w-80 bg-white overflow-y-auto p-4">
-            <h2 className="font-semibold text-gray-800 mb-4">Recent Activity</h2>
+          <div className="w-80 bg-white dark:bg-zinc-900 overflow-y-auto p-4">
+            <h2 className="font-semibold text-gray-800 dark:text-zinc-100 mb-4">Recent Activity</h2>
             <TodaySummary
               transactions={transactions}
               students={activeClassroom.students}

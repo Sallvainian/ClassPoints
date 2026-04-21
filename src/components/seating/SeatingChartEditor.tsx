@@ -19,6 +19,8 @@ import type {
 import { TableGroup } from './TableGroup';
 import { RoomElementDisplay } from './RoomElementDisplay';
 import { Button } from '../ui/Button';
+import { useAvatarColor } from '../../hooks';
+import { getAvatarColorForName } from '../../utils';
 
 interface SeatingChartEditorProps {
   chart: SeatingChart;
@@ -69,6 +71,9 @@ function DraggableStudent({ student }: DraggableStudentProps) {
     data: { type: 'student', studentId: student.id },
   });
 
+  const rawColor = student.avatarColor || getAvatarColorForName(student.name);
+  const { bg, textClass } = useAvatarColor(rawColor);
+
   const style = {
     transform: transform ? CSS.Translate.toString(transform) : undefined,
     opacity: isDragging ? 0.5 : 1,
@@ -80,15 +85,15 @@ function DraggableStudent({ student }: DraggableStudentProps) {
       style={style}
       {...attributes}
       {...listeners}
-      className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-gray-200 cursor-grab hover:bg-gray-50 transition-colors"
+      className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 cursor-grab hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
     >
       <div
-        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
-        style={{ backgroundColor: student.avatarColor || '#6B7280' }}
+        className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${textClass}`}
+        style={{ backgroundColor: bg }}
       >
         {student.name.charAt(0).toUpperCase()}
       </div>
-      <span className="text-sm text-gray-700">{student.name}</span>
+      <span className="text-sm text-gray-700 dark:text-zinc-200">{student.name}</span>
     </div>
   );
 }
@@ -609,6 +614,11 @@ export function SeatingChartEditor({
   const [draggingStudent, setDraggingStudent] = useState<Student | null>(null);
   const [scale, setScale] = useState(1);
 
+  const draggingRaw = draggingStudent
+    ? draggingStudent.avatarColor || getAvatarColorForName(draggingStudent.name)
+    : '#6b7280';
+  const { bg: draggingBg, textClass: draggingTextClass } = useAvatarColor(draggingRaw);
+
   // Zoom constants
   const ZOOM_STEP = 0.1;
   const MIN_ZOOM = 0.3;
@@ -886,14 +896,16 @@ export function SeatingChartEditor({
       onDragEnd={handleDragEnd}
       collisionDetection={pointerWithin}
     >
-      <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
+      <div className="fixed inset-0 bg-gray-100 dark:bg-zinc-950 z-50 flex flex-col">
         {/* Header */}
-        <div className="bg-white border-b px-4 py-3 flex items-center justify-between">
+        <div className="bg-white dark:bg-zinc-900 border-b px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button onClick={onClose} variant="ghost" size="sm">
               ← Back
             </Button>
-            <h2 className="text-lg font-semibold text-gray-800">Edit Seating Chart</h2>
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100">
+              Edit Seating Chart
+            </h2>
           </div>
           <div className="flex items-center gap-2">
             {showPresetInput ? (
@@ -903,7 +915,7 @@ export function SeatingChartEditor({
                   value={presetName}
                   onChange={(e) => setPresetName(e.target.value)}
                   placeholder="Preset name..."
-                  className="px-2 py-1 border rounded text-sm"
+                  className="px-2 py-1 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 border border-gray-300 dark:border-zinc-700 rounded text-sm"
                   autoFocus
                 />
                 <Button onClick={handleSavePreset} variant="primary" size="sm">
@@ -924,14 +936,16 @@ export function SeatingChartEditor({
                     Load Preset {presets.length > 0 && `(${presets.length})`}
                   </Button>
                   {showPresetList && (
-                    <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg z-50 min-w-64 max-h-80 overflow-auto">
+                    <div className="absolute right-0 top-full mt-1 bg-white dark:bg-zinc-900 border rounded-lg shadow-lg z-50 min-w-64 max-h-80 overflow-auto">
                       {presets.length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-gray-500">No saved presets</div>
+                        <div className="px-4 py-3 text-sm text-gray-500 dark:text-zinc-500">
+                          No saved presets
+                        </div>
                       ) : (
                         presets.map((preset) => (
                           <div
                             key={preset.id}
-                            className="px-4 py-2 hover:bg-gray-50 border-b last:border-b-0 flex items-center justify-between gap-2"
+                            className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 border-b last:border-b-0 flex items-center justify-between gap-2"
                           >
                             <button
                               onClick={async () => {
@@ -941,7 +955,7 @@ export function SeatingChartEditor({
                               className="flex-1 text-left"
                             >
                               <div className="font-medium text-sm">{preset.name}</div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-gray-500 dark:text-zinc-500">
                                 {new Date(preset.createdAt).toLocaleDateString()} •{' '}
                                 {preset.layoutData.groups.length} tables
                               </div>
@@ -951,7 +965,7 @@ export function SeatingChartEditor({
                                 e.stopPropagation();
                                 await onDeletePreset(preset.id);
                               }}
-                              className="text-red-500 hover:text-red-700 text-sm px-2"
+                              className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 dark:text-red-300 text-sm px-2"
                               title="Delete preset"
                             >
                               ×
@@ -974,7 +988,7 @@ export function SeatingChartEditor({
         </div>
 
         {/* Toolbar */}
-        <div className="bg-white border-b px-4 py-2 flex items-center gap-2 flex-wrap">
+        <div className="bg-white dark:bg-zinc-900 border-b px-4 py-2 flex items-center gap-2 flex-wrap">
           <Button
             onClick={() => {
               setIsAddingGroup(!isAddingGroup);
@@ -1061,7 +1075,7 @@ export function SeatingChartEditor({
           <div className="w-px h-6 bg-gray-300 mx-2" />
 
           {/* Canvas size controls */}
-          <div className="flex items-center gap-1 text-xs text-gray-600">
+          <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-zinc-400">
             <span>Size:</span>
             <Button
               onClick={() =>
@@ -1107,18 +1121,18 @@ export function SeatingChartEditor({
           <div className="w-px h-6 bg-gray-300 mx-2" />
 
           {/* Zoom controls */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-zinc-950 rounded-lg p-1">
             <button
               onClick={handleZoomOut}
               disabled={scale <= MIN_ZOOM}
-              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
               title="Zoom out"
             >
-              <span className="text-base font-medium text-gray-600">−</span>
+              <span className="text-base font-medium text-gray-600 dark:text-zinc-400">−</span>
             </button>
             <button
               onClick={handleFitToScreen}
-              className="px-2 h-7 text-xs text-gray-600 hover:bg-white rounded-md transition-colors min-w-[3rem]"
+              className="px-2 h-7 text-xs text-gray-600 dark:text-zinc-400 hover:bg-white dark:hover:bg-zinc-900 rounded-md transition-colors min-w-[3rem]"
               title="Fit to screen"
             >
               {Math.round(scale * 100)}%
@@ -1126,10 +1140,10 @@ export function SeatingChartEditor({
             <button
               onClick={handleZoomIn}
               disabled={scale >= MAX_ZOOM}
-              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
               title="Zoom in"
             >
-              <span className="text-base font-medium text-gray-600">+</span>
+              <span className="text-base font-medium text-gray-600 dark:text-zinc-400">+</span>
             </button>
           </div>
 
@@ -1152,7 +1166,7 @@ export function SeatingChartEditor({
                 }}
                 variant="ghost"
                 size="sm"
-                className="text-red-500 hover:text-red-700"
+                className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 dark:text-red-300"
               >
                 Delete Group
               </Button>
@@ -1169,7 +1183,7 @@ export function SeatingChartEditor({
                 }}
                 variant="ghost"
                 size="sm"
-                className="text-red-500 hover:text-red-700"
+                className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 dark:text-red-300"
               >
                 Delete Element
               </Button>
@@ -1178,7 +1192,7 @@ export function SeatingChartEditor({
         </div>
 
         {/* Help text */}
-        <div className="px-4 py-1 text-xs text-gray-500 bg-gray-50 border-b">
+        <div className="px-4 py-1 text-xs text-gray-500 dark:text-zinc-500 bg-gray-50 dark:bg-zinc-900 border-b">
           Drag to reposition • R to rotate • Alt to disable snap • Delete/D to remove • Drag edges
           to resize • Lock tables to move students
         </div>
@@ -1200,18 +1214,18 @@ export function SeatingChartEditor({
                 onClick={handleCanvasClick}
                 onMouseMove={handleCanvasMouseMove}
                 onMouseLeave={handleCanvasMouseLeave}
-                className={`relative outline outline-2 rounded-lg bg-white flex-shrink-0 ${
+                className={`relative outline outline-2 rounded-lg bg-white dark:bg-zinc-900 flex-shrink-0 ${
                   isAddingGroup || addingRoomElement
                     ? 'cursor-crosshair outline-blue-400'
-                    : 'outline-gray-200'
+                    : 'outline-gray-200 dark:outline-zinc-800'
                 }`}
                 style={{
                   width: chart.canvasWidth,
                   height: chart.canvasHeight,
                   backgroundImage: chart.snapEnabled
                     ? `
-                    linear-gradient(to right, #f0f0f0 1px, transparent 1px),
-                    linear-gradient(to bottom, #f0f0f0 1px, transparent 1px)
+                    linear-gradient(to right, var(--chart-grid-line) 1px, transparent 1px),
+                    linear-gradient(to bottom, var(--chart-grid-line) 1px, transparent 1px)
                   `
                     : undefined,
                   backgroundSize: chart.snapEnabled
@@ -1273,7 +1287,7 @@ export function SeatingChartEditor({
               </div>
               {/* Front of room label - outside canvas */}
               <div
-                className="text-center text-sm text-gray-400 py-1 border-t border-gray-200 -mt-px"
+                className="text-center text-sm text-gray-400 dark:text-zinc-600 py-1 border-t border-gray-200 dark:border-zinc-800 -mt-px"
                 style={{ width: chart.canvasWidth }}
               >
                 FRONT OF ROOM
@@ -1282,10 +1296,10 @@ export function SeatingChartEditor({
 
             {/* Unassigned Students Panel */}
             <div
-              className="w-64 bg-white border rounded-lg p-4 flex-shrink-0 self-start flex flex-col"
+              className="w-64 bg-white dark:bg-zinc-900 border rounded-lg p-4 flex-shrink-0 self-start flex flex-col"
               style={{ height: chart.canvasHeight }}
             >
-              <h3 className="font-medium text-gray-800 mb-3 flex-shrink-0">
+              <h3 className="font-medium text-gray-800 dark:text-zinc-100 mb-3 flex-shrink-0">
                 Unassigned Students ({unassignedStudents.length})
               </h3>
               <div className="space-y-2 overflow-y-auto flex-1">
@@ -1293,7 +1307,9 @@ export function SeatingChartEditor({
                   <DraggableStudent key={student.id} student={student} />
                 ))}
                 {unassignedStudents.length === 0 && (
-                  <p className="text-sm text-gray-500 italic">All students assigned</p>
+                  <p className="text-sm text-gray-500 dark:text-zinc-500 italic">
+                    All students assigned
+                  </p>
                 )}
               </div>
             </div>
@@ -1304,23 +1320,23 @@ export function SeatingChartEditor({
         <DragOverlay>
           {(draggingType === 'student' || draggingType === 'seated-student') && draggingStudent && (
             <div
-              className="bg-white rounded-lg shadow-lg border-2 border-blue-500 flex flex-col items-center justify-center p-1"
+              className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border-2 border-blue-500 flex flex-col items-center justify-center p-1"
               style={{ width: 100, height: 100 }}
             >
               {/* Avatar */}
               <div
-                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-base shadow-inner"
-                style={{ backgroundColor: draggingStudent.avatarColor || '#6B7280' }}
+                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-base shadow-inner ${draggingTextClass}`}
+                style={{ backgroundColor: draggingBg }}
               >
                 {draggingStudent.name.charAt(0).toUpperCase()}
               </div>
               {/* Name */}
-              <span className="text-xs font-medium text-gray-800 text-center truncate w-full mt-1">
+              <span className="text-xs font-medium text-gray-800 dark:text-zinc-100 text-center truncate w-full mt-1">
                 {draggingStudent.name.split(' ')[0]}
               </span>
               {/* Points */}
               <span
-                className={`text-sm font-bold ${draggingStudent.pointTotal >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                className={`text-sm font-bold ${draggingStudent.pointTotal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
               >
                 {draggingStudent.pointTotal >= 0 ? '+' : ''}
                 {draggingStudent.pointTotal}

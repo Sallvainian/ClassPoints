@@ -58,25 +58,29 @@ export function ResetPointsModal({ classroom, isOpen, onClose, onConfirm }: Rese
     <Modal isOpen={isOpen} onClose={onClose} title="Reset All Points?">
       <div className="space-y-4">
         {/* Warning message */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <p className="text-sm text-amber-800">
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-lg p-3">
+          <p className="text-sm text-amber-800 dark:text-amber-200">
             <strong>Warning:</strong> This will permanently delete all point history for{' '}
             <strong>"{classroom.name}"</strong>:
           </p>
-          <ul className="text-sm text-amber-700 mt-2 ml-4 list-disc">
+          <ul className="text-sm text-amber-700 dark:text-amber-300 mt-2 ml-4 list-disc">
             <li>
               All {studentCount} student{studentCount !== 1 ? 's' : ''} will have 0 points
             </li>
             <li>All transaction history will be deleted</li>
             <li>Student roster will be preserved</li>
           </ul>
-          <p className="text-sm text-amber-800 mt-2 font-medium">This action cannot be undone.</p>
+          <p className="text-sm text-amber-800 dark:text-amber-200 mt-2 font-medium">
+            This action cannot be undone.
+          </p>
         </div>
 
         {/* Confirmation input */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Type <span className="font-bold text-gray-900">"{classroom.name}"</span> to confirm:
+          <label className="block text-sm font-medium text-gray-700 dark:text-zinc-200 mb-1">
+            Type{' '}
+            <span className="font-bold text-gray-900 dark:text-zinc-50">"{classroom.name}"</span> to
+            confirm:
           </label>
           <Input
             value={confirmationText}
@@ -95,7 +99,7 @@ export function ResetPointsModal({ classroom, isOpen, onClose, onConfirm }: Rese
         </div>
 
         {/* Error Display */}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         {/* Actions */}
         <div className="flex justify-end gap-2 pt-2">

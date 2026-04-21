@@ -48,38 +48,49 @@ export function MultiAwardModal({
     }
   }, [isOpen]);
 
-  const handleBehaviorSelect = useCallback(async (behavior: Behavior) => {
-    if (selectedStudents.length === 0 || isAwarding) return;
+  const handleBehaviorSelect = useCallback(
+    async (behavior: Behavior) => {
+      if (selectedStudents.length === 0 || isAwarding) return;
 
-    setIsAwarding(true);
-    setAwardError(null);
+      setIsAwarding(true);
+      setAwardError(null);
 
-    try {
-      // Extract student IDs for the atomic batch operation
-      const studentIds = selectedStudents.map((s) => s.id);
+      try {
+        // Extract student IDs for the atomic batch operation
+        const studentIds = selectedStudents.map((s) => s.id);
 
-      // awardPointsToStudents throws on error with automatic rollback
-      await awardPointsToStudents(
-        classroomId,
-        studentIds,
-        behavior.id,
-        `Multi-select award (${selectedStudents.length} students)`
-      );
+        // awardPointsToStudents throws on error with automatic rollback
+        await awardPointsToStudents(
+          classroomId,
+          studentIds,
+          behavior.id,
+          `Multi-select award (${selectedStudents.length} students)`
+        );
 
-      // Play sound once after successful batch award
-      if (behavior.category === 'positive') {
-        playPositive();
-      } else {
-        playNegative();
+        // Play sound once after successful batch award
+        if (behavior.category === 'positive') {
+          playPositive();
+        } else {
+          playNegative();
+        }
+
+        onClose();
+      } catch (err) {
+        console.error('Failed to award points to students:', err);
+        setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_STUDENTS);
+        setIsAwarding(false);
       }
-
-      onClose();
-    } catch (err) {
-      console.error('Failed to award points to students:', err);
-      setAwardError(err instanceof Error ? err.message : ERROR_MESSAGES.AWARD_STUDENTS);
-      setIsAwarding(false);
-    }
-  }, [classroomId, selectedStudents, isAwarding, awardPointsToStudents, playPositive, playNegative, onClose]);
+    },
+    [
+      classroomId,
+      selectedStudents,
+      isAwarding,
+      awardPointsToStudents,
+      playPositive,
+      playNegative,
+      onClose,
+    ]
+  );
 
   if (!isOpen || selectedStudents.length === 0) return null;
 
@@ -94,7 +105,7 @@ export function MultiAwardModal({
 
       {/* Modal */}
       <div
-        className="relative bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden"
+        className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="multi-award-modal-title"
@@ -124,9 +135,7 @@ export function MultiAwardModal({
                 </div>
               ))}
               {selectedStudents.length > 3 && (
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-white/30 border-2 border-white/40"
-                >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-white/30 border-2 border-white/40">
                   +{selectedStudents.length - 3}
                 </div>
               )}
@@ -146,7 +155,7 @@ export function MultiAwardModal({
         {/* Behavior Picker */}
         <div className="p-6 overflow-y-auto max-h-[60vh]">
           {awardError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+            <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg mb-4 text-sm">
               {awardError}
             </div>
           )}
@@ -154,11 +163,13 @@ export function MultiAwardModal({
           {isAwarding ? (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mb-3" />
-              <p className="text-gray-600">Awarding points to {selectedStudents.length} students...</p>
+              <p className="text-gray-600 dark:text-zinc-400">
+                Awarding points to {selectedStudents.length} students...
+              </p>
             </div>
           ) : (
             <>
-              <p className="text-sm text-gray-600 mb-4 text-center">
+              <p className="text-sm text-gray-600 dark:text-zinc-400 mb-4 text-center">
                 Select a behavior to award to all {selectedStudents.length} selected students
               </p>
               <BehaviorPicker behaviors={behaviors} onSelect={handleBehaviorSelect} />

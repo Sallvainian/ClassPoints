@@ -114,10 +114,10 @@ export function ProfileView({ onClose }: ProfileViewProps) {
   };
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-white dark:bg-zinc-900">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Profile</h1>
+      <div className="bg-white dark:bg-zinc-900 border-b px-6 py-4 flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-zinc-50">Profile</h1>
         <Button variant="ghost" onClick={onClose}>
           Done
         </Button>
@@ -127,22 +127,28 @@ export function ProfileView({ onClose }: ProfileViewProps) {
       <div className="flex-1 overflow-y-auto p-6 space-y-8">
         {/* User Info Section */}
         <section>
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">Account Information</h2>
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-zinc-200 mb-4">
+            Account Information
+          </h2>
+          <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg p-4 space-y-4">
             {/* Avatar and Email */}
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-medium">
+              <div className="w-16 h-16 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white text-2xl font-medium">
                 {currentDisplayName.charAt(0).toUpperCase()}
               </div>
               <div>
-                <p className="text-lg font-medium text-gray-900">{currentDisplayName}</p>
-                <p className="text-sm text-gray-500">{userEmail}</p>
+                <p className="text-lg font-medium text-gray-900 dark:text-zinc-50">
+                  {currentDisplayName}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-zinc-500">{userEmail}</p>
               </div>
             </div>
 
             {/* Display Name Edit */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-zinc-200 mb-1">
+                Display Name
+              </label>
               {isEditingName ? (
                 <div className="flex gap-2">
                   <Input
@@ -173,19 +179,27 @@ export function ProfileView({ onClose }: ProfileViewProps) {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-900">{currentDisplayName}</span>
+                  <span className="text-gray-900 dark:text-zinc-50">{currentDisplayName}</span>
                   <Button variant="ghost" size="sm" onClick={() => setIsEditingName(true)}>
                     Edit
                   </Button>
                 </div>
               )}
-              {nameError && <p className="text-sm text-red-600 mt-1">{nameError}</p>}
-              {nameSuccess && <p className="text-sm text-green-600 mt-1">Display name updated!</p>}
+              {nameError && (
+                <p className="text-sm text-red-600 dark:text-red-400 mt-1">{nameError}</p>
+              )}
+              {nameSuccess && (
+                <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                  Display name updated!
+                </p>
+              )}
             </div>
 
             {/* Password Change */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-zinc-200 mb-1">
+                Password
+              </label>
               {showPasswordForm ? (
                 <div className="space-y-3">
                   <Input
@@ -201,9 +215,11 @@ export function ProfileView({ onClose }: ProfileViewProps) {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                   {newPassword && confirmPassword && newPassword !== confirmPassword && (
-                    <p className="text-sm text-red-600">Passwords do not match</p>
+                    <p className="text-sm text-red-600 dark:text-red-400">Passwords do not match</p>
                   )}
-                  {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
+                  {passwordError && (
+                    <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>
+                  )}
                   <div className="flex gap-2">
                     <Button
                       onClick={handleChangePassword}
@@ -231,27 +247,29 @@ export function ProfileView({ onClose }: ProfileViewProps) {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">••••••••</span>
+                  <span className="text-gray-500 dark:text-zinc-500">••••••••</span>
                   <Button variant="ghost" size="sm" onClick={() => setShowPasswordForm(true)}>
                     Change
                   </Button>
                 </div>
               )}
-              {passwordSuccess && <p className="text-sm text-green-600 mt-1">Password updated!</p>}
+              {passwordSuccess && (
+                <p className="text-sm text-green-600 dark:text-green-400 mt-1">Password updated!</p>
+              )}
             </div>
           </div>
         </section>
 
         {/* Classrooms Section */}
         <section>
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-zinc-200 mb-4">
             Your Classrooms ({classrooms.length})
           </h2>
 
           {classrooms.length === 0 ? (
-            <div className="bg-gray-50 rounded-lg p-6 text-center">
-              <p className="text-gray-500">No classrooms yet.</p>
-              <p className="text-sm text-gray-400 mt-1">
+            <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg p-6 text-center">
+              <p className="text-gray-500 dark:text-zinc-500">No classrooms yet.</p>
+              <p className="text-sm text-gray-400 dark:text-zinc-600 mt-1">
                 Create a classroom from the sidebar to get started.
               </p>
             </div>
@@ -260,11 +278,11 @@ export function ProfileView({ onClose }: ProfileViewProps) {
               {classrooms.map((classroom) => (
                 <div
                   key={classroom.id}
-                  className="p-4 flex items-center justify-between hover:bg-gray-50"
+                  className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-800"
                 >
                   <div>
-                    <p className="font-medium text-gray-900">{classroom.name}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="font-medium text-gray-900 dark:text-zinc-50">{classroom.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-zinc-500">
                       {classroom.students.length} student
                       {classroom.students.length !== 1 ? 's' : ''}
                       {classroom.pointTotal !== undefined && (
@@ -272,7 +290,9 @@ export function ProfileView({ onClose }: ProfileViewProps) {
                           •{' '}
                           <span
                             className={
-                              classroom.pointTotal >= 0 ? 'text-green-600' : 'text-red-600'
+                              classroom.pointTotal >= 0
+                                ? 'text-green-600 dark:text-green-400'
+                                : 'text-red-600 dark:text-red-400'
                             }
                           >
                             <span className="sr-only">
@@ -288,7 +308,7 @@ export function ProfileView({ onClose }: ProfileViewProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-red-600 hover:bg-red-50"
+                    className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
                     onClick={() => setClassroomToDelete(classroom)}
                   >
                     Delete

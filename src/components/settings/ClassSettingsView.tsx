@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
+import { useTheme } from '../../contexts/ThemeContext';
+import { resolveAvatarDisplay } from '../../hooks';
 import { getAvatarColorForName } from '../../utils';
 import { Button, Input, Modal } from '../ui';
 import { ImportStudentsModal } from '../classes/ImportStudentsModal';
@@ -11,6 +13,8 @@ interface ClassSettingsViewProps {
 }
 
 export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const {
     activeClassroom,
     updateClassroom,
@@ -39,7 +43,7 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
 
   if (!activeClassroom) {
     return (
-      <div className="p-8 text-center text-gray-500">
+      <div className="p-8 text-center text-gray-500 dark:text-zinc-500">
         <p>No classroom selected</p>
         <Button variant="secondary" onClick={onClose} className="mt-4">
           Close
@@ -96,10 +100,10 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
   );
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-white dark:bg-zinc-900">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Classroom Settings</h1>
+      <div className="bg-white dark:bg-zinc-900 border-b px-6 py-4 flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-zinc-50">Classroom Settings</h1>
         <Button variant="ghost" onClick={onClose}>
           Done
         </Button>
@@ -109,7 +113,9 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
       <div className="flex-1 overflow-y-auto p-6 space-y-8">
         {/* Classroom Name Section */}
         <section>
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Classroom Name</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-zinc-200 mb-3">
+            Classroom Name
+          </h2>
           <div className="flex gap-2">
             <Input
               value={classroomName}
@@ -129,7 +135,7 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
         {/* Students Section */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-700">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-zinc-200">
               Students ({activeClassroom.students.length})
             </h2>
             <Button variant="secondary" size="sm" onClick={() => setIsImportModalOpen(true)}>
@@ -158,113 +164,120 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
 
           {/* Student List */}
           {sortedStudents.length === 0 ? (
-            <p className="text-gray-500 text-sm py-4 text-center">
+            <p className="text-gray-500 dark:text-zinc-500 text-sm py-4 text-center">
               No students yet. Add some above or import from a file.
             </p>
           ) : (
-            <ul className="border rounded-lg divide-y">
-              {sortedStudents.map((student) => (
-                <li
-                  key={student.id}
-                  className="px-4 py-3 flex items-center justify-between hover:bg-gray-50"
-                >
-                  {editingStudentId === student.id ? (
-                    <div className="flex-1 flex gap-2">
-                      <Input
-                        value={editingStudentName}
-                        onChange={(e) => setEditingStudentName(e.target.value)}
-                        className="flex-1"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveStudentEdit();
-                          if (e.key === 'Escape') handleCancelStudentEdit();
-                        }}
-                      />
-                      <Button size="sm" onClick={handleSaveStudentEdit}>
-                        Save
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={handleCancelStudentEdit}>
-                        Cancel
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
-                          style={{
-                            backgroundColor:
-                              student.avatarColor || getAvatarColorForName(student.name),
+            <ul className="border border-gray-200 dark:border-zinc-700 rounded-lg divide-y divide-gray-200 dark:divide-zinc-700">
+              {sortedStudents.map((student) => {
+                const rawColor = student.avatarColor || getAvatarColorForName(student.name);
+                const { bg, textClass } = resolveAvatarDisplay(rawColor, isDark);
+                return (
+                  <li
+                    key={student.id}
+                    className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-800"
+                  >
+                    {editingStudentId === student.id ? (
+                      <div className="flex-1 flex gap-2">
+                        <Input
+                          value={editingStudentName}
+                          onChange={(e) => setEditingStudentName(e.target.value)}
+                          className="flex-1"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveStudentEdit();
+                            if (e.key === 'Escape') handleCancelStudentEdit();
                           }}
-                        >
-                          {student.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-900">{student.name}</span>
-                          <span
-                            className={`text-sm ml-2 ${
-                              student.pointTotal >= 0 ? 'text-green-600' : 'text-red-600'
-                            }`}
+                        />
+                        <Button size="sm" onClick={handleSaveStudentEdit}>
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={handleCancelStudentEdit}>
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${textClass}`}
+                            style={{ backgroundColor: bg }}
                           >
-                            <span className="sr-only">
-                              {student.pointTotal >= 0 ? 'positive' : 'negative'}{' '}
+                            {student.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-900 dark:text-zinc-50">
+                              {student.name}
                             </span>
-                            ({student.pointTotal >= 0 ? '+' : ''}
-                            {student.pointTotal} pts)
-                          </span>
+                            <span
+                              className={`text-sm ml-2 ${
+                                student.pointTotal >= 0
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : 'text-red-600 dark:text-red-400'
+                              }`}
+                            >
+                              <span className="sr-only">
+                                {student.pointTotal >= 0 ? 'positive' : 'negative'}{' '}
+                              </span>
+                              ({student.pointTotal >= 0 ? '+' : ''}
+                              {student.pointTotal} pts)
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleStartEditStudent(student.id, student.name)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setStudentToAdjust({
-                              id: student.id,
-                              name: student.name,
-                              pointTotal: student.pointTotal,
-                            })
-                          }
-                        >
-                          Adjust
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600 hover:bg-red-50"
-                          onClick={() => removeStudent(activeClassroom.id, student.id)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </li>
-              ))}
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleStartEditStudent(student.id, student.name)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setStudentToAdjust({
+                                id: student.id,
+                                name: student.name,
+                                pointTotal: student.pointTotal,
+                              })
+                            }
+                          >
+                            Adjust
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
+                            onClick={() => removeStudent(activeClassroom.id, student.id)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
 
         {/* Danger Zone */}
-        <section className="pt-4 border-t">
-          <h2 className="text-sm font-semibold text-red-600 mb-3">Danger Zone</h2>
+        <section className="pt-4 border-t border-gray-200 dark:border-zinc-700">
+          <h2 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-3">Danger Zone</h2>
 
           {/* Reset Points */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-            <h3 className="font-medium text-amber-800 mb-2">Reset All Points</h3>
-            <p className="text-sm text-gray-700 mb-3">
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-lg p-4 mb-4">
+            <h3 className="font-medium text-amber-800 dark:text-amber-200 mb-2">
+              Reset All Points
+            </h3>
+            <p className="text-sm text-gray-700 dark:text-zinc-200 mb-3">
               Clear all point history for this classroom. Student roster will be preserved.
             </p>
             <Button
               variant="secondary"
-              className="border-amber-300 text-amber-800 hover:bg-amber-100"
+              className="border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40"
               onClick={() => setIsResetModalOpen(true)}
             >
               Reset All Points
@@ -272,9 +285,9 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
           </div>
 
           {/* Delete Classroom */}
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <h3 className="font-medium text-red-800 mb-2">Delete Classroom</h3>
-            <p className="text-sm text-gray-700 mb-3">
+          <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-lg p-4">
+            <h3 className="font-medium text-red-800 dark:text-red-200 mb-2">Delete Classroom</h3>
+            <p className="text-sm text-gray-700 dark:text-zinc-200 mb-3">
               Deleting this classroom will remove all students and their point history. This action
               cannot be undone.
             </p>
@@ -298,7 +311,7 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
         onClose={() => setIsDeleteConfirmOpen(false)}
         title="Delete Classroom?"
       >
-        <p className="text-gray-600 mb-4">
+        <p className="text-gray-600 dark:text-zinc-400 mb-4">
           Are you sure you want to delete "{activeClassroom.name}"? This will remove all{' '}
           {activeClassroom.students.length} students and their point history.
         </p>

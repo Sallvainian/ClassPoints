@@ -25,11 +25,13 @@ function RoomElementDisplayComponent({
   // Element type styling - use outline with negative offset so it stays inside the box
   const typeStyles: Record<string, string> = {
     teacher_desk:
-      'bg-amber-100 outline outline-2 -outline-offset-2 outline-amber-500 text-amber-800',
-    door: 'bg-green-100 outline outline-2 -outline-offset-2 outline-green-500 text-green-800',
-    window: 'bg-sky-100 outline outline-2 -outline-offset-2 outline-sky-500 text-sky-800',
-    countertop: 'bg-stone-200 outline outline-2 -outline-offset-2 outline-stone-500 text-stone-800',
-    sink: 'bg-blue-200 outline outline-2 -outline-offset-2 outline-blue-500 text-blue-800',
+      'bg-amber-100 dark:bg-amber-900/40 outline outline-2 -outline-offset-2 outline-amber-500 text-amber-800 dark:text-amber-200',
+    door: 'bg-green-100 dark:bg-green-900/40 outline outline-2 -outline-offset-2 outline-green-500 text-green-800 dark:text-green-200',
+    window:
+      'bg-sky-100 dark:bg-sky-900/40 outline outline-2 -outline-offset-2 outline-sky-500 text-sky-800 dark:text-sky-200',
+    countertop:
+      'bg-stone-200 dark:bg-stone-800/60 outline outline-2 -outline-offset-2 outline-stone-500 text-stone-800 dark:text-stone-200',
+    sink: 'bg-blue-200 dark:bg-blue-900/40 outline outline-2 -outline-offset-2 outline-blue-500 text-blue-800 dark:text-blue-200',
   };
 
   const defaultLabels: Record<string, string> = {
@@ -46,7 +48,7 @@ function RoomElementDisplayComponent({
         rounded flex items-center justify-center select-none
         transition-colors
         ${isSelected ? 'ring-2 ring-blue-300' : ''}
-        ${typeStyles[element.type] || 'bg-gray-100 outline outline-2 -outline-offset-2 outline-gray-400'}
+        ${typeStyles[element.type] || 'bg-gray-100 dark:bg-zinc-800 outline outline-2 -outline-offset-2 outline-gray-400 dark:outline-zinc-600'}
         ${isEditing ? 'cursor-move' : ''}
       `}
       style={style}

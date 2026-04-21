@@ -30,14 +30,12 @@ export function TodaySummary({ transactions, students, limit = 10 }: TodaySummar
 
   // Get recent transactions
   const recentTransactions = useMemo(() => {
-    return [...transactions]
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, limit);
+    return [...transactions].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
   }, [transactions, limit]);
 
   if (recentTransactions.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8 text-gray-500 dark:text-zinc-500">
         <div className="text-4xl mb-2">📝</div>
         <p className="text-sm">No activity yet today</p>
       </div>
@@ -52,7 +50,7 @@ export function TodaySummary({ transactions, students, limit = 10 }: TodaySummar
           <div
             key={transaction.id}
             className={`flex items-center gap-3 p-3 rounded-lg ${
-              isPositive ? 'bg-emerald-50' : 'bg-red-50'
+              isPositive ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-red-50 dark:bg-red-950/40'
             }`}
           >
             {/* Icon */}
@@ -60,10 +58,10 @@ export function TodaySummary({ transactions, students, limit = 10 }: TodaySummar
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm font-medium text-gray-900 dark:text-zinc-50 truncate">
                 {getStudentName(transaction.studentId)}
               </p>
-              <p className="text-xs text-gray-500 truncate">
+              <p className="text-xs text-gray-500 dark:text-zinc-500 truncate">
                 {transaction.behaviorName}
               </p>
             </div>
@@ -72,12 +70,15 @@ export function TodaySummary({ transactions, students, limit = 10 }: TodaySummar
             <div className="text-right">
               <span
                 className={`font-bold ${
-                  isPositive ? 'text-emerald-600' : 'text-red-600'
+                  isPositive
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-red-600 dark:text-red-400'
                 }`}
               >
-                {isPositive ? '+' : ''}{transaction.points}
+                {isPositive ? '+' : ''}
+                {transaction.points}
               </span>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-400 dark:text-zinc-600">
                 {formatRelativeTime(transaction.timestamp)}
               </p>
             </div>

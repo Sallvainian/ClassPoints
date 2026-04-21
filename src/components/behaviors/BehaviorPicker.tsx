@@ -20,7 +20,7 @@ export function BehaviorPicker({ behaviors, onSelect }: BehaviorPickerProps) {
       {/* Positive Behaviors */}
       {positive.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-emerald-700 mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 mb-3 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             Positive
           </h3>
@@ -39,7 +39,7 @@ export function BehaviorPicker({ behaviors, onSelect }: BehaviorPickerProps) {
       {/* Negative Behaviors */}
       {negative.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-red-700 dark:text-red-300 mb-3 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500" />
             Needs Work
           </h3>
@@ -56,7 +56,7 @@ export function BehaviorPicker({ behaviors, onSelect }: BehaviorPickerProps) {
       )}
 
       {behaviors.length === 0 && (
-        <p className="text-center text-gray-500 py-8">
+        <p className="text-center text-gray-500 dark:text-zinc-500 py-8">
           No behaviors configured. Add some in settings.
         </p>
       )}

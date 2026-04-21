@@ -1,11 +1,14 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
 import type { Student } from '../../types';
 import { useSeatingChart } from '../../hooks/useSeatingChart';
 import { useLayoutPresets } from '../../hooks/useLayoutPresets';
 import { EmptyChartPrompt } from './EmptyChartPrompt';
 import { SeatingChartCanvas } from './SeatingChartCanvas';
-import { SeatingChartEditor } from './SeatingChartEditor';
 import { Button } from '../ui/Button';
+
+const SeatingChartEditor = lazy(() =>
+  import('./SeatingChartEditor').then((m) => ({ default: m.SeatingChartEditor }))
+);
 
 interface SeatingChartViewProps {
   classroomId: string;
@@ -117,7 +120,7 @@ export function SeatingChartView({
   // Error state
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-red-600">
+      <div className="flex flex-col items-center justify-center h-64 text-red-600 dark:text-red-400">
         <p>Error loading seating chart: {error.message}</p>
       </div>
     );
@@ -131,29 +134,37 @@ export function SeatingChartView({
   // Editor mode
   if (isEditing) {
     return (
-      <SeatingChartEditor
-        chart={chart}
-        students={students}
-        onClose={handleCloseEditor}
-        onAddGroup={addGroup}
-        onMoveGroup={moveGroup}
-        onDeleteGroup={deleteGroup}
-        onRotateGroup={rotateGroup}
-        onAssignStudent={assignStudent}
-        onUnassignStudent={unassignStudent}
-        onSwapStudents={swapStudents}
-        onRandomize={() => randomizeAssignments(students)}
-        onAddRoomElement={addRoomElement}
-        onMoveRoomElement={moveRoomElement}
-        onResizeRoomElement={resizeRoomElement}
-        onDeleteRoomElement={deleteRoomElement}
-        onRotateRoomElement={rotateRoomElement}
-        onUpdateSettings={updateSettings}
-        onSavePreset={handleSavePreset}
-        presets={presets}
-        onLoadPreset={applyPreset}
-        onDeletePreset={deletePreset}
-      />
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+          </div>
+        }
+      >
+        <SeatingChartEditor
+          chart={chart}
+          students={students}
+          onClose={handleCloseEditor}
+          onAddGroup={addGroup}
+          onMoveGroup={moveGroup}
+          onDeleteGroup={deleteGroup}
+          onRotateGroup={rotateGroup}
+          onAssignStudent={assignStudent}
+          onUnassignStudent={unassignStudent}
+          onSwapStudents={swapStudents}
+          onRandomize={() => randomizeAssignments(students)}
+          onAddRoomElement={addRoomElement}
+          onMoveRoomElement={moveRoomElement}
+          onResizeRoomElement={resizeRoomElement}
+          onDeleteRoomElement={deleteRoomElement}
+          onRotateRoomElement={rotateRoomElement}
+          onUpdateSettings={updateSettings}
+          onSavePreset={handleSavePreset}
+          presets={presets}
+          onLoadPreset={applyPreset}
+          onDeletePreset={deletePreset}
+        />
+      </Suspense>
     );
   }
 
@@ -161,23 +172,23 @@ export function SeatingChartView({
   return (
     <div className="p-4" ref={containerRef}>
       {/* Header - chart name */}
-      <h2 className="text-lg font-semibold text-gray-800 mb-2">{chart.name}</h2>
+      <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-2">{chart.name}</h2>
 
       {/* Controls - stacked above chart */}
       <div className="flex items-center gap-2 mb-4">
         {/* Zoom controls */}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-zinc-950 rounded-lg p-1">
           <button
             onClick={handleZoomOut}
             disabled={scale <= MIN_ZOOM}
-            className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
             title="Zoom out"
           >
-            <span className="text-lg font-medium text-gray-600">−</span>
+            <span className="text-lg font-medium text-gray-600 dark:text-zinc-400">−</span>
           </button>
           <button
             onClick={handleFitToScreen}
-            className="px-2 h-8 text-sm text-gray-600 hover:bg-white rounded-md transition-colors min-w-[4rem]"
+            className="px-2 h-8 text-sm text-gray-600 dark:text-zinc-400 hover:bg-white dark:hover:bg-zinc-900 rounded-md transition-colors min-w-[4rem]"
             title="Fit to screen"
           >
             {Math.round(scale * 100)}%
@@ -185,10 +196,10 @@ export function SeatingChartView({
           <button
             onClick={handleZoomIn}
             disabled={scale >= MAX_ZOOM}
-            className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
             title="Zoom in"
           >
-            <span className="text-lg font-medium text-gray-600">+</span>
+            <span className="text-lg font-medium text-gray-600 dark:text-zinc-400">+</span>
           </button>
         </div>
 
@@ -196,8 +207,8 @@ export function SeatingChartView({
           onClick={() => setHideRoomElements(!hideRoomElements)}
           className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
             hideRoomElements
-              ? 'bg-gray-100 border-gray-300 text-gray-700'
-              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+              ? 'bg-gray-100 dark:bg-zinc-950 border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-zinc-200'
+              : 'bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-800 text-gray-600 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-zinc-800'
           }`}
         >
           {hideRoomElements ? 'Show' : 'Hide'} Room Elements

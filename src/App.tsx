@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { SoundProvider } from './contexts/SoundContext';
 import { AppProvider, useApp } from './contexts/AppContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthGuard } from './components/auth/AuthGuard';
 import { SyncStatus } from './components/common/SyncStatus';
 import { MigrationWizard } from './components/migration/MigrationWizard';
@@ -27,7 +28,7 @@ function AppContent() {
   // Migration wizard view
   if (view === 'migration') {
     return (
-      <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center p-4">
         <MigrationWizard
           onComplete={() => setView('dashboard')}
           onSkip={() => setView('dashboard')}
@@ -80,11 +81,13 @@ export default function App() {
   return (
     <AuthProvider>
       <AuthGuard>
-        <SoundProvider>
-          <AppProvider>
-            <AppContent />
-          </AppProvider>
-        </SoundProvider>
+        <ThemeProvider>
+          <SoundProvider>
+            <AppProvider>
+              <AppContent />
+            </AppProvider>
+          </SoundProvider>
+        </ThemeProvider>
       </AuthGuard>
     </AuthProvider>
   );

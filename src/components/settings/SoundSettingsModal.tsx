@@ -34,7 +34,7 @@ export function SoundSettingsModal() {
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-gray-600 dark:text-zinc-400 hover:text-gray-900"
         title={settings.enabled ? 'Sound settings (on)' : 'Sound settings (muted)'}
         aria-label="Sound settings"
       >
@@ -53,7 +53,7 @@ export function SoundSettingsModal() {
 
           {/* Modal Content */}
           <div
-            className="relative bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6"
+            className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6"
             role="dialog"
             aria-modal="true"
             aria-labelledby="sound-settings-title"
