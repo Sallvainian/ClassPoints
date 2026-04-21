@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render as rtlRender, screen, type RenderOptions } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import userEvent from '@testing-library/user-event';
 
 // Mock supabase client before any component imports
@@ -16,6 +17,10 @@ vi.mock('../lib/supabase', () => ({
 }));
 
 import { TeacherDashboard } from '../components/home/TeacherDashboard';
+import { ThemeProvider } from '../contexts/ThemeContext';
+
+const render = (ui: ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: ThemeProvider, ...options });
 
 // Mock the contexts
 const mockUseApp = vi.fn();
