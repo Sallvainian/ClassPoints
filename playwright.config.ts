@@ -11,14 +11,14 @@ for (const [key, value] of Object.entries(testEnv)) {
   }
 }
 
-// Safety check: refuse to run against a hosted Supabase URL. The E2E suite
-// creates and deletes real rows; pointing at prod by mistake polluted the
-// live DB once already.
+// Safety check: refuse to run against a hosted Supabase URL. Deny-list style —
+// anything containing "supabase.co" is production. Local (127.0.0.1), LAN
+// (192.168.*, 10.*), and Tailscale (100.*) are all fine.
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? '';
-if (!supabaseUrl.includes('127.0.0.1') && !supabaseUrl.includes('localhost')) {
+if (/supabase\.co/i.test(supabaseUrl)) {
   throw new Error(
-    `E2E refuses to run against non-local Supabase (got ${supabaseUrl}). ` +
-      `Start the local stack with \`npx supabase start\`, then copy .env.test.example to .env.test.`
+    `E2E refuses to run against hosted Supabase (got ${supabaseUrl}). ` +
+      `Start a local stack with \`npx supabase start\` and point VITE_SUPABASE_URL at it.`
   );
 }
 
