@@ -120,8 +120,8 @@ ClassPoints/
 ├── worktrees/                  # Git worktrees (feature branches)
 │
 ├── .env.example                # Environment template
-├── .env.local                  # Encrypted env vars (dotenvx)
-├── .env.keys                   # Decryption keys (NEVER commit)
+├── .env.test.example           # E2E test env template
+├── fnox.toml                   # Encrypted secrets (age provider, safe to commit)
 ├── CLAUDE.md                   # Claude Code instructions
 ├── eslint.config.js            # ESLint configuration
 ├── index.html                  # HTML entry point

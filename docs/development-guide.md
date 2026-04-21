@@ -5,7 +5,8 @@
 - **Node.js:** v20+ (LTS recommended)
 - **npm:** v10+ (comes with Node.js)
 - **Supabase Account:** For backend services
-- **dotenvx:** Bundled via dev dependencies
+- **[fnox](https://github.com/jdx/fnox):** Install with `mise use -g fnox`
+- **age private key:** Obtained from the project maintainer
 
 ## Quick Start
 
@@ -15,10 +16,13 @@ git clone <repository-url>
 cd ClassPoints
 npm install
 
-# Get decryption keys from team lead (required for .env.local)
-# Save to .env.keys (NEVER commit this file)
+# Install fnox
+mise use -g fnox
 
-# Start development server
+# Put your age private key at ~/.age/key.txt (0600 perms).
+# Get the key material from the project maintainer.
+
+# Start development server (fnox injects secrets from fnox.toml)
 npm run dev
 ```
 
@@ -28,40 +32,50 @@ The app will be available at `http://localhost:5173`.
 
 ### Required Environment Variables
 
-ClassPoints uses **dotenvx** for encrypted secrets. The `.env.local` file is committed (encrypted), but you need the private key in `.env.keys` to decrypt.
+ClassPoints uses **fnox** with the **age** provider. Encrypted secrets live in
+`fnox.toml` at the project root and are safe to commit. At runtime `fnox exec`
+decrypts them with your local age private key and exports them as env vars.
 
-| File           | Purpose            | Git              |
-| -------------- | ------------------ | ---------------- |
-| `.env.local`   | Encrypted env vars | Committed        |
-| `.env.keys`    | Decryption keys    | **NEVER commit** |
-| `.env.example` | Template reference | Committed        |
+| File                | Purpose                                   | Git              |
+| ------------------- | ----------------------------------------- | ---------------- |
+| `fnox.toml`         | Encrypted secrets + provider config       | Committed        |
+| `~/.age/key.txt`    | Your age private key (local, per-machine) | **NEVER commit** |
+| `.env.test`         | Local Supabase creds for E2E              | Gitignored       |
+| `.env.test.example` | Template reference                        | Committed        |
 
-**Required variables:**
-
-```
-VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
-```
-
-**For E2E tests:**
+**Secrets stored in `fnox.toml`:**
 
 ```
-TEST_EMAIL=test@example.com
-TEST_PASSWORD=testpassword123
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+VITE_TEST_EMAIL
+VITE_TEST_PASSWORD
 ```
 
-### Getting Decryption Keys
+View / rotate secrets:
 
-1. Contact the project maintainer for `DOTENV_PRIVATE_KEY_LOCAL`
-2. Create `.env.keys`:
+```bash
+fnox list                              # list keys (values redacted)
+fnox get VITE_SUPABASE_URL             # print one value
+printf 'new-value' | fnox set -p age KEY  # overwrite (piped from stdin)
+```
+
+### Getting the Age Private Key
+
+1. Ask the project maintainer for the age private key.
+2. Save it to `~/.age/key.txt` (mode 600):
+   ```bash
+   mkdir -p ~/.age && chmod 700 ~/.age
+   printf 'AGE-SECRET-KEY-…' > ~/.age/key.txt && chmod 600 ~/.age/key.txt
    ```
-   DOTENV_PRIVATE_KEY_LOCAL=your_key_here
-   ```
-3. Verify: `npm run dev` should start without errors
+3. Verify: `fnox exec -- printenv VITE_SUPABASE_URL` prints the real URL.
+4. Run: `npm run dev` should start without "Missing Supabase environment variables".
 
 ### CI/CD Setup
 
-Set `DOTENV_PRIVATE_KEY_LOCAL` as a secret in your CI environment.
+Set `FNOX_AGE_KEY` as a GitHub Actions secret (the full contents of
+`~/.age/key.txt`). `.github/workflows/test.yml` installs fnox via
+`jdx/mise-action` and calls `fnox exec --` to inject secrets.
 
 ## npm Scripts
 
@@ -329,11 +343,12 @@ GitHub Actions workflows:
 
 ### "Missing Supabase environment variables"
 
-Ensure `.env.keys` exists with the decryption key:
+Your age private key isn't set up or `fnox exec` isn't wrapping the command. Check:
 
-```
-DOTENV_PRIVATE_KEY_LOCAL=your_key
-```
+1. `fnox exec -- printenv VITE_SUPABASE_URL` prints a URL. If it's empty:
+2. Confirm `~/.age/key.txt` exists and contains a line starting `AGE-SECRET-KEY-…`
+3. Confirm `package.json` scripts use `fnox exec -- vite …` (not plain `vite`)
+4. `fnox doctor` for further diagnostics
 
 ### "useApp must be used within HybridAppProvider"
 

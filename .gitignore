@@ -22,13 +22,11 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment files (dotenvx)
-# .env.local is encrypted and SAFE to commit
-# .env.keys contains private keys - NEVER commit
-.env.keys
-.envrc
-# .env.test holds local Supabase credentials for E2E — ignored, use .env.test.example as a template
+# Environment files
+# Secrets live in fnox.toml (age-encrypted, safe to commit).
+# .env.test holds local Supabase credentials for E2E — ignored, use .env.test.example as a template.
 .env.test
+.env.local
 
 # Supabase CLI transient state
 supabase/.temp/

@@ -72,7 +72,7 @@ const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables.');
-  console.error('Run with: doppler run -- tsx scripts/migrate-data.ts');
+  console.error('Run with: npm run migrate   (wraps tsx via fnox exec)');
   process.exit(1);
 }
 
