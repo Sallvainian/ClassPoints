@@ -11,14 +11,30 @@ for (const [key, value] of Object.entries(testEnv)) {
   }
 }
 
-// Safety check: refuse to run against a hosted Supabase URL. Deny-list style —
-// anything containing "supabase.co" is production. Local (127.0.0.1), LAN
-// (192.168.*, 10.*), and Tailscale (100.*) are all fine.
+// Safety check: allow-list the networks a non-production Supabase stack could
+// live on — loopback, RFC1918 LAN, and Tailscale CGNAT — and refuse everything
+// else. Fail-closed: if we can't prove the host is private, we don't run.
+// Parses hostname so `https://127.0.0.1.evil.com` can't slip through a
+// substring match.
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? '';
-if (/supabase\.co/i.test(supabaseUrl)) {
+const supabaseHost = (() => {
+  try {
+    return new URL(supabaseUrl).hostname;
+  } catch {
+    return '';
+  }
+})();
+const isPrivateHost =
+  supabaseHost === 'localhost' ||
+  supabaseHost === '127.0.0.1' ||
+  /^10\./.test(supabaseHost) ||
+  /^192\.168\./.test(supabaseHost) ||
+  /^172\.(1[6-9]|2\d|3[01])\./.test(supabaseHost) || // RFC1918 172.16.0.0/12
+  /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(supabaseHost); // Tailscale CGNAT 100.64.0.0/10
+if (!isPrivateHost) {
   throw new Error(
-    `E2E refuses to run against hosted Supabase (got ${supabaseUrl}). ` +
-      `Start a local stack with \`npx supabase start\` and point VITE_SUPABASE_URL at it.`
+    `E2E refuses to run against ${supabaseHost || '(unparseable URL)'} — only loopback, RFC1918, and Tailscale CGNAT are allowed. ` +
+      `Start a local stack with \`npx supabase start\` or point VITE_SUPABASE_URL at a private network host.`
   );
 }
 
