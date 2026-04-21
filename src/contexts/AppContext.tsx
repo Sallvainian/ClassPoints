@@ -118,8 +118,13 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 const UNDO_WINDOW_MS = 10000; // 10 seconds for undo
 
+const ACTIVE_CLASSROOM_STORAGE_KEY = 'app:activeClassroomId';
+
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [activeClassroomId, setActiveClassroomId] = useState<string | null>(null);
+  const [activeClassroomId, setActiveClassroomId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem(ACTIVE_CLASSROOM_STORAGE_KEY);
+  });
 
   // Supabase hooks
   const {
@@ -205,6 +210,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setActiveClassroom = useCallback((id: string | null) => {
     setActiveClassroomId(id);
+    if (id) {
+      window.localStorage.setItem(ACTIVE_CLASSROOM_STORAGE_KEY, id);
+    } else {
+      window.localStorage.removeItem(ACTIVE_CLASSROOM_STORAGE_KEY);
+    }
   }, []);
 
   // ============================================
