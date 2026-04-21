@@ -62,16 +62,18 @@ export function SignupForm({ onSwitchToLogin, onSuccess }: SignupFormProps) {
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="bg-white rounded-xl shadow-lg p-8">
+      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
-          <p className="text-gray-600 mt-2">Start tracking classroom points today</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-50">Create Account</h1>
+          <p className="text-gray-600 dark:text-zinc-400 mt-2">
+            Start tracking classroom points today
+          </p>
         </div>
 
         {successMessage ? (
           <div className="text-center">
-            <div className="p-4 rounded-md bg-green-50 border border-green-200 mb-6">
-              <p className="text-green-700">{successMessage}</p>
+            <div className="p-4 rounded-md bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900/50 mb-6">
+              <p className="text-green-700 dark:text-green-300">{successMessage}</p>
             </div>
             <Button onClick={onSwitchToLogin} className="w-full">
               Go to Login
@@ -121,27 +123,23 @@ export function SignupForm({ onSwitchToLogin, onSuccess }: SignupFormProps) {
               />
 
               {displayError && (
-                <div className="p-3 rounded-md bg-red-50 border border-red-200">
-                  <p className="text-sm text-red-600">{displayError}</p>
+                <div className="p-3 rounded-md bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50">
+                  <p className="text-sm text-red-600 dark:text-red-400">{displayError}</p>
                 </div>
               )}
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={loading}
-              >
+              <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Creating account...' : 'Create Account'}
               </Button>
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-zinc-400">
                 Already have an account?{' '}
                 <button
                   type="button"
                   onClick={onSwitchToLogin}
-                  className="text-blue-600 hover:text-blue-800 font-medium"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium"
                 >
                   Sign in
                 </button>

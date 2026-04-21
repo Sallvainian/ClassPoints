@@ -15,7 +15,7 @@ export function Layout({
   onSelectClassroom,
 }: LayoutProps) {
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 dark:bg-zinc-950">
       <Sidebar
         onNavigateHome={onNavigateHome}
         onNavigateProfile={onNavigateProfile}

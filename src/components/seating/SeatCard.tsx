@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import type { Student } from '../../types';
-import { getAvatarColorForName, needsDarkText } from '../../utils';
+import { getAvatarColorForName } from '../../utils';
+import { useAvatarColor } from '../../hooks';
 
 interface SeatCardProps {
   student: Student | null;
@@ -26,6 +27,11 @@ function SeatCardComponent({
   // Reserved for future use
   void _onUnassign;
   void _isEditing;
+
+  // Hooks must run unconditionally — resolve avatar color even when empty.
+  const rawColor = student ? student.avatarColor || getAvatarColorForName(student.name) : '#e5e7eb';
+  const { bg: bgColor, textClass: avatarTextColor } = useAvatarColor(rawColor);
+
   if (!student) {
     // Empty seat - fills parent 100x100 container
     return (
@@ -35,19 +41,18 @@ function SeatCardComponent({
           w-full h-full
           flex items-center justify-center
           transition-colors cursor-pointer
-          ${isDropTarget ? 'bg-blue-50' : 'bg-gray-50 hover:bg-gray-100'}
+          ${isDropTarget ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-gray-50 dark:bg-zinc-900 hover:bg-gray-100 dark:hover:bg-zinc-800'}
         `}
         title="Empty seat - drag a student here"
       >
-        <span className="text-gray-400 text-2xl">+</span>
+        <span className="text-gray-400 dark:text-zinc-600 text-2xl">+</span>
       </button>
     );
   }
-
-  // Student card
-  const bgColor = student.avatarColor || getAvatarColorForName(student.name);
-  const avatarTextColor = needsDarkText(bgColor) ? 'text-gray-800' : 'text-white';
-  const pointsColor = student.pointTotal >= 0 ? 'text-emerald-600' : 'text-red-600';
+  const pointsColor =
+    student.pointTotal >= 0
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : 'text-red-600 dark:text-red-400';
 
   // Get first name only for compact display
   const firstName = student.name.split(' ')[0];
@@ -58,11 +63,11 @@ function SeatCardComponent({
         onClick={() => onClickStudent?.(student)}
         className={`
           w-full h-full
-          bg-white rounded-lg shadow-sm border
+          bg-white dark:bg-zinc-900 rounded-lg shadow-sm border
           flex flex-col items-center justify-center p-1
           transition-all cursor-pointer
-          hover:shadow-md hover:border-blue-200
-          ${isDropTarget ? 'border-blue-500 border-2' : 'border-gray-200'}
+          hover:shadow-md hover:border-blue-200 dark:hover:border-blue-900
+          ${isDropTarget ? 'border-blue-500 border-2' : 'border-gray-200 dark:border-zinc-800'}
           ${isDragging ? 'opacity-50' : ''}
         `}
       >
@@ -70,11 +75,11 @@ function SeatCardComponent({
         {showPointBreakdown && (
           <>
             {/* Positive points - top left */}
-            <div className="absolute top-1 left-1 bg-emerald-100 text-emerald-700 text-[9px] px-1 py-0.5 rounded-full font-medium">
+            <div className="absolute top-1 left-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[9px] px-1 py-0.5 rounded-full font-medium">
               +{student.positiveTotal}
             </div>
             {/* Negative points - top right */}
-            <div className="absolute top-1 right-1 bg-red-100 text-red-700 text-[9px] px-1 py-0.5 rounded-full font-medium">
+            <div className="absolute top-1 right-1 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-[9px] px-1 py-0.5 rounded-full font-medium">
               {student.negativeTotal}
             </div>
           </>
@@ -89,7 +94,7 @@ function SeatCardComponent({
         </div>
 
         {/* Name */}
-        <span className="text-xs font-medium text-gray-800 text-center truncate w-full mt-1">
+        <span className="text-xs font-medium text-gray-800 dark:text-zinc-100 text-center truncate w-full mt-1">
           {firstName}
         </span>
 

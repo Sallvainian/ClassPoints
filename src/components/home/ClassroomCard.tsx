@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import type { AppClassroom } from '../../contexts/HybridAppContext';
+import type { AppClassroom } from '../../types';
 
 interface ClassroomCardProps {
   classroom: AppClassroom;

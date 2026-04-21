@@ -38,6 +38,10 @@ jobs:
           additional_permissions: |
             actions: read
 
+          # Optional: Configure Claude's behavior with CLI arguments
+          claude_args: |
+            --model claude-opus-4-7
+
           # System prompt with project rules - Claude will follow these while executing the tagged comment
           prompt: |
             ## ClassPoints Project Rules

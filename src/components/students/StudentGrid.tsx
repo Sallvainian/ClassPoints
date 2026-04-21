@@ -43,7 +43,7 @@ export function StudentGrid({
 
   if (students.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+      <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-zinc-500">
         <div className="text-6xl mb-4">👨‍🎓</div>
         <p className="text-lg font-medium">No students yet</p>
         <p className="text-sm mt-1">Add students in the settings to get started</p>

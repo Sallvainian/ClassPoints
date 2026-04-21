@@ -1,4 +1,42 @@
 import { defineConfig, devices } from '@playwright/test';
+import { loadEnv } from 'vite';
+
+// E2E tests MUST hit a local Supabase stack, never production. Load .env.test
+// here so VITE_TEST_EMAIL/PASSWORD are on process.env for auth.setup.ts and
+// the dev server spawned by webServer inherits the local VITE_SUPABASE_URL/KEY.
+const testEnv = loadEnv('test', process.cwd(), '');
+for (const [key, value] of Object.entries(testEnv)) {
+  if (process.env[key] === undefined) {
+    process.env[key] = value;
+  }
+}
+
+// Safety check: allow-list the networks a non-production Supabase stack could
+// live on — loopback, RFC1918 LAN, and Tailscale CGNAT — and refuse everything
+// else. Fail-closed: if we can't prove the host is private, we don't run.
+// Parses hostname so `https://127.0.0.1.evil.com` can't slip through a
+// substring match.
+const supabaseUrl = process.env.VITE_SUPABASE_URL ?? '';
+const supabaseHost = (() => {
+  try {
+    return new URL(supabaseUrl).hostname;
+  } catch {
+    return '';
+  }
+})();
+const isPrivateHost =
+  supabaseHost === 'localhost' ||
+  supabaseHost === '127.0.0.1' ||
+  /^10\./.test(supabaseHost) ||
+  /^192\.168\./.test(supabaseHost) ||
+  /^172\.(1[6-9]|2\d|3[01])\./.test(supabaseHost) || // RFC1918 172.16.0.0/12
+  /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(supabaseHost); // Tailscale CGNAT 100.64.0.0/10
+if (!isPrivateHost) {
+  throw new Error(
+    `E2E refuses to run against ${supabaseHost || '(unparseable URL)'} — only loopback, RFC1918, and Tailscale CGNAT are allowed. ` +
+      `Start a local stack with \`npx supabase start\` or point VITE_SUPABASE_URL at a private network host.`
+  );
+}
 
 export default defineConfig({
   testDir: './e2e',
@@ -31,7 +69,13 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
+    // Never reuse an existing dev server for E2E — a manually-started server may be
+    // pointed at production Supabase. Force a fresh spawn with the .env.test values.
+    reuseExistingServer: false,
     timeout: 120000,
+    env: {
+      VITE_SUPABASE_URL: testEnv.VITE_SUPABASE_URL,
+      VITE_SUPABASE_ANON_KEY: testEnv.VITE_SUPABASE_ANON_KEY,
+    },
   },
 });

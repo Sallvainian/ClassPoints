@@ -72,14 +72,16 @@ export function AdjustPointsModal({ student, isOpen, onClose, onConfirm }: Adjus
     <Modal isOpen={isOpen} onClose={onClose} title={`Set Points for ${student.name}`}>
       <div className="space-y-4">
         {/* Current Points Display */}
-        <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-sm text-gray-600">Current Points</p>
-          <p className="text-2xl font-bold text-gray-900">{currentPoints}</p>
+        <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg p-3">
+          <p className="text-sm text-gray-600 dark:text-zinc-400">Current Points</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-zinc-50">{currentPoints}</p>
         </div>
 
         {/* Target Points Input */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">New Points</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-zinc-200 mb-1">
+            New Points
+          </label>
           <Input
             type="number"
             value={targetPoints}
@@ -94,7 +96,11 @@ export function AdjustPointsModal({ student, isOpen, onClose, onConfirm }: Adjus
         {isValidNumber && (
           <div
             className={`text-sm font-medium ${
-              delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-600' : 'text-gray-500'
+              delta > 0
+                ? 'text-green-600 dark:text-green-400'
+                : delta < 0
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-gray-500 dark:text-zinc-500'
             }`}
           >
             {delta === 0 ? (
@@ -110,7 +116,9 @@ export function AdjustPointsModal({ student, isOpen, onClose, onConfirm }: Adjus
 
         {/* Optional Note */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Reason (optional)</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-zinc-200 mb-1">
+            Reason (optional)
+          </label>
           <Input
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -119,7 +127,7 @@ export function AdjustPointsModal({ student, isOpen, onClose, onConfirm }: Adjus
         </div>
 
         {/* Error Display */}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         {/* Actions */}
         <div className="flex justify-end gap-2 pt-2">

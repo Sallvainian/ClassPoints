@@ -5,11 +5,7 @@
 import { useState } from 'react';
 import { useSoundContext } from '../../contexts/SoundContext';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
-import {
-  type SoundId,
-  POSITIVE_SOUNDS,
-  NEGATIVE_SOUNDS,
-} from '../../assets/sounds';
+import { type SoundId, POSITIVE_SOUNDS, NEGATIVE_SOUNDS } from '../../assets/sounds';
 import { validateAudioUrl } from '../../utils/validateAudioUrl';
 
 interface SoundSettingsProps {
@@ -20,12 +16,8 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
   const { settings, updateSettings, isLoading, error } = useSoundContext();
   const { playPositive, playNegative } = useSoundEffects();
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [customPositiveUrl, setCustomPositiveUrl] = useState(
-    settings.customPositiveUrl || ''
-  );
-  const [customNegativeUrl, setCustomNegativeUrl] = useState(
-    settings.customNegativeUrl || ''
-  );
+  const [customPositiveUrl, setCustomPositiveUrl] = useState(settings.customPositiveUrl || '');
+  const [customNegativeUrl, setCustomNegativeUrl] = useState(settings.customNegativeUrl || '');
   const [urlError, setUrlError] = useState<string | null>(null);
   const [isSavingUrl, setIsSavingUrl] = useState(false);
 
@@ -88,11 +80,16 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 id="sound-settings-title" className="text-lg font-semibold text-gray-900">Sound Settings</h2>
+        <h2
+          id="sound-settings-title"
+          className="text-lg font-semibold text-gray-900 dark:text-zinc-50"
+        >
+          Sound Settings
+        </h2>
         {onClose && (
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 dark:text-zinc-600 hover:text-gray-600"
             aria-label="Close"
           >
             ×
@@ -101,7 +98,7 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
           {error}
         </div>
       )}
@@ -109,13 +106,15 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
       {/* Master Toggle */}
       <div className="flex items-center justify-between py-3 border-b">
         <div>
-          <label className="font-medium text-gray-900">Sound Effects</label>
-          <p className="text-sm text-gray-500">Play sounds when awarding points</p>
+          <label className="font-medium text-gray-900 dark:text-zinc-50">Sound Effects</label>
+          <p className="text-sm text-gray-500 dark:text-zinc-500">
+            Play sounds when awarding points
+          </p>
         </div>
         <button
           onClick={() => updateSettings({ enabled: !settings.enabled })}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            settings.enabled ? 'bg-blue-600' : 'bg-gray-300'
+            settings.enabled ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300'
           }`}
           role="switch"
           aria-checked={settings.enabled}
@@ -130,7 +129,7 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
 
       {/* Volume Slider */}
       <div className={settings.enabled ? '' : 'opacity-50 pointer-events-none'}>
-        <label className="block font-medium text-gray-900 mb-2">
+        <label className="block font-medium text-gray-900 dark:text-zinc-50 mb-2">
           Volume: {Math.round(settings.volume * 100)}%
         </label>
         <input
@@ -139,20 +138,20 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
           max="100"
           value={Math.round(settings.volume * 100)}
           onChange={handleVolumeChange}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+          className="w-full h-2 bg-gray-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-600"
         />
       </div>
 
       {/* Positive Sound Selection */}
       <div className={settings.enabled ? '' : 'opacity-50 pointer-events-none'}>
-        <label className="block font-medium text-gray-900 mb-2">
+        <label className="block font-medium text-gray-900 dark:text-zinc-50 mb-2">
           Positive Behavior Sound
         </label>
         <div className="flex gap-2">
           <select
             value={settings.positiveSound}
             onChange={handlePositiveSoundChange}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 border border-gray-300 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
           >
             {POSITIVE_SOUNDS.map((sound) => (
               <option key={sound.id} value={sound.id}>
@@ -162,7 +161,7 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
           </select>
           <button
             onClick={playPositive}
-            className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+            className="px-4 py-2 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-200 transition-colors"
             title="Preview sound"
           >
             ▶️
@@ -172,14 +171,14 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
 
       {/* Negative Sound Selection */}
       <div className={settings.enabled ? '' : 'opacity-50 pointer-events-none'}>
-        <label className="block font-medium text-gray-900 mb-2">
+        <label className="block font-medium text-gray-900 dark:text-zinc-50 mb-2">
           Negative Behavior Sound
         </label>
         <div className="flex gap-2">
           <select
             value={settings.negativeSound}
             onChange={handleNegativeSoundChange}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 border border-gray-300 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
           >
             {NEGATIVE_SOUNDS.map((sound) => (
               <option key={sound.id} value={sound.id}>
@@ -189,7 +188,7 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
           </select>
           <button
             onClick={playNegative}
-            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+            className="px-4 py-2 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 transition-colors"
             title="Preview sound"
           >
             ▶️
@@ -201,28 +200,31 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
       <div className={settings.enabled ? '' : 'opacity-50 pointer-events-none'}>
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+          className="flex items-center gap-2 text-sm text-gray-600 dark:text-zinc-400 hover:text-gray-900"
         >
-          <span className="transform transition-transform" style={{
-            display: 'inline-block',
-            transform: showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)'
-          }}>
+          <span
+            className="transform transition-transform"
+            style={{
+              display: 'inline-block',
+              transform: showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)',
+            }}
+          >
             ▶
           </span>
           Advanced: Custom Sound URLs
         </button>
 
         {showAdvanced && (
-          <div className="mt-4 space-y-4 pl-4 border-l-2 border-gray-200">
+          <div className="mt-4 space-y-4 pl-4 border-l-2 border-gray-200 dark:border-zinc-800">
             {urlError && (
-              <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-3 py-2 rounded text-sm">
+              <div className="bg-yellow-50 dark:bg-yellow-950/40 border border-yellow-200 dark:border-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-3 py-2 rounded text-sm">
                 {urlError}
               </div>
             )}
 
             {/* Custom Positive URL */}
             <div>
-              <label className="block text-sm text-gray-700 mb-1">
+              <label className="block text-sm text-gray-700 dark:text-zinc-200 mb-1">
                 Custom Positive Sound URL
               </label>
               <div className="flex gap-2">
@@ -231,24 +233,24 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
                   value={customPositiveUrl}
                   onChange={(e) => setCustomPositiveUrl(e.target.value)}
                   placeholder="https://example.com/sound.mp3"
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="flex-1 px-3 py-2 text-sm bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 border border-gray-300 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
                 />
                 <button
                   onClick={() => handleCustomUrlSave('positive')}
                   disabled={isSavingUrl}
-                  className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="px-3 py-2 text-sm bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50"
                 >
                   {isSavingUrl ? '...' : 'Save'}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-zinc-500 mt-1">
                 Must be HTTPS and an audio file (MP3, WAV, OGG)
               </p>
             </div>
 
             {/* Custom Negative URL */}
             <div>
-              <label className="block text-sm text-gray-700 mb-1">
+              <label className="block text-sm text-gray-700 dark:text-zinc-200 mb-1">
                 Custom Negative Sound URL
               </label>
               <div className="flex gap-2">
@@ -257,17 +259,17 @@ export function SoundSettings({ onClose }: SoundSettingsProps) {
                   value={customNegativeUrl}
                   onChange={(e) => setCustomNegativeUrl(e.target.value)}
                   placeholder="https://example.com/sound.mp3"
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="flex-1 px-3 py-2 text-sm bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 border border-gray-300 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
                 />
                 <button
                   onClick={() => handleCustomUrlSave('negative')}
                   disabled={isSavingUrl}
-                  className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="px-3 py-2 text-sm bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50"
                 >
                   {isSavingUrl ? '...' : 'Save'}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-zinc-500 mt-1">
                 Leave empty to use built-in sound
               </p>
             </div>

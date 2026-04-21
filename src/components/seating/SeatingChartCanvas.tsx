@@ -3,6 +3,9 @@ import type { Student } from '../../types';
 import type { SeatingChart } from '../../types/seatingChart';
 import { TableGroup } from './TableGroup';
 import { RoomElementDisplay } from './RoomElementDisplay';
+import { useTheme } from '../../contexts/ThemeContext';
+import { resolveAvatarDisplay } from '../../hooks';
+import { getAvatarColorForName } from '../../utils';
 
 interface SeatingChartCanvasProps {
   chart: SeatingChart;
@@ -41,18 +44,21 @@ export function SeatingChartCanvas({
     return students.filter((s) => !assignedStudentIds.has(s.id));
   }, [students, assignedStudentIds]);
 
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   return (
     <div className="flex flex-col gap-4">
       {/* Canvas - use outline instead of border to avoid affecting content area */}
       <div
-        className="relative outline outline-2 outline-gray-200 rounded-lg bg-white"
+        className="relative outline outline-2 outline-gray-200 dark:outline-zinc-800 rounded-lg bg-white dark:bg-zinc-900"
         style={{
           width: chart.canvasWidth,
           height: chart.canvasHeight,
           backgroundImage: chart.snapEnabled
             ? `
-              linear-gradient(to right, #f5f5f5 1px, transparent 1px),
-              linear-gradient(to bottom, #f5f5f5 1px, transparent 1px)
+              linear-gradient(to right, var(--chart-grid-line) 1px, transparent 1px),
+              linear-gradient(to bottom, var(--chart-grid-line) 1px, transparent 1px)
             `
             : undefined,
           backgroundSize: chart.snapEnabled ? `${chart.gridSize}px ${chart.gridSize}px` : undefined,
@@ -137,7 +143,7 @@ export function SeatingChartCanvas({
       </div>
       {/* Front of room label - positioned outside canvas so it doesn't overlap elements */}
       <div
-        className="text-center text-sm text-gray-400 py-1 border-t border-gray-200 -mt-px"
+        className="text-center text-sm text-gray-400 dark:text-zinc-600 py-1 border-t border-gray-200 dark:border-zinc-800 -mt-px"
         style={{ width: chart.canvasWidth }}
       >
         FRONT OF ROOM
@@ -146,31 +152,37 @@ export function SeatingChartCanvas({
       {/* Unassigned Students */}
       {unassignedStudents.length > 0 && (
         <div className="border-t pt-4">
-          <h3 className="text-sm font-medium text-gray-600 mb-2">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-zinc-400 mb-2">
             Unassigned Students ({unassignedStudents.length})
           </h3>
           <div className="flex flex-wrap gap-2">
-            {unassignedStudents.map((student) => (
-              <button
-                key={student.id}
-                onClick={() => onClickStudent(student)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
-              >
-                <div
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-xs"
-                  style={{ backgroundColor: student.avatarColor || '#6B7280' }}
+            {unassignedStudents.map((student) => {
+              const rawColor = student.avatarColor || getAvatarColorForName(student.name);
+              const { bg, textClass } = resolveAvatarDisplay(rawColor, isDark);
+              return (
+                <button
+                  key={student.id}
+                  onClick={() => onClickStudent(student)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
                 >
-                  {student.name.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-sm text-gray-700">{student.name.split(' ')[0]}</span>
-                <span
-                  className={`text-xs font-medium ${student.pointTotal >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
-                >
-                  {student.pointTotal >= 0 ? '+' : ''}
-                  {student.pointTotal}
-                </span>
-              </button>
-            ))}
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${textClass}`}
+                    style={{ backgroundColor: bg }}
+                  >
+                    {student.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-sm text-gray-700 dark:text-zinc-200">
+                    {student.name.split(' ')[0]}
+                  </span>
+                  <span
+                    className={`text-xs font-medium ${student.pointTotal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+                  >
+                    {student.pointTotal >= 0 ? '+' : ''}
+                    {student.pointTotal}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

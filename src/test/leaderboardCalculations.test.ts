@@ -8,7 +8,7 @@ import {
   getRisingStars,
   MILESTONES,
 } from '../utils/leaderboardCalculations';
-import type { AppStudent, AppClassroom } from '../contexts/HybridAppContext';
+import type { AppStudent, AppClassroom } from '../types';
 
 // Helper to create test students
 function createStudent(overrides: Partial<AppStudent> = {}): AppStudent {

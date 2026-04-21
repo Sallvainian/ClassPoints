@@ -1,7 +1,8 @@
 import { memo, useCallback } from 'react';
 import type { Student } from '../../types';
 import type { CardSize } from '../../hooks/useDisplaySettings';
-import { getAvatarColorForName, needsDarkText } from '../../utils';
+import { getAvatarColorForName } from '../../utils';
+import { useAvatarColor } from '../../hooks';
 
 interface StudentPointCardProps {
   student: Student;
@@ -53,9 +54,12 @@ function StudentPointCardComponent({
   onSelect,
 }: StudentPointCardProps) {
   const config = SIZE_CONFIG[size];
-  const pointsColor = student.pointTotal >= 0 ? 'text-emerald-600' : 'text-red-600';
-  const bgColor = student.avatarColor || getAvatarColorForName(student.name);
-  const avatarTextColor = needsDarkText(bgColor) ? 'text-gray-800' : 'text-white';
+  const pointsColor =
+    student.pointTotal >= 0
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : 'text-red-600 dark:text-red-400';
+  const rawColor = student.avatarColor || getAvatarColorForName(student.name);
+  const { bg: bgColor, textClass: avatarTextColor } = useAvatarColor(rawColor);
 
   // Derive selectable state from presence of onSelect handler
   const isSelectable = !!onSelect;
@@ -70,12 +74,15 @@ function StudentPointCardComponent({
     }
   }, [onSelect, onClickStudent, student]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault();
-      handleClick();
-    }
-  }, [handleClick]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        handleClick();
+      }
+    },
+    [handleClick]
+  );
 
   // Determine ARIA role and state based on mode
   const ariaRole = isSelectable ? 'checkbox' : undefined;
@@ -89,28 +96,28 @@ function StudentPointCardComponent({
       aria-checked={ariaChecked}
       aria-label={`${student.name}, ${student.pointTotal} points${isSelectable ? (isSelected ? ', selected' : ', not selected') : ''}`}
       className={`
-        relative flex flex-col items-center ${config.padding} bg-white rounded-xl shadow-sm border
-        hover:shadow-md transition-all duration-200 cursor-pointer w-full
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-        ${isSelected
-          ? 'border-blue-500 border-2 bg-blue-50'
-          : 'border-gray-100 hover:border-blue-200'
+        relative flex flex-col items-center ${config.padding} bg-white dark:bg-zinc-900 rounded-xl shadow-sm dark:shadow-none border
+        hover:shadow-md dark:hover:shadow-none transition-all duration-200 cursor-pointer w-full
+        focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-offset-2 dark:focus:ring-offset-zinc-950
+        ${
+          isSelected
+            ? 'border-blue-500 dark:border-blue-400 border-2 bg-blue-50 dark:bg-blue-950/30'
+            : 'border-gray-100 dark:border-zinc-700 hover:border-blue-200 dark:hover:border-blue-700'
         }
       `}
     >
-
       {/* Point totals badges - only show when not in selection mode */}
       {showPointTotals && !isSelectable && (
         <>
           {/* Positive points - top left */}
           <div
-            className={`absolute top-1 left-1 bg-emerald-100 text-emerald-700 ${config.badge} rounded-full font-medium`}
+            className={`absolute top-1 left-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 ${config.badge} rounded-full font-medium`}
           >
             +{student.positiveTotal}
           </div>
           {/* Negative points - top right */}
           <div
-            className={`absolute top-1 right-1 bg-red-100 text-red-700 ${config.badge} rounded-full font-medium`}
+            className={`absolute top-1 right-1 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ${config.badge} rounded-full font-medium`}
           >
             {student.negativeTotal}
           </div>
@@ -126,19 +133,23 @@ function StudentPointCardComponent({
       </div>
 
       {/* Name */}
-      <span className={`${config.name} font-medium text-gray-800 text-center truncate w-full`}>
+      <span
+        className={`${config.name} font-medium text-gray-800 dark:text-zinc-100 text-center truncate w-full`}
+      >
         {student.name}
       </span>
 
       {/* Points */}
       <span className={`${config.points} font-bold mt-1 ${pointsColor}`}>
-        {student.pointTotal >= 0 ? '+' : ''}{student.pointTotal}
+        {student.pointTotal >= 0 ? '+' : ''}
+        {student.pointTotal}
       </span>
 
       {/* Today's points (small) */}
       {student.todayTotal !== 0 && (
-        <span className={`${config.today} text-gray-500 mt-0.5`}>
-          Today: {student.todayTotal >= 0 ? '+' : ''}{student.todayTotal}
+        <span className={`${config.today} text-gray-500 dark:text-zinc-500 mt-0.5`}>
+          Today: {student.todayTotal >= 0 ? '+' : ''}
+          {student.todayTotal}
         </span>
       )}
 
@@ -149,9 +160,10 @@ function StudentPointCardComponent({
           className={`
             mt-2 w-5 h-5 rounded border-2 flex items-center justify-center
             transition-colors duration-150 pointer-events-none
-            ${isSelected
-              ? 'bg-blue-500 border-blue-500 text-white'
-              : 'bg-white border-gray-300'
+            ${
+              isSelected
+                ? 'bg-blue-500 dark:bg-blue-500 border-blue-500 text-white'
+                : 'bg-white dark:bg-zinc-900 border-gray-300 dark:border-zinc-700'
             }
           `}
         >

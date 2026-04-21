@@ -12,20 +12,19 @@ paths:
 ```
 AuthProvider          → Authentication state
   AuthGuard           → Route protection
-    HybridAppProvider → Online/offline mode selection
-      AppContent      → Main app with unified context
+    SoundProvider     → Sound effects
+      AppProvider     → Main app state (Supabase + realtime)
+        AppContent    → Main app with unified context
 ```
 
 ---
 
 ## Key Contexts
 
-| Context              | Purpose             | Access Via    |
-| -------------------- | ------------------- | ------------- |
-| `AuthContext`        | User auth & session | `useAuth()`   |
-| `AppContext`         | Unified API facade  | `useApp()`    |
-| `HybridAppContext`   | Mode switching      | Internal only |
-| `SupabaseAppContext` | Full data layer     | Internal only |
+| Context       | Purpose                                       | Access Via  |
+| ------------- | --------------------------------------------- | ----------- |
+| `AuthContext` | User auth & session                           | `useAuth()` |
+| `AppContext`  | Supabase operations, realtime sync, app state | `useApp()`  |
 
 ---
 
@@ -40,9 +39,9 @@ AuthProvider          → Authentication state
 
 ## Anti-Patterns
 
-- **NEVER** import and use `AppContext`, `HybridAppContext`, etc. directly
+- **NEVER** import `AppContext` directly in components — always use the `useApp()` hook
 - **NEVER** change the provider hierarchy order
-- **AVOID** adding new contexts without updating the facade
+- **AVOID** adding new contexts without a strong reason; prefer extending `AppContext` or creating a feature-scoped hook
 
 ---
 
@@ -50,10 +49,7 @@ AuthProvider          → Authentication state
 
 When adding new state operations:
 
-1. Add to `SupabaseAppContext.tsx` for Supabase operations
-2. Update `HybridAppContext.tsx` if it affects online/offline behavior
-3. Expose through `AppContext.tsx` for component access
-4. Update `useApp()` hook type definitions
+1. Add the fetch/mutation to `AppContext.tsx` and expose it on the `useApp()` return value (update the `AppContextValue` interface alongside).
 
 ---
 
@@ -82,7 +78,7 @@ export function Dashboard() {
 
 ## Supabase Integration
 
-- All Supabase operations go through `SupabaseAppContext`
+- All Supabase operations go through `AppContext`
 - Use optimistic updates for responsive UI
 - Handle `{ data, error }` destructuring pattern
 - RLS policies enforce server-side access control

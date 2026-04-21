@@ -1,4 +1,42 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+/* Class-based dark mode (Tailwind v4) — toggled by .dark on <html> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Root surface — prevents white flash on overscroll / beyond the app layout. */
+html {
+  background-color: #ffffff;
+}
+html.dark {
+  background-color: #0a0a0b;
+}
+body {
+  background-color: inherit;
+}
+
+/* Dark palette override — tuned to match a near-black kitty terminal bg.
+ * All dark surfaces use zinc-* via `dark:bg-zinc-N` classes, so overriding
+ * the zinc scale here restyles every card, modal, panel, border, and hover
+ * state in one place. Light-mode classes don't use zinc, so untouched. */
+@theme {
+  --color-zinc-950: #0a0a0b; /* page background — matches kitty */
+  --color-zinc-900: #18181c; /* card / panel surface — clear lift from page */
+  --color-zinc-800: #2a2a30; /* hover states, modal headers, subtle borders */
+  --color-zinc-700: #3d3d46; /* visible borders, inactive toggles */
+  --color-zinc-600: #52525b; /* strong borders, muted foreground alt */
+}
+
+/* Seating chart grid lines — theme-aware, consumed by inline styles. */
+:root {
+  --chart-grid-line: #f0f0f0;
+}
+.dark {
+  --chart-grid-line: #2a2a30;
+}
+
+/* Student-avatar circles in dark mode are now colored by JS via
+ * `resolveAvatarDisplay()` (hooks/useAvatarColor.ts) — darker HSL + forced
+ * white text ensures real contrast. No CSS overlay needed. */
 
 /* Custom animations */
 @keyframes slide-up {
@@ -13,7 +51,8 @@
 }
 
 @keyframes pulse-green {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
   }
   50% {
@@ -22,7 +61,8 @@
 }
 
 @keyframes pulse-red {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
   }
   50% {

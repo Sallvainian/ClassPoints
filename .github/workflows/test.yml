@@ -80,8 +80,11 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
-      - name: Install Doppler CLI
-        uses: dopplerhq/cli-action@v3
+      - name: Install fnox
+        uses: jdx/mise-action@v3
+        with:
+          tool_versions: |
+            fnox latest
 
       - name: Run tests with retry
         uses: nick-fields/retry@v3
@@ -89,9 +92,9 @@ jobs:
           timeout_minutes: 15
           max_attempts: 2
           retry_on: error
-          command: doppler run -- npm run test:e2e -- --shard=${{ matrix.shard }}/4
+          command: fnox exec -- npm run test:e2e -- --shard=${{ matrix.shard }}/4
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_DEV }}
+          FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
 
       - name: Upload test results
         if: failure()
@@ -136,17 +139,20 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
-      - name: Install Doppler CLI
-        uses: dopplerhq/cli-action@v3
+      - name: Install fnox
+        uses: jdx/mise-action@v3
+        with:
+          tool_versions: |
+            fnox latest
 
       - name: Run burn-in loop (10 iterations)
         run: |
           for i in {1..10}; do
             echo "🔥 Burn-in iteration $i/10"
-            doppler run -- npm run test:e2e || exit 1
+            fnox exec -- npm run test:e2e || exit 1
           done
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_DEV }}
+          FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
 
       - name: Upload failure artifacts
         if: failure()

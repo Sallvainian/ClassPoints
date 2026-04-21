@@ -2,6 +2,8 @@ export { usePersistedState } from './usePersistedState';
 export { useDisplaySettings } from './useDisplaySettings';
 export type { CardSize, DisplaySettings } from './useDisplaySettings';
 export { useRotatingCategory } from './useRotatingCategory';
+export { useAvatarColor, resolveAvatarDisplay } from './useAvatarColor';
+export type { AvatarDisplay } from './useAvatarColor';
 
 // Supabase hooks
 export { useClassrooms } from './useClassrooms';
