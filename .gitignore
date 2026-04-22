@@ -33,6 +33,7 @@ supabase/.temp/
 
 # AI tooling folders (local configs, not project code)
 .agent/
+.agents/
 .bmad/
 .claude/*
 !.claude/rules/

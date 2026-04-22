@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { loadEnv } from 'vite';
 
 // E2E tests MUST hit a local Supabase stack, never production. Load .env.test
-// here so VITE_TEST_EMAIL/PASSWORD are on process.env for auth setup and
+// here so VITE_TEST_EMAIL/PASSWORD are on process.env for auth.setup.ts and
 // the dev server spawned by webServer inherits the local VITE_SUPABASE_URL/KEY.
 const testEnv = loadEnv('test', process.cwd(), '');
 for (const [key, value] of Object.entries(testEnv)) {
@@ -39,34 +39,31 @@ if (!isPrivateHost) {
 }
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  timeout: 60_000,
-  expect: { timeout: 10_000 },
-  reporter: [
-    ['html', { outputFolder: 'playwright-report', open: 'never' }],
-    ['junit', { outputFile: 'playwright-report/junit.xml' }],
-    ['list'],
-  ],
+  reporter: [['html'], ['list']],
   use: {
-    baseURL: process.env.BASE_URL ?? 'http://localhost:5173',
-    actionTimeout: 15_000,
-    navigationTimeout: 30_000,
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    baseURL: 'http://localhost:5173',
+    trace: 'on-first-retry',
   },
   projects: [
-    // TODO(user): port the `auth.setup.ts` storageState pattern from
-    // `playwright-legacy-config.ts`. Add a setup project here that runs
-    // tests/auth.setup.ts and have `chromium` depend on it with
-    // storageState: '.auth/user.json'.
+    // Setup project - runs first to authenticate
+    {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+    },
+    // Main tests - depend on setup and use stored auth state
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup'],
+      testIgnore: /auth\.setup\.ts/,
     },
   ],
   webServer: {
@@ -75,7 +72,7 @@ export default defineConfig({
     // Never reuse an existing dev server for E2E — a manually-started server may be
     // pointed at production Supabase. Force a fresh spawn with the .env.test values.
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 120000,
     env: {
       VITE_SUPABASE_URL: testEnv.VITE_SUPABASE_URL,
       VITE_SUPABASE_ANON_KEY: testEnv.VITE_SUPABASE_ANON_KEY,
