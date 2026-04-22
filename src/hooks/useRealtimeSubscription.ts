@@ -6,11 +6,19 @@ type PostgresChangeEvent = 'INSERT' | 'UPDATE' | 'DELETE' | '*';
 
 export type RealtimeConnectionStatus = 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED';
 
-interface UseRealtimeSubscriptionOptions<T, D = { id: string }> {
+interface UseRealtimeSubscriptionOptions<T extends Record<string, unknown>, D = { id: string }> {
   table: string;
   schema?: string;
   event?: PostgresChangeEvent;
   filter?: string;
+  /**
+   * Preferred for migrated callers: single callback receiving the full payload. When provided,
+   * legacy `onInsert`/`onUpdate`/`onDelete` are ignored. Added Phase 1 as a transitional bridge;
+   * the three legacy callbacks below are scheduled for removal at end of Phase 3
+   * (per architecture Decision 3).
+   */
+  onChange?: (payload: RealtimePostgresChangesPayload<T>) => void;
+  // Legacy callbacks: do not use in new code. Prefer `onChange`.
   onInsert?: (payload: T) => void;
   onUpdate?: (payload: T) => void;
   onDelete?: (payload: D) => void;
@@ -34,6 +42,7 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
   schema = 'public',
   event = '*',
   filter,
+  onChange,
   onInsert,
   onUpdate,
   onDelete,
@@ -44,6 +53,7 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   // Keep callbacks fresh via refs so we don't re-subscribe on every render
+  const onChangeRef = useRef(onChange);
   const onInsertRef = useRef(onInsert);
   const onUpdateRef = useRef(onUpdate);
   const onDeleteRef = useRef(onDelete);
@@ -52,12 +62,26 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
   const previousStatusRef = useRef<RealtimeConnectionStatus | null>(null);
 
   useEffect(() => {
+    onChangeRef.current = onChange;
     onInsertRef.current = onInsert;
     onUpdateRef.current = onUpdate;
     onDeleteRef.current = onDelete;
     onStatusChangeRef.current = onStatusChange;
     onReconnectRef.current = onReconnect;
-  }, [onInsert, onUpdate, onDelete, onStatusChange, onReconnect]);
+  }, [onChange, onInsert, onUpdate, onDelete, onStatusChange, onReconnect]);
+
+  // Dev-mode warning if a caller supplies both onChange and any legacy callback.
+  // onChange takes precedence at dispatch time; surfacing the mis-migration early helps.
+  // Wrapped in useEffect so the warning fires only when the callback set actually changes,
+  // not on every render.
+  useEffect(() => {
+    if (import.meta.env.DEV && onChange && (onInsert || onUpdate || onDelete)) {
+      console.warn(
+        '[useRealtimeSubscription] `onChange` and legacy callbacks both supplied; ' +
+          '`onChange` wins and legacy callbacks are ignored. Pick one (prefer `onChange`).'
+      );
+    }
+  }, [onChange, onInsert, onUpdate, onDelete]);
 
   useEffect(() => {
     if (!enabled) {
@@ -101,6 +125,11 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
       }
     )
       .on('postgres_changes', filterConfig, (payload: RealtimePostgresChangesPayload<T>) => {
+        // onChange wins when provided — legacy callbacks ignored for that subscription
+        if (onChangeRef.current) {
+          onChangeRef.current(payload);
+          return;
+        }
         switch (payload.eventType) {
           case 'INSERT':
             onInsertRef.current?.(payload.new as T);

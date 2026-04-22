@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useRealtimeSubscription } from '../useRealtimeSubscription';
+import { supabase } from '../../lib/supabase';
 
 // Types for captured mock handlers
 type MockHandler = (payload: {
@@ -231,5 +232,64 @@ describe('useRealtimeSubscription', () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(onReconnect).not.toHaveBeenCalled();
+  });
+
+  // NFR6: no subscription outlives its component tree.
+  it('should removeChannel on unmount with the same channel instance', async () => {
+    const { unmount } = renderHook(() =>
+      useRealtimeSubscription({
+        table: 'test_table',
+        onChange: () => {},
+      })
+    );
+
+    await waitFor(() => {
+      expect(globalThis.__mockOnHandler).not.toBeNull();
+    });
+
+    const channelMock = (supabase.channel as unknown as { mock: { results: { value: unknown }[] } })
+      .mock.results[0].value;
+
+    expect(supabase.removeChannel).not.toHaveBeenCalled();
+
+    unmount();
+
+    expect(supabase.removeChannel).toHaveBeenCalledTimes(1);
+    expect(supabase.removeChannel).toHaveBeenCalledWith(channelMock);
+  });
+
+  // Decision 3: `onChange` takes precedence; legacy callbacks are ignored when `onChange` supplied.
+  it('should route all events to onChange when provided, ignoring legacy callbacks', async () => {
+    const onChange = vi.fn();
+    const onInsert = vi.fn();
+    const onUpdate = vi.fn();
+    const onDelete = vi.fn();
+
+    renderHook(() =>
+      useRealtimeSubscription({
+        table: 'test_table',
+        onChange,
+        onInsert,
+        onUpdate,
+        onDelete,
+      })
+    );
+
+    await waitFor(() => {
+      expect(globalThis.__mockOnHandler).not.toBeNull();
+    });
+
+    const handler = globalThis.__mockOnHandler!;
+
+    act(() => {
+      handler({ eventType: 'INSERT', new: { id: '1' }, old: null });
+      handler({ eventType: 'UPDATE', new: { id: '1', name: 'x' }, old: { id: '1' } });
+      handler({ eventType: 'DELETE', new: null, old: { id: '1' } });
+    });
+
+    expect(onChange).toHaveBeenCalledTimes(3);
+    expect(onInsert).not.toHaveBeenCalled();
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
   });
 });

@@ -1,19 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { useRealtimeSubscription } from './useRealtimeSubscription';
-import type { Behavior, NewBehavior, UpdateBehavior } from '../types/database';
-
-interface UseBehaviorsReturn {
-  behaviors: Behavior[];
-  positiveBehaviors: Behavior[];
-  negativeBehaviors: Behavior[];
-  loading: boolean;
-  error: Error | null;
-  addBehavior: (behavior: Omit<NewBehavior, 'id' | 'created_at'>) => Promise<Behavior | null>;
-  updateBehavior: (id: string, updates: Partial<Behavior>) => Promise<Behavior | null>;
-  deleteBehavior: (id: string) => Promise<boolean>;
-  refetch: () => Promise<void>;
-}
+import { queryKeys } from '../lib/queryKeys';
+import { dbToBehavior } from '../types/transforms';
+import type { NewBehavior, UpdateBehavior } from '../types/database';
+import type { Behavior } from '../types';
 
 // Sort behaviors by category (ascending) then points (descending)
 const sortBehaviors = (behaviors: Behavior[]): Behavior[] =>
@@ -21,124 +11,65 @@ const sortBehaviors = (behaviors: Behavior[]): Behavior[] =>
     if (a.category !== b.category) {
       return a.category.localeCompare(b.category);
     }
-    return b.points - a.points; // Descending by points
+    return b.points - a.points;
   });
 
-export function useBehaviors(): UseBehaviorsReturn {
-  const [behaviors, setBehaviors] = useState<Behavior[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchBehaviors = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    const { data, error: queryError } = await supabase
-      .from('behaviors')
-      .select('*')
-      .order('category', { ascending: true })
-      .order('points', { ascending: false });
-
-    if (queryError) {
-      setError(new Error(queryError.message));
-      setBehaviors([]);
-    } else {
-      setBehaviors(data || []);
-    }
-
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchBehaviors();
-  }, [fetchBehaviors]);
-
-  // Real-time subscription for behavior changes
-  useRealtimeSubscription<Behavior>({
-    table: 'behaviors',
-    onInsert: (behavior) => {
-      setBehaviors((prev) => {
-        // Avoid duplicates if we already added optimistically
-        if (prev.some((b) => b.id === behavior.id)) return prev;
-        return sortBehaviors([...prev, behavior]);
-      });
-    },
-    onUpdate: (behavior) => {
-      setBehaviors((prev) => sortBehaviors(prev.map((b) => (b.id === behavior.id ? behavior : b))));
-    },
-    onDelete: ({ id }) => {
-      setBehaviors((prev) => prev.filter((b) => b.id !== id));
-    },
-  });
-
-  const addBehavior = useCallback(
-    async (behavior: Omit<NewBehavior, 'id' | 'created_at'>): Promise<Behavior | null> => {
-      const { data, error: insertError } = await supabase
+export function useBehaviors(): UseQueryResult<Behavior[], Error> {
+  return useQuery<Behavior[], Error>({
+    queryKey: queryKeys.behaviors.all,
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from('behaviors')
-        .insert(behavior)
-        .select()
-        .single();
-
-      if (insertError) {
-        setError(new Error(insertError.message));
-        return null;
-      }
-
-      setBehaviors((prev) => {
-        // Avoid duplicates if realtime subscription already added this behavior
-        if (prev.some((b) => b.id === data.id)) return prev;
-        return sortBehaviors([...prev, data]);
-      });
-      return data;
+        .select('*')
+        .order('category', { ascending: true })
+        .order('points', { ascending: false });
+      if (error) throw new Error(error.message);
+      return sortBehaviors((data ?? []).map(dbToBehavior));
     },
-    []
-  );
+  });
+}
 
-  const updateBehavior = useCallback(
-    async (id: string, updates: UpdateBehavior): Promise<Behavior | null> => {
-      const { data, error: updateError } = await supabase
+export function useAddBehavior() {
+  const qc = useQueryClient();
+  return useMutation<Behavior, Error, Omit<NewBehavior, 'id' | 'created_at'>>({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.from('behaviors').insert(input).select().single();
+      if (error) throw new Error(error.message);
+      return dbToBehavior(data);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.behaviors.all }),
+  });
+}
+
+interface UpdateBehaviorInput {
+  id: string;
+  updates: UpdateBehavior;
+}
+
+export function useUpdateBehavior() {
+  const qc = useQueryClient();
+  return useMutation<Behavior, Error, UpdateBehaviorInput>({
+    mutationFn: async ({ id, updates }) => {
+      const { data, error } = await supabase
         .from('behaviors')
         .update(updates)
         .eq('id', id)
         .select()
         .single();
-
-      if (updateError) {
-        setError(new Error(updateError.message));
-        return null;
-      }
-
-      setBehaviors((prev) => sortBehaviors(prev.map((b) => (b.id === id ? data : b))));
-      return data;
+      if (error) throw new Error(error.message);
+      return dbToBehavior(data);
     },
-    []
-  );
+    onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.behaviors.all }),
+  });
+}
 
-  const deleteBehavior = useCallback(async (id: string): Promise<boolean> => {
-    const { error: deleteError } = await supabase.from('behaviors').delete().eq('id', id);
-
-    if (deleteError) {
-      setError(new Error(deleteError.message));
-      return false;
-    }
-
-    setBehaviors((prev) => prev.filter((b) => b.id !== id));
-    return true;
-  }, []);
-
-  // Computed values
-  const positiveBehaviors = behaviors.filter((b) => b.category === 'positive');
-  const negativeBehaviors = behaviors.filter((b) => b.category === 'negative');
-
-  return {
-    behaviors,
-    positiveBehaviors,
-    negativeBehaviors,
-    loading,
-    error,
-    addBehavior,
-    updateBehavior,
-    deleteBehavior,
-    refetch: fetchBehaviors,
-  };
+export function useDeleteBehavior() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (id) => {
+      const { error } = await supabase.from('behaviors').delete().eq('id', id);
+      if (error) throw new Error(error.message);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.behaviors.all }),
+  });
 }
