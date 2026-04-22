@@ -60,13 +60,18 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   projects: [
-    // TODO(user): port the `auth.setup.ts` storageState pattern from
-    // `playwright-legacy-config.ts`. Add a setup project here that runs
-    // tests/auth.setup.ts and have `chromium` depend on it with
-    // storageState: '.auth/user.json'.
+    {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+    },
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup'],
+      testIgnore: /auth\.setup\.ts/,
     },
   ],
   webServer: {
