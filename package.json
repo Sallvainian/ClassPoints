@@ -10,6 +10,7 @@
     "build": "tsc -b && fnox exec -- vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
+    "check:bundle": "node scripts/check-bundle.mjs",
     "preview": "fnox exec -- vite preview",
     "supabase:up": "npx supabase start",
     "supabase:down": "npx supabase stop",
