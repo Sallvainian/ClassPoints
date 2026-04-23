@@ -261,39 +261,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Behavior Operations
   // ============================================
 
+  // Adapter error contract (Phase 1 bridge): the three mutation wrappers throw on
+  // Supabase failure — consumers render real errors via toast/onError/error
+  // boundary. `null` from addBehavior is semantically reserved for "insert
+  // matched zero rows"; unreachable while mutationFn uses `.single()` (which
+  // throws on zero rows itself), but the nullable return is kept on the
+  // interface for Phase 4's adapter dissolve. Matches the contract awardPoints
+  // & friends already use — attacks #6 and #9 (silent failure conflation)
+  // collapse with one change.
   const addBehavior = useCallback(
-    async (behavior: Omit<NewBehavior, 'id' | 'created_at'>): Promise<AppBehavior | null> => {
-      try {
-        return await addBehaviorMutation.mutateAsync(behavior);
-      } catch (err) {
-        // Legacy surface returned `null` on error — preserve for Phase 1–3 consumers.
-        // Log so the error isn't silently lost; mutation's own .error state is
-        // also available to direct consumers post-Phase 4.
-        console.error('[AppContext.addBehavior] mutation failed:', err);
-        return null;
-      }
-    },
+    (behavior: Omit<NewBehavior, 'id' | 'created_at'>): Promise<AppBehavior | null> =>
+      addBehaviorMutation.mutateAsync(behavior),
     [addBehaviorMutation]
   );
 
   const updateBehavior = useCallback(
     async (id: string, updates: Partial<DbBehavior>): Promise<void> => {
-      try {
-        await updateBehaviorMutation.mutateAsync({ id, updates });
-      } catch (err) {
-        console.error('[AppContext.updateBehavior] mutation failed:', err);
-      }
+      await updateBehaviorMutation.mutateAsync({ id, updates });
     },
     [updateBehaviorMutation]
   );
 
   const deleteBehavior = useCallback(
     async (id: string): Promise<void> => {
-      try {
-        await deleteBehaviorMutation.mutateAsync(id);
-      } catch (err) {
-        console.error('[AppContext.deleteBehavior] mutation failed:', err);
-      }
+      await deleteBehaviorMutation.mutateAsync(id);
     },
     [deleteBehaviorMutation]
   );
