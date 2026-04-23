@@ -316,7 +316,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     // Refetch behaviors to update state
-    refetchBehaviors();
+    await refetchBehaviors();
   }, [refetchBehaviors]);
 
   // ============================================
@@ -420,7 +420,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refetch transactions to update state
-      refetchTransactions();
+      await refetchTransactions();
 
       return data || [];
     },
@@ -493,7 +493,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refetch transactions to update state
-      refetchTransactions();
+      await refetchTransactions();
 
       return data || [];
     },
@@ -527,7 +527,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refetch transactions to update state
-      refetchTransactions();
+      await refetchTransactions();
     },
     [refetchTransactions]
   );
@@ -687,7 +687,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refetch transactions to update state (DB trigger handles totals)
-      refetchTransactions();
+      await refetchTransactions();
 
       return data;
     },
@@ -708,7 +708,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refetch transactions to update state (DB trigger resets student totals)
-      refetchTransactions();
+      await refetchTransactions();
     },
     [supabase, refetchTransactions]
   );
