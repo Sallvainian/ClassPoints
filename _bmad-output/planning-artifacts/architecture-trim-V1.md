@@ -147,7 +147,7 @@ Rules agents must follow. Reference code and full interface bodies live in the i
 
 - Singleton at `src/lib/queryClient.ts`; instantiated at module scope
 - `QueryClientProvider` wraps `<App />` in `main.tsx` **above** `AuthProvider` so cache operates independently of auth state
-- Defaults: `staleTime: 30_000`, `gcTime: 5 * 60_000`, `refetchOnWindowFocus: true`, `refetchOnReconnect: true`, `retry: 1`, `networkMode: 'online'`, `structuralSharing: true`, `mutations.retry: 0`
+- Defaults superseded by [ADR-005](../../docs/adr/ADR-005-queryclient-defaults.md) (PR #63 review): `refetchOnWindowFocus: false` and `gcTime: 10 * 60_000` in place of the earlier `true` / `5 * 60_000`; `staleTime: 30_000`, `refetchOnReconnect: true`, `retry: 1`, `networkMode: 'online'`, `structuralSharing: true`, `mutations.retry: 0` retained
 - Per-hook override allowed only with empirical signal; defer to defaults at baseline
 
 ## Project Structure
