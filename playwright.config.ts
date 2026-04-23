@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import dotenv from 'dotenv';
 
 // E2E force-overrides shell env. Unlike app runtime, tests must be
 // reproducible from .env.test alone — a leaked fnox session in the
@@ -8,25 +9,16 @@ import { join } from 'node:path';
 // credentials. .env.test wins, always.
 // NOTE: Vite's `loadEnv(..., '')` merges process.env in and lets shell
 // vars shadow the dotenv file, which defeats the override. Parse the
-// file directly instead.
-const parseDotEnv = (path: string): Record<string, string> => {
-  const out: Record<string, string> = {};
-  let raw: string;
+// file directly with dotenv (handles quoted values, escapes, comments
+// — the bespoke splitter we had before did not).
+const readTestEnv = (): Record<string, string> => {
   try {
-    raw = readFileSync(path, 'utf8');
+    return dotenv.parse(readFileSync(join(process.cwd(), '.env.test'), 'utf8'));
   } catch {
-    return out;
+    return {};
   }
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eq = trimmed.indexOf('=');
-    if (eq === -1) continue;
-    out[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
-  }
-  return out;
 };
-const testEnv = parseDotEnv(join(process.cwd(), '.env.test'));
+const testEnv = readTestEnv();
 for (const [key, value] of Object.entries(testEnv)) {
   process.env[key] = value;
 }
