@@ -124,10 +124,13 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      # Pinned to match the `supabase` devDependency in package.json so the
+      # CLI used in CI tracks the one developers use locally. Bump both
+      # together when updating.
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.92.1
 
       - name: Start Supabase local stack
         run: supabase start
@@ -142,11 +145,14 @@ jobs:
       # the allow-list guard sees the LOCAL stack URL (not the hosted URL in
       # fnox.toml). Local URL + keys come from `supabase status`; test user
       # credentials stay in fnox so it remains the single source for secrets.
+      # The grep pre-filter makes intent explicit and drops unrelated keys
+      # (DB_URL, JWT_SECRET, STUDIO_URL, S3_*) that `status -o env` emits.
       - name: Write .env.test (local stack URL + fnox test creds)
         env:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
         run: |
           supabase status -o env \
+            | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' \
             | sed -e 's/^API_URL=/VITE_SUPABASE_URL=/' \
                   -e 's/^ANON_KEY=/VITE_SUPABASE_ANON_KEY=/' \
                   -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_ROLE_KEY=/' \
@@ -155,6 +161,15 @@ jobs:
             printf "VITE_TEST_EMAIL=%s\n" "$VITE_TEST_EMAIL"
             printf "VITE_TEST_PASSWORD=%s\n" "$VITE_TEST_PASSWORD"
           ' >> .env.test
+
+      # Fail fast if any key is missing — e.g. a future Supabase CLI rename
+      # of API_URL would otherwise silently produce an empty VITE_SUPABASE_URL
+      # and surface as an unhelpful guard-throw deeper in playwright.config.ts.
+      - name: Validate .env.test keys
+        run: |
+          for key in VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY VITE_TEST_EMAIL VITE_TEST_PASSWORD; do
+            grep -q "^${key}=" .env.test || { echo "::error::Missing ${key} in .env.test"; exit 1; }
+          done
 
       - name: Seed test user
         run: npm run test:seed
@@ -213,7 +228,7 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.92.1
 
       - name: Start Supabase local stack
         run: supabase start
@@ -224,11 +239,16 @@ jobs:
           tool_versions: |
             fnox latest
 
+      # .env.test drives playwright.config.ts — it overrides process.env so
+      # the allow-list guard sees the LOCAL stack URL (not the hosted URL in
+      # fnox.toml). Local URL + keys come from `supabase status`; test user
+      # credentials stay in fnox so it remains the single source for secrets.
       - name: Write .env.test (local stack URL + fnox test creds)
         env:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
         run: |
           supabase status -o env \
+            | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' \
             | sed -e 's/^API_URL=/VITE_SUPABASE_URL=/' \
                   -e 's/^ANON_KEY=/VITE_SUPABASE_ANON_KEY=/' \
                   -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_ROLE_KEY=/' \
@@ -237,6 +257,12 @@ jobs:
             printf "VITE_TEST_EMAIL=%s\n" "$VITE_TEST_EMAIL"
             printf "VITE_TEST_PASSWORD=%s\n" "$VITE_TEST_PASSWORD"
           ' >> .env.test
+
+      - name: Validate .env.test keys
+        run: |
+          for key in VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY VITE_TEST_EMAIL VITE_TEST_PASSWORD; do
+            grep -q "^${key}=" .env.test || { echo "::error::Missing ${key} in .env.test"; exit 1; }
+          done
 
       - name: Seed test user
         run: npm run test:seed
