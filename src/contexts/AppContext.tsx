@@ -2,7 +2,12 @@ import { createContext, useContext, useState, useCallback, useMemo, type ReactNo
 import { supabase } from '../lib/supabase';
 import { useClassrooms } from '../hooks/useClassrooms';
 import { useStudents } from '../hooks/useStudents';
-import { useBehaviors } from '../hooks/useBehaviors';
+import {
+  useBehaviors,
+  useAddBehavior,
+  useUpdateBehavior,
+  useDeleteBehavior,
+} from '../hooks/useBehaviors';
 import { useTransactions } from '../hooks/useTransactions';
 import type {
   Classroom as DbClassroom,
@@ -74,7 +79,7 @@ interface AppContextValue {
   removeStudent: (classroomId: string, studentId: string) => Promise<void>;
 
   // Behavior operations
-  addBehavior: (behavior: Omit<DbBehavior, 'id' | 'created_at'>) => Promise<DbBehavior | null>;
+  addBehavior: (behavior: Omit<NewBehavior, 'id' | 'created_at'>) => Promise<AppBehavior | null>;
   updateBehavior: (id: string, updates: Partial<DbBehavior>) => Promise<void>;
   deleteBehavior: (id: string) => Promise<void>;
   resetBehaviorsToDefault: () => Promise<void>;
@@ -148,15 +153,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateStudentPointsOptimistically,
   } = useStudents(activeClassroomId);
 
-  const {
-    behaviors,
-    loading: behaviorsLoading,
-    error: behaviorsError,
-    addBehavior: addBehaviorHook,
-    updateBehavior: updateBehaviorHook,
-    deleteBehavior: deleteBehaviorHook,
-    refetch: refetchBehaviors,
-  } = useBehaviors();
+  // Phase 1 adapter bridge: useBehaviors is now a TanStack Query wrapper; the three
+  // mutations are split into dedicated useMutation hooks. AppContext reshapes the
+  // output to preserve the legacy useApp() surface so the 3 BehaviorPicker-consuming
+  // modals need no edits. Adapter dissolves at Phase 4.
+  const behaviorsQuery = useBehaviors();
+  const addBehaviorMutation = useAddBehavior();
+  const updateBehaviorMutation = useUpdateBehavior();
+  const deleteBehaviorMutation = useDeleteBehavior();
+  const behaviors = useMemo(() => behaviorsQuery.data ?? [], [behaviorsQuery.data]);
+  const behaviorsLoading = behaviorsQuery.isPending;
+  const behaviorsError = behaviorsQuery.error;
+  const refetchBehaviors = behaviorsQuery.refetch;
 
   const {
     transactions,
@@ -253,25 +261,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Behavior Operations
   // ============================================
 
+  // Adapter error contract (Phase 1 bridge): the three mutation wrappers throw on
+  // Supabase failure — consumers render real errors via toast/onError/error
+  // boundary. `null` from addBehavior is semantically reserved for "insert
+  // matched zero rows"; unreachable while mutationFn uses `.single()` (which
+  // throws on zero rows itself), but the nullable return is kept on the
+  // interface for Phase 4's adapter dissolve. Matches the contract awardPoints
+  // & friends already use — attacks #6 and #9 (silent failure conflation)
+  // collapse with one change.
   const addBehavior = useCallback(
-    async (behavior: Omit<DbBehavior, 'id' | 'created_at'>): Promise<DbBehavior | null> => {
-      return await addBehaviorHook(behavior);
-    },
-    [addBehaviorHook]
+    (behavior: Omit<NewBehavior, 'id' | 'created_at'>): Promise<AppBehavior | null> =>
+      addBehaviorMutation.mutateAsync(behavior),
+    [addBehaviorMutation]
   );
 
   const updateBehavior = useCallback(
     async (id: string, updates: Partial<DbBehavior>): Promise<void> => {
-      await updateBehaviorHook(id, updates);
+      await updateBehaviorMutation.mutateAsync({ id, updates });
     },
-    [updateBehaviorHook]
+    [updateBehaviorMutation]
   );
 
   const deleteBehavior = useCallback(
     async (id: string): Promise<void> => {
-      await deleteBehaviorHook(id);
+      await deleteBehaviorMutation.mutateAsync(id);
     },
-    [deleteBehaviorHook]
+    [deleteBehaviorMutation]
   );
 
   const resetBehaviorsToDefault = useCallback(async (): Promise<void> => {
@@ -292,7 +307,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     // Refetch behaviors to update state
-    refetchBehaviors();
+    await refetchBehaviors();
   }, [refetchBehaviors]);
 
   // ============================================
@@ -317,7 +332,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateClassroomPointsOptimistically(classroomId, studentId, pointsToAward);
 
       try {
-        const result = await awardPointsHook(studentId, classroomId, behavior, note);
+        // Adapter bridge: useTransactions still takes DB-shape Behavior (Phase 2 target).
+        // useTransactions' awardPoints reads only id/name/icon/points — identical on both
+        // shapes — so the runtime is unchanged. Cast dissolves when Phase 2 migrates
+        // useTransactions and updates its parameter types.
+        const result = await awardPointsHook(
+          studentId,
+          classroomId,
+          behavior as unknown as DbBehavior,
+          note
+        );
         return result;
       } catch (err) {
         // Rollback optimistic updates on error
@@ -387,7 +411,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refetch transactions to update state
-      refetchTransactions();
+      await refetchTransactions();
 
       return data || [];
     },
@@ -460,7 +484,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refetch transactions to update state
-      refetchTransactions();
+      await refetchTransactions();
 
       return data || [];
     },
@@ -494,7 +518,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refetch transactions to update state
-      refetchTransactions();
+      await refetchTransactions();
     },
     [refetchTransactions]
   );
@@ -654,7 +678,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refetch transactions to update state (DB trigger handles totals)
-      refetchTransactions();
+      await refetchTransactions();
 
       return data;
     },
@@ -675,7 +699,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refetch transactions to update state (DB trigger resets student totals)
-      refetchTransactions();
+      await refetchTransactions();
     },
     [supabase, refetchTransactions]
   );
@@ -739,18 +763,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [classrooms, activeClassroomId, students]);
 
-  // Map behaviors to app format
-  const mappedBehaviors: AppBehavior[] = useMemo(() => {
-    return behaviors.map((b) => ({
-      id: b.id,
-      name: b.name,
-      points: b.points,
-      icon: b.icon,
-      category: b.category,
-      isCustom: b.is_custom,
-      createdAt: new Date(b.created_at).getTime(),
-    }));
-  }, [behaviors]);
+  // Behaviors are already app-shape — transform runs inside the useBehaviors queryFn
+  // via dbToBehavior. No intermediate remap needed.
 
   // Map students to app format (now includes point totals from useStudents)
   const mappedStudents: AppStudent[] = useMemo(() => {
@@ -797,7 +811,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // State (mapped to app-compatible format)
     classrooms: mappedClassrooms,
-    behaviors: mappedBehaviors,
+    behaviors,
     transactions,
     activeClassroomId,
     activeClassroom,

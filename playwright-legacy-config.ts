@@ -1,26 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import dotenv from 'dotenv';
+import { loadEnv } from 'vite';
 
-// E2E force-overrides shell env. Unlike app runtime, tests must be
-// reproducible from .env.test alone — a leaked fnox session in the
-// shell (prod URL/creds) would silently hit real Supabase with real
-// credentials. .env.test wins, always.
-// NOTE: Vite's `loadEnv(..., '')` merges process.env in and lets shell
-// vars shadow the dotenv file, which defeats the override. Parse the
-// file directly with dotenv (handles quoted values, escapes, comments
-// — the bespoke splitter we had before did not).
-const readTestEnv = (): Record<string, string> => {
-  try {
-    return dotenv.parse(readFileSync(join(process.cwd(), '.env.test'), 'utf8'));
-  } catch {
-    return {};
-  }
-};
-const testEnv = readTestEnv();
+// E2E tests MUST hit a local Supabase stack, never production. Load .env.test
+// here so VITE_TEST_EMAIL/PASSWORD are on process.env for auth.setup.ts and
+// the dev server spawned by webServer inherits the local VITE_SUPABASE_URL/KEY.
+const testEnv = loadEnv('test', process.cwd(), '');
 for (const [key, value] of Object.entries(testEnv)) {
-  process.env[key] = value;
+  if (process.env[key] === undefined) {
+    process.env[key] = value;
+  }
 }
 
 // Safety check: allow-list the networks a non-production Supabase stack could
@@ -51,31 +39,23 @@ if (!isPrivateHost) {
 }
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  timeout: 60_000,
-  expect: { timeout: 10_000 },
-  reporter: [
-    ['html', { outputFolder: 'playwright-report', open: 'never' }],
-    ['junit', { outputFile: 'playwright-report/junit.xml' }],
-    ['list'],
-  ],
+  reporter: [['html'], ['list']],
   use: {
-    baseURL: process.env.BASE_URL ?? 'http://localhost:5173',
-    actionTimeout: 15_000,
-    navigationTimeout: 30_000,
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    baseURL: 'http://localhost:5173',
+    trace: 'on-first-retry',
   },
   projects: [
+    // Setup project - runs first to authenticate
     {
       name: 'setup',
       testMatch: /auth\.setup\.ts/,
     },
+    // Main tests - depend on setup and use stored auth state
     {
       name: 'chromium',
       use: {
@@ -92,7 +72,7 @@ export default defineConfig({
     // Never reuse an existing dev server for E2E — a manually-started server may be
     // pointed at production Supabase. Force a fresh spawn with the .env.test values.
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 120000,
     env: {
       VITE_SUPABASE_URL: testEnv.VITE_SUPABASE_URL,
       VITE_SUPABASE_ANON_KEY: testEnv.VITE_SUPABASE_ANON_KEY,

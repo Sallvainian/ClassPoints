@@ -1,5 +1,14 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from 'react';
 import { supabase } from '../lib/supabase';
+import { queryClient } from '../lib/queryClient';
 import type { User, Session, AuthError } from '@supabase/supabase-js';
 
 interface AuthContextValue {
@@ -7,7 +16,11 @@ interface AuthContextValue {
   session: Session | null;
   loading: boolean;
   error: AuthError | null;
-  signUp: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: AuthError }>;
+  signUp: (
+    email: string,
+    password: string,
+    name?: string
+  ) => Promise<{ success: boolean; error?: AuthError }>;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: AuthError }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: AuthError }>;
@@ -22,6 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AuthError | null>(null);
+  // Tracks the previously-seen user id across auth events. Supabase emits
+  // INITIAL_SESSION on mount, which we must NOT treat as a transition — only
+  // clear the query cache when a different user appears after one was present
+  // (account switch / shared-iPad scenario), so user A's cache can't flash on
+  // user B's first render.
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
 
   // Initialize auth state
   useEffect(() => {
@@ -36,6 +55,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUserId = session?.user?.id ?? null;
+      const prev = prevUserIdRef.current;
+      // Only clear on a genuine user-id transition away from a known user.
+      // First event (prev === undefined) and null→null no-ops pass through.
+      if (prev !== undefined && prev !== null && prev !== nextUserId) {
+        queryClient.clear();
+      }
+      prevUserIdRef.current = nextUserId;
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -105,6 +132,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     setError(null);
     await supabase.auth.signOut();
+    // Defense-in-depth: also clear on the explicit signOut path so we don't
+    // depend on the auth-change listener winning the race against the next
+    // sign-in. onAuthStateChange's gated clear handles account-switch; this
+    // handles the plain "log out" path where prevUserId → null.
+    queryClient.clear();
   }, []);
 
   const resetPassword = useCallback(
