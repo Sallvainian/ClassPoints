@@ -146,7 +146,7 @@ jobs:
       # already in use". `supabase stop --no-backup` clears the slate
       # before each attempt. See supabase/cli#4696 for the registry context.
       - name: Start Supabase local stack (with retry)
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -193,7 +193,7 @@ jobs:
         run: npm run test:seed
 
       - name: Run tests with retry
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 15
           max_attempts: 2
@@ -262,7 +262,7 @@ jobs:
       # already in use". `supabase stop --no-backup` clears the slate
       # before each attempt. See supabase/cli#4696 for the registry context.
       - name: Start Supabase local stack (with retry)
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 5
           max_attempts: 3
