@@ -56,18 +56,33 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
+      - name: Install fnox
+        uses: jdx/mise-action@v3
+        with:
+          tool_versions: |
+            fnox latest
+
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
       # NFR4: prod bundle must not contain react-query-devtools. See
       # scripts/check-bundle.mjs and docs/adr/ADR-005-queryclient-defaults.md.
-      # Build does not need fnox secrets — we only inspect bundle shape, not
-      # runtime behavior. Dummy VITE_SUPABASE_* vars satisfy Vite's inline pass.
-      - name: Build (dummy env)
-        run: npx vite build
+      # Primary path uses fnox for consistency with dev/build/other CI jobs;
+      # fork PRs (and dependabot pre-permission) lack FNOX_AGE_KEY, so fall
+      # back to dummy VITE_SUPABASE_* vars. DCE assertion is compile-time
+      # determined — identical outcome in either path.
+      - name: Build (fnox primary, envvar fallback)
         env:
-          VITE_SUPABASE_URL: http://localhost:54321
-          VITE_SUPABASE_ANON_KEY: ci-dummy-anon-key
+          FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
+        run: |
+          if [ -n "$FNOX_AGE_KEY" ]; then
+            npm run build
+          else
+            echo "FNOX_AGE_KEY not available (likely a fork PR); falling back to dummy envs"
+            VITE_SUPABASE_URL=http://127.0.0.1:54321 \
+            VITE_SUPABASE_ANON_KEY=dummy-fork-pr-value \
+              npx vite build
+          fi
 
       - name: Run bundle DCE assertion
         run: npm run check:bundle
