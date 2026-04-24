@@ -130,7 +130,7 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: 2.92.1
+          version: 2.95.0
 
       # setup-cli exports SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io, but GHCR is
       # an incomplete mirror of Supabase's canonical registry — gotrue (and
@@ -246,7 +246,7 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: 2.92.1
+          version: 2.95.0
 
       # setup-cli exports SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io, but GHCR is
       # an incomplete mirror of Supabase's canonical registry — gotrue (and
