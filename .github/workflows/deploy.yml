@@ -51,7 +51,7 @@ jobs:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
