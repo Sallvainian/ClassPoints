@@ -132,6 +132,14 @@ jobs:
         with:
           version: 2.92.1
 
+      # setup-cli exports SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io, but GHCR is
+      # an incomplete mirror of Supabase's canonical registry — gotrue (and
+      # other service images) are frequently missing there, so `supabase start`
+      # fails with "manifest unknown". Point the CLI back at public.ecr.aws.
+      # See supabase/cli#4696.
+      - name: Override image registry (GHCR mirror is incomplete)
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws" >> "$GITHUB_ENV"
+
       - name: Start Supabase local stack
         run: supabase start
 
@@ -229,6 +237,14 @@ jobs:
         uses: supabase/setup-cli@v1
         with:
           version: 2.92.1
+
+      # setup-cli exports SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io, but GHCR is
+      # an incomplete mirror of Supabase's canonical registry — gotrue (and
+      # other service images) are frequently missing there, so `supabase start`
+      # fails with "manifest unknown". Point the CLI back at public.ecr.aws.
+      # See supabase/cli#4696.
+      - name: Override image registry (GHCR mirror is incomplete)
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws" >> "$GITHUB_ENV"
 
       - name: Start Supabase local stack
         run: supabase start
