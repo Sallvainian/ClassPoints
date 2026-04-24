@@ -140,8 +140,18 @@ jobs:
       - name: Override image registry (GHCR mirror is incomplete)
         run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws" >> "$GITHUB_ENV"
 
-      - name: Start Supabase local stack
-        run: supabase start
+      # Docker Hub anonymous-pull rate-limits (~100/6h per IP) can trip
+      # mid-boot; a partial boot leaves containers bound to Supabase's
+      # fixed ports (54321-54324), so a naive retry fails with "address
+      # already in use". `supabase stop --no-backup` clears the slate
+      # before each attempt. See supabase/cli#4696 for the registry context.
+      - name: Start Supabase local stack (with retry)
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: supabase stop --no-backup 2>/dev/null; supabase start
 
       - name: Install fnox
         uses: jdx/mise-action@v3
@@ -246,8 +256,18 @@ jobs:
       - name: Override image registry (GHCR mirror is incomplete)
         run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws" >> "$GITHUB_ENV"
 
-      - name: Start Supabase local stack
-        run: supabase start
+      # Docker Hub anonymous-pull rate-limits (~100/6h per IP) can trip
+      # mid-boot; a partial boot leaves containers bound to Supabase's
+      # fixed ports (54321-54324), so a naive retry fails with "address
+      # already in use". `supabase stop --no-backup` clears the slate
+      # before each attempt. See supabase/cli#4696 for the registry context.
+      - name: Start Supabase local stack (with retry)
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: supabase stop --no-backup 2>/dev/null; supabase start
 
       - name: Install fnox
         uses: jdx/mise-action@v3
