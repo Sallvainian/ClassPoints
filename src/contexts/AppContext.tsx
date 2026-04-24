@@ -164,6 +164,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateStudent: updateStudentHook,
     removeStudent: removeStudentHook,
     updateStudentPointsOptimistically,
+    refetch: refetchStudents,
   } = useStudents(activeClassroomId);
 
   // Phase 1 adapter bridge: useBehaviors is now a TanStack Query wrapper.
@@ -442,8 +443,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const undoTransaction = useCallback(
     async (transactionId: string): Promise<void> => {
       await undoTransactionMutation.mutateAsync(transactionId);
+      // useStudents owns today_total/this_week_total via RPC (legacy hook, Phase 3
+      // migration will dissolve this). Realtime DELETE handler is unreliable, so
+      // force a fresh RPC fetch after undo so both the per-student and summed
+      // class-level today counters reflect the delete.
+      await refetchStudents();
     },
-    [undoTransactionMutation]
+    [undoTransactionMutation, refetchStudents]
   );
 
   const undoBatchTransaction = useCallback(
@@ -460,8 +466,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+      await refetchStudents();
     },
-    [qc]
+    [qc, refetchStudents]
   );
 
   const getStudentTransactions = useCallback(
@@ -570,8 +577,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearStudentPoints = useCallback(
     async (_classroomId: string, studentId: string): Promise<void> => {
       await clearStudentPointsMutation.mutateAsync(studentId);
+      await refetchStudents();
     },
-    [clearStudentPointsMutation]
+    [clearStudentPointsMutation, refetchStudents]
   );
 
   // Adjust student points to a target value (creates a manual adjustment transaction).
@@ -634,8 +642,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+      await refetchStudents();
     },
-    [qc]
+    [qc, refetchStudents]
   );
 
   // ============================================
