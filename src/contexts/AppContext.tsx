@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { useClassrooms } from '../hooks/useClassrooms';
+import { queryKeys } from '../lib/queryKeys';
+import {
+  useClassrooms,
+  useCreateClassroom,
+  useUpdateClassroom,
+  useDeleteClassroom,
+} from '../hooks/useClassrooms';
 import { useStudents } from '../hooks/useStudents';
 import {
   useBehaviors,
@@ -8,14 +15,18 @@ import {
   useUpdateBehavior,
   useDeleteBehavior,
 } from '../hooks/useBehaviors';
-import { useTransactions } from '../hooks/useTransactions';
+import {
+  useTransactions,
+  useAwardPoints,
+  useUndoTransaction,
+  useClearStudentPoints,
+} from '../hooks/useTransactions';
 import type {
   Classroom as DbClassroom,
   Student as DbStudent,
   Behavior as DbBehavior,
   PointTransaction as DbPointTransaction,
   NewBehavior,
-  NewPointTransaction,
 } from '../types/database';
 import type {
   AppStudent,
@@ -126,21 +137,23 @@ const UNDO_WINDOW_MS = 10000; // 10 seconds for undo
 const ACTIVE_CLASSROOM_STORAGE_KEY = 'app:activeClassroomId';
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const qc = useQueryClient();
   const [activeClassroomId, setActiveClassroomId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     return window.localStorage.getItem(ACTIVE_CLASSROOM_STORAGE_KEY);
   });
 
-  // Supabase hooks
-  const {
-    classrooms,
-    loading: classroomsLoading,
-    error: classroomsError,
-    createClassroom: createClassroomHook,
-    updateClassroom: updateClassroomHook,
-    deleteClassroom: deleteClassroomHook,
-    updateClassroomPointsOptimistically,
-  } = useClassrooms();
+  // Phase 2 adapter bridge: useClassrooms is now a TanStack Query wrapper; the three
+  // classroom mutations are split hooks. AppContext reshapes the output to preserve
+  // the legacy useApp() surface. The prior manual classroom-aggregate patch helper
+  // was deleted — useAwardPoints.onMutate now owns that optimism.
+  const classroomsQuery = useClassrooms();
+  const createClassroomMutation = useCreateClassroom();
+  const updateClassroomMutation = useUpdateClassroom();
+  const deleteClassroomMutation = useDeleteClassroom();
+  const classrooms = useMemo(() => classroomsQuery.data ?? [], [classroomsQuery.data]);
+  const classroomsLoading = classroomsQuery.isPending;
+  const classroomsError = classroomsQuery.error;
 
   const {
     students,
@@ -153,10 +166,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateStudentPointsOptimistically,
   } = useStudents(activeClassroomId);
 
-  // Phase 1 adapter bridge: useBehaviors is now a TanStack Query wrapper; the three
-  // mutations are split into dedicated useMutation hooks. AppContext reshapes the
-  // output to preserve the legacy useApp() surface so the 3 BehaviorPicker-consuming
-  // modals need no edits. Adapter dissolves at Phase 4.
+  // Phase 1 adapter bridge: useBehaviors is now a TanStack Query wrapper.
   const behaviorsQuery = useBehaviors();
   const addBehaviorMutation = useAddBehavior();
   const updateBehaviorMutation = useUpdateBehavior();
@@ -166,23 +176,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const behaviorsError = behaviorsQuery.error;
   const refetchBehaviors = behaviorsQuery.refetch;
 
-  const {
-    transactions,
-    loading: transactionsLoading,
-    error: transactionsError,
-    awardPoints: awardPointsHook,
-    undoTransaction: undoTransactionHook,
-    getStudentTransactions,
-    clearStudentPoints: clearStudentPointsHook,
-    refetch: refetchTransactions,
-  } = useTransactions(activeClassroomId);
+  // Phase 2 adapter bridge: useTransactions is now a TanStack Query wrapper; the
+  // four transaction mutations are split hooks. useAwardPoints is the canonical
+  // optimistic-mutation showcase (ADR-005 §4 checklist inline in the hook).
+  const transactionsQuery = useTransactions(activeClassroomId);
+  const awardPointsMutation = useAwardPoints();
+  const undoTransactionMutation = useUndoTransaction();
+  const clearStudentPointsMutation = useClearStudentPoints();
+  const transactions = useMemo(() => transactionsQuery.data ?? [], [transactionsQuery.data]);
+  const transactionsLoading = transactionsQuery.isPending;
+  const transactionsError = transactionsQuery.error;
 
   // Combined loading/error state
   const loading = classroomsLoading || studentsLoading || behaviorsLoading || transactionsLoading;
   const error = classroomsError || studentsError || behaviorsError || transactionsError;
-
-  // Active classroom with embedded students (matching old interface)
-  // activeClassroom is derived AFTER mappedClassrooms - see below
 
   // ============================================
   // Classroom Operations
@@ -190,30 +197,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const createClassroom = useCallback(
     async (name: string): Promise<DbClassroom | null> => {
-      const classroom = await createClassroomHook(name);
-      if (classroom) {
-        setActiveClassroomId(classroom.id);
-      }
+      const classroom = await createClassroomMutation.mutateAsync({ name });
+      setActiveClassroomId(classroom.id);
       return classroom;
     },
-    [createClassroomHook]
+    [createClassroomMutation]
   );
 
   const updateClassroom = useCallback(
     async (id: string, updates: Partial<DbClassroom>): Promise<void> => {
-      await updateClassroomHook(id, updates);
+      await updateClassroomMutation.mutateAsync({ id, updates });
     },
-    [updateClassroomHook]
+    [updateClassroomMutation]
   );
 
   const deleteClassroom = useCallback(
     async (id: string): Promise<void> => {
-      await deleteClassroomHook(id);
+      await deleteClassroomMutation.mutateAsync(id);
       if (activeClassroomId === id) {
         setActiveClassroomId(null);
       }
     },
-    [deleteClassroomHook, activeClassroomId]
+    [deleteClassroomMutation, activeClassroomId]
   );
 
   const setActiveClassroom = useCallback((id: string | null) => {
@@ -261,14 +266,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Behavior Operations
   // ============================================
 
-  // Adapter error contract (Phase 1 bridge): the three mutation wrappers throw on
-  // Supabase failure — consumers render real errors via toast/onError/error
-  // boundary. `null` from addBehavior is semantically reserved for "insert
-  // matched zero rows"; unreachable while mutationFn uses `.single()` (which
-  // throws on zero rows itself), but the nullable return is kept on the
-  // interface for Phase 4's adapter dissolve. Matches the contract awardPoints
-  // & friends already use — attacks #6 and #9 (silent failure conflation)
-  // collapse with one change.
+  // Adapter error contract (ADR-005 §2): each wrapper throws on Supabase failure.
+  // The nullable return on addBehavior is reserved for "insert matched zero rows"
+  // — unreachable while mutationFn uses `.single()` — preserved for the Phase 4
+  // adapter dissolve (pure type narrowing).
   const addBehavior = useCallback(
     (behavior: Omit<NewBehavior, 'id' | 'created_at'>): Promise<AppBehavior | null> =>
       addBehaviorMutation.mutateAsync(behavior),
@@ -324,38 +325,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior) return null;
 
-      // Store rollback info before optimistic updates
       const pointsToAward = behavior.points;
 
-      // Optimistically update student and classroom points before awaiting the transaction
+      // Student-level optimism still lives in useStudents (Phase 3 target).
+      // Classroom-level optimism is owned by useAwardPoints.onMutate (ADR-005 §4).
       updateStudentPointsOptimistically(studentId, pointsToAward);
-      updateClassroomPointsOptimistically(classroomId, studentId, pointsToAward);
 
       try {
-        // Adapter bridge: useTransactions still takes DB-shape Behavior (Phase 2 target).
-        // useTransactions' awardPoints reads only id/name/icon/points — identical on both
-        // shapes — so the runtime is unchanged. Cast dissolves when Phase 2 migrates
-        // useTransactions and updates its parameter types.
-        const result = await awardPointsHook(
+        return await awardPointsMutation.mutateAsync({
           studentId,
           classroomId,
-          behavior as unknown as DbBehavior,
-          note
-        );
-        return result;
+          behavior,
+          note: note ?? null,
+          timestamp: Date.now(),
+        });
       } catch (err) {
-        // Rollback optimistic updates on error
+        // Roll back the student-level optimistic patch; the mutation's onError
+        // already restored the classroom-level one via its snapshot.
         updateStudentPointsOptimistically(studentId, -pointsToAward);
-        updateClassroomPointsOptimistically(classroomId, studentId, -pointsToAward);
         throw err;
       }
     },
-    [
-      behaviors,
-      awardPointsHook,
-      updateStudentPointsOptimistically,
-      updateClassroomPointsOptimistically,
-    ]
+    [behaviors, awardPointsMutation, updateStudentPointsOptimistically]
   );
 
   const awardClassPoints = useCallback(
@@ -367,64 +358,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior || students.length === 0) return [];
 
-      // Store rollback info before optimistic updates
       const pointsPerStudent = behavior.points;
-      const affectedStudentIds = students.map((s) => s.id);
+      const batchId = crypto.randomUUID();
+      const timestamp = Date.now();
 
-      // Optimistically update all students' and classroom points before awaiting the transaction
-      // CRITICAL: Update each student individually so student_summary gets updated (prevents double-counting)
+      // Student-level optimism remains in useStudents until Phase 3.
       students.forEach((student) => {
         updateStudentPointsOptimistically(student.id, pointsPerStudent);
-        updateClassroomPointsOptimistically(classroomId, student.id, pointsPerStudent);
       });
 
-      // Generate a batch_id to group these transactions for undo
-      const batchId = crypto.randomUUID();
+      // Each mutation owns its own classroom-aggregate optimism + rollback; a
+      // per-student failure rolls back just that row. batch_id is preserved so
+      // getRecentUndoableAction / undoBatchTransaction continue to see the cluster.
+      const results = await Promise.all(
+        students.map((student) =>
+          awardPointsMutation
+            .mutateAsync({
+              studentId: student.id,
+              classroomId,
+              behavior,
+              note: note ?? null,
+              batchId,
+              timestamp,
+            })
+            .catch((err) => {
+              updateStudentPointsOptimistically(student.id, -pointsPerStudent);
+              console.error('Error awarding class points:', err);
+              return null;
+            })
+        )
+      );
 
-      // Create transactions for all students in the classroom with shared batch_id
-      const newTransactions: NewPointTransaction[] = students.map((student) => ({
-        student_id: student.id,
-        classroom_id: classroomId,
-        behavior_id: behavior.id,
-        behavior_name: behavior.name,
-        behavior_icon: behavior.icon,
-        points: behavior.points,
-        note: note || null,
-        batch_id: batchId,
-      }));
-
-      const { data, error: insertError } = await supabase
-        .from('point_transactions')
-        .insert(newTransactions)
-        .select();
-
-      if (insertError) {
-        console.error('Error awarding class points:', insertError);
-
-        // Rollback optimistic updates (must rollback each student individually)
-        affectedStudentIds.forEach((studentId) => {
-          updateStudentPointsOptimistically(studentId, -pointsPerStudent);
-          updateClassroomPointsOptimistically(classroomId, studentId, -pointsPerStudent);
-        });
-
-        throw new Error('Failed to award points to class. Please try again.');
-      }
-
-      // Refetch transactions to update state
-      await refetchTransactions();
-
-      return data || [];
+      return results.filter((r): r is DbPointTransaction => r !== null);
     },
-    [
-      behaviors,
-      students,
-      refetchTransactions,
-      updateStudentPointsOptimistically,
-      updateClassroomPointsOptimistically,
-    ]
+    [behaviors, students, awardPointsMutation, updateStudentPointsOptimistically]
   );
 
-  // Award points to specific students (atomic batch insert - all or nothing)
   const awardPointsToStudents = useCallback(
     async (
       classroomId: string,
@@ -435,78 +404,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior || studentIds.length === 0) return [];
 
-      // Filter to only students that exist
       const validStudents = students.filter((s) => studentIds.includes(s.id));
       if (validStudents.length === 0) return [];
 
-      // Store rollback info before optimistic updates
       const pointsPerStudent = behavior.points;
-      const affectedStudentIds = validStudents.map((s) => s.id);
+      const batchId = crypto.randomUUID();
+      const timestamp = Date.now();
 
-      // Optimistically update all selected students' and classroom points
-      // CRITICAL: Update each student individually so student_summary gets updated (prevents double-counting)
       validStudents.forEach((student) => {
         updateStudentPointsOptimistically(student.id, pointsPerStudent);
-        updateClassroomPointsOptimistically(classroomId, student.id, pointsPerStudent);
       });
 
-      // Generate a batch_id to group these transactions for undo
-      const batchId = crypto.randomUUID();
+      const results = await Promise.all(
+        validStudents.map((student) =>
+          awardPointsMutation
+            .mutateAsync({
+              studentId: student.id,
+              classroomId,
+              behavior,
+              note: note ?? null,
+              batchId,
+              timestamp,
+            })
+            .catch((err) => {
+              updateStudentPointsOptimistically(student.id, -pointsPerStudent);
+              console.error('Error awarding points to students:', err);
+              return null;
+            })
+        )
+      );
 
-      // Create transactions for all selected students with shared batch_id (single atomic insert)
-      const newTransactions: NewPointTransaction[] = validStudents.map((student) => ({
-        student_id: student.id,
-        classroom_id: classroomId,
-        behavior_id: behavior.id,
-        behavior_name: behavior.name,
-        behavior_icon: behavior.icon,
-        points: behavior.points,
-        note: note || null,
-        batch_id: batchId,
-      }));
-
-      // Single database call - atomic: either ALL rows insert or NONE
-      const { data, error: insertError } = await supabase
-        .from('point_transactions')
-        .insert(newTransactions)
-        .select();
-
-      if (insertError) {
-        console.error('Error awarding points to students:', insertError);
-
-        // Rollback optimistic updates (must rollback each student individually)
-        affectedStudentIds.forEach((studentId) => {
-          updateStudentPointsOptimistically(studentId, -pointsPerStudent);
-          updateClassroomPointsOptimistically(classroomId, studentId, -pointsPerStudent);
-        });
-
-        throw new Error('Failed to award points to selected students. Please try again.');
-      }
-
-      // Refetch transactions to update state
-      await refetchTransactions();
-
-      return data || [];
+      return results.filter((r): r is DbPointTransaction => r !== null);
     },
-    [
-      behaviors,
-      students,
-      refetchTransactions,
-      updateStudentPointsOptimistically,
-      updateClassroomPointsOptimistically,
-    ]
+    [behaviors, students, awardPointsMutation, updateStudentPointsOptimistically]
   );
 
   const undoTransaction = useCallback(
     async (transactionId: string): Promise<void> => {
-      await undoTransactionHook(transactionId);
+      await undoTransactionMutation.mutateAsync(transactionId);
     },
-    [undoTransactionHook]
+    [undoTransactionMutation]
   );
 
   const undoBatchTransaction = useCallback(
     async (batchId: string): Promise<void> => {
-      // Delete all transactions with this batch_id
       const { error: deleteError } = await supabase
         .from('point_transactions')
         .delete()
@@ -517,10 +458,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw new Error('Failed to undo class award. Please try again or refresh the page.');
       }
 
-      // Refetch transactions to update state
-      await refetchTransactions();
+      await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
     },
-    [refetchTransactions]
+    [qc]
+  );
+
+  const getStudentTransactions = useCallback(
+    (studentId: string, limit?: number): DbPointTransaction[] => {
+      const filtered = transactions.filter((t) => t.student_id === studentId);
+      return limit ? filtered.slice(0, limit) : filtered;
+    },
+    [transactions]
   );
 
   const getClassroomTransactions = useCallback(
@@ -531,17 +480,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [transactions]
   );
 
-  // Get student points from stored totals (replaces transaction-based calculation)
-  // Uses point totals from useStudents hook which are kept in sync via realtime subscriptions
+  // Get student points from stored totals (students hook keeps them in sync via realtime).
   const getStudentPointsStored = useCallback(
     (studentId: string): StudentPoints => {
       const student = students.find((s) => s.id === studentId);
       if (!student) {
         return { total: 0, positiveTotal: 0, negativeTotal: 0, today: 0, thisWeek: 0 };
       }
-
-      // All values come from stored totals - no transaction recalculation
-      // This ensures consistency across all screens and eliminates race conditions
       return {
         total: student.point_total,
         positiveTotal: student.positive_total,
@@ -553,11 +498,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [students]
   );
 
-  // Get aggregated class points (sum of all student points in classroom)
-  // Uses stored totals from students - no transaction recalculation
+  // Get aggregated class points (sum of student stored totals).
   const getClassPoints = useCallback(
     (_classroomId: string, studentIds?: string[]): StudentPoints => {
-      // Sum from student stored totals (guarantees consistency with displayed cards)
       if (studentIds && studentIds.length > 0) {
         let total = 0;
         let positiveTotal = 0;
@@ -574,11 +517,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         return { total, positiveTotal, negativeTotal, today, thisWeek };
       }
-
-      // No studentIds provided - return zeros (sidebar uses stored classroom totals)
       return { total: 0, positiveTotal: 0, negativeTotal: 0, today: 0, thisWeek: 0 };
     },
-    [getStudentPointsStored, students]
+    [getStudentPointsStored]
   );
 
   const getRecentUndoableAction = useCallback((): UndoableAction | null => {
@@ -595,14 +536,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Check if this is part of a batch (class-wide award)
     if (recent.batch_id) {
-      // Find all transactions with the same batch_id
       const batchTransactions = transactions.filter((t) => t.batch_id === recent.batch_id);
       const transactionIds = batchTransactions.map((t) => t.id);
       const totalPoints = batchTransactions.reduce((sum, t) => sum + t.points, 0);
 
       return {
-        transactionId: recent.id, // Primary ID for compatibility
-        transactionIds, // All IDs in the batch
+        transactionId: recent.id,
+        transactionIds,
         batchId: recent.batch_id,
         studentName: 'Entire Class',
         behaviorName: recent.behavior_name,
@@ -629,12 +569,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearStudentPoints = useCallback(
     async (_classroomId: string, studentId: string): Promise<void> => {
-      await clearStudentPointsHook(studentId);
+      await clearStudentPointsMutation.mutateAsync(studentId);
     },
-    [clearStudentPointsHook]
+    [clearStudentPointsMutation]
   );
 
-  // Adjust student points to a target value (creates manual adjustment transaction)
+  // Adjust student points to a target value (creates a manual adjustment transaction).
   const adjustStudentPoints = useCallback(
     async (
       classroomId: string,
@@ -642,7 +582,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       targetPoints: number,
       note?: string
     ): Promise<DbPointTransaction | null> => {
-      // Find the student to get current points
       const student = students.find((s) => s.id === studentId);
       if (!student) {
         console.error('Student not found for adjustment:', studentId);
@@ -652,18 +591,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const currentTotal = student.point_total || 0;
       const delta = targetPoints - currentTotal;
 
-      // Skip if no change needed
-      if (delta === 0) {
-        return null;
-      }
+      if (delta === 0) return null;
 
-      // Create a manual adjustment transaction
       const { data, error: insertError } = await supabase
         .from('point_transactions')
         .insert({
           student_id: studentId,
           classroom_id: classroomId,
-          behavior_id: null, // No behavior template
+          behavior_id: null,
           behavior_name: MANUAL_ADJUSTMENT_NAME,
           behavior_icon: MANUAL_ADJUSTMENT_ICON,
           points: delta,
@@ -677,15 +612,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw new Error('Failed to adjust points. Please try again.');
       }
 
-      // Refetch transactions to update state (DB trigger handles totals)
-      await refetchTransactions();
+      await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
 
       return data;
     },
-    [students, supabase, refetchTransactions]
+    [students, qc]
   );
 
-  // Reset all points for a classroom (deletes all transactions)
   const resetClassroomPoints = useCallback(
     async (classroomId: string): Promise<void> => {
       const { error: deleteError } = await supabase
@@ -698,22 +632,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw new Error('Failed to reset points. Please try again.');
       }
 
-      // Refetch transactions to update state (DB trigger resets student totals)
-      await refetchTransactions();
+      await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
     },
-    [supabase, refetchTransactions]
+    [qc]
   );
 
   // ============================================
   // Mapped values for backwards compatibility
   // ============================================
 
-  // Map classrooms to app format
-  // Classroom totals come from useClassrooms (aggregated from student DB totals + realtime sync)
-  // Today/week totals only calculated for active classroom (not stored at classroom level)
   const mappedClassrooms: AppClassroom[] = useMemo(() => {
     return classrooms.map((c) => {
-      // Map student summaries to AppStudent format for dashboard display
       const summaryStudents: AppStudent[] = c.student_summaries.map((s) => ({
         id: s.id,
         name: s.name,
@@ -727,23 +657,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const isActive = c.id === activeClassroomId;
 
-      // ALWAYS use stored/aggregated totals from useClassrooms (single source of truth)
-      // These are maintained by:
-      // 1. Initial fetch: aggregated from student totals
-      // 2. Optimistic updates: updateClassroomPointsOptimistically
-      // 3. Realtime sync: refetch when student totals change (via DB trigger)
       const pointTotal = c.point_total;
       const positiveTotal = c.positive_total;
       const negativeTotal = c.negative_total;
 
-      // Only calculate today/week totals for active classroom (not stored at classroom level)
       let todayTotal: number | undefined;
       let thisWeekTotal: number | undefined;
 
       const studentsMatchClassroom = students.length > 0 && students[0]?.classroom_id === c.id;
 
       if (isActive && studentsMatchClassroom) {
-        // Sum today/week totals from students for active classroom
         todayTotal = students.reduce((sum, s) => sum + s.today_total, 0);
         thisWeekTotal = students.reduce((sum, s) => sum + s.this_week_total, 0);
       }
@@ -766,7 +689,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Behaviors are already app-shape — transform runs inside the useBehaviors queryFn
   // via dbToBehavior. No intermediate remap needed.
 
-  // Map students to app format (now includes point totals from useStudents)
   const mappedStudents: AppStudent[] = useMemo(() => {
     return students.map((s) => ({
       id: s.id,
@@ -780,18 +702,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, [students]);
 
-  // Active classroom - derived from mappedClassrooms with actual students
-  // This ensures activeClassroom has the same point totals as sidebar (single source of truth)
   const activeClassroom: AppClassroom | null = useMemo(() => {
     const classroom = mappedClassrooms.find((c) => c.id === activeClassroomId);
     if (!classroom) return null;
 
-    // CRITICAL: Verify students actually belong to THIS classroom
-    // During classroom switch, activeClassroomId changes before students refetches
     const studentsMatchClassroom =
       students.length === 0 || students[0]?.classroom_id === activeClassroomId;
 
-    // Only use mappedStudents if they belong to this classroom
     const actualStudents = studentsMatchClassroom ? mappedStudents : [];
 
     return {
@@ -805,11 +722,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ============================================
 
   const value: AppContextValue = {
-    // Loading states
     loading,
     error,
 
-    // State (mapped to app-compatible format)
     classrooms: mappedClassrooms,
     behaviors,
     transactions,
@@ -817,31 +732,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     activeClassroom,
     students: mappedStudents,
 
-    // Classroom operations
     createClassroom,
     updateClassroom,
     deleteClassroom,
     setActiveClassroom,
 
-    // Student operations
     addStudent,
     addStudents,
     updateStudent,
     removeStudent,
 
-    // Behavior operations
     addBehavior,
     updateBehavior,
     deleteBehavior,
     resetBehaviorsToDefault,
 
-    // Point operations
     awardPoints,
     awardClassPoints,
     awardPointsToStudents,
     undoTransaction,
     undoBatchTransaction,
-    getStudentPoints: getStudentPointsStored, // Use stored totals instead of transaction-based
+    getStudentPoints: getStudentPointsStored,
     getClassPoints,
     getStudentTransactions,
     getClassroomTransactions,
