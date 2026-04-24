@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Student } from '../types';
+import type { UpdateSeatingChart } from '../types/database';
 import type {
   SeatingChart,
   SeatingGroup,
@@ -211,7 +212,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     ) => {
       if (!chart) return;
 
-      const updates: Record<string, unknown> = {};
+      const updates: UpdateSeatingChart = {};
       if (settings.name !== undefined) updates.name = settings.name;
       if (settings.snapEnabled !== undefined) updates.snap_enabled = settings.snapEnabled;
       if (settings.gridSize !== undefined) updates.grid_size = settings.gridSize;
