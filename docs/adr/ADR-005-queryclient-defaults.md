@@ -1,4 +1,4 @@
-# ADR-005 — QueryClient defaults, adapter error contract, devtools DCE pattern, Phase 2 mutation AC
+# ADR-005 — QueryClient defaults, adapter error contract, devtools DCE pattern, Phase 2 mutation AC, realtime scope policy
 
 **Status:** Accepted (2026-04-23).
 **Supersedes:** QueryClient Topology block in `_bmad-output/planning-artifacts/architecture-trim-V1.md:150`.
@@ -63,15 +63,55 @@ Every new `useMutation` that introduces **optimistic updates** must:
 - (d) **wire `throwOnError: true` OR explicit `onError` + toast** — never neither. Silent failure with optimistic writes leaves the UI desynced from the server.
 - (e) **read state from `queryClient.getQueryData`, not from component closure.** Stale closures in `onMutate` across re-renders produce ghost writes.
 
-### 5. Gating criterion for future phase reviews
+### 5. Gating criterion for Phase 2 mutation AC
 
 **"Any `useMutation` WITH `onMutate`"** — not "any `useMutation`." Invalidate-only mutations (`mutationFn` + `onSettled: invalidateQueries`) carry no Phase 2 regression surface: no optimistic cache writes, no impure callbacks, no stale closures across re-renders. The surface opens when `onMutate` is introduced.
 
 Future phase-review PRs that propose a new `useMutation` with only `mutationFn` + `onSettled: invalidateQueries` do not need to re-litigate this AC from first principles; PRs that propose `onMutate` trigger the full (a)–(e) checklist.
 
+### 6. Realtime scope policy
+
+Supabase Realtime subscription is added to a domain **only if cross-device live visibility is a user-observable requirement** (the teacher-on-phone-awards-points → smartboard-on-laptop-shows-it-within-~1s scenario). Every other domain uses REST via `useMutation` with `onSettled: invalidateQueries`. **Default is non-realtime.** Silence is not realtime — a domain is realtime iff it appears in the Realtime Domains table below.
+
+**Verified against reference product (2026-04-23).** The ClassDojo production app was network-instrumented via Chrome DevTools during this PR's review. Independent confirmation of the split:
+
+- Skills / behavior CRUD uses plain REST (`/api/dojoClass/<id>/behavior/*`) — no realtime broadcast on the skills channel
+- Concurrent edits on the same row = last-write-wins, no ETag / `If-Match` / version field
+- Stale edit on deleted resource → `PUT` 404, client silently closes modal (no toast, no conflict UI)
+- Award on deleted skill → `POST /awardBatch` 403, full "Access Denied" page
+- PubNub long-poll and MQTT channels exist but carry messaging, point awards, and notifications — NOT skill / behavior CRUD
+
+ClassPoints adopts the same split deliberately; the simpler architecture is not a gap, it is a validated pattern.
+
+**Realtime domains (exactly 3 — matches PRD FR5):**
+
+| Domain                                  | Reason                                                         | Backing tables                                                                  |
+| --------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `students` (point totals, time totals)  | Smartboard must reflect phone awards within ~1 s               | `students`                                                                      |
+| `point_transactions`                    | Award / undo events must propagate cross-device                | `point_transactions`                                                            |
+| `seating-chart` (multi-binding channel) | Teacher drags a seat on the laptop → smartboard shows the move | `seating_charts` (meta row), `seating_groups`, `seating_seats`, `room_elements` |
+
+**Non-realtime domains (explicit — not default-by-omission):**
+
+| Domain           | Reason                                                                         | Backing tables   |
+| ---------------- | ------------------------------------------------------------------------------ | ---------------- |
+| `behaviors`      | Configured once per class, used hundreds of times. ClassDojo parallel confirms | `behaviors`      |
+| `classrooms`     | Infrequent edits, single-teacher context                                       | `classrooms`     |
+| `layout_presets` | Saved templates, one-time actions                                              | `layout_presets` |
+
+The `seating_charts` **meta** row (create / delete / settings) rides on the `seating-chart` realtime channel alongside its body tables. Not an architectural exception — cheap to share the channel, and simpler than splitting meta-lifecycle-events from body-position-events for what is effectively a 1-per-classroom resource.
+
+**Gate criterion for realtime scope.** A PR that does any of:
+
+- Adds a realtime subscription to a domain **not** in the Realtime Domains table
+- Removes a subscription from a domain **in** the Realtime Domains table
+- Introduces a new data domain or table with **undefined** realtime status
+
+must update this section in the same commit that makes the code change. "Decide later" is not acceptable — the realtime count is load-bearing on PRD FR5 (exactly 3 channels), Phase 2 mutation race handling, and adapter bridge memoization assumptions.
+
 ## Consequences
 
-- `refetchOnWindowFocus: false` eliminates cross-tab sync on focus. For tables covered by a realtime channel (`students`, `point_transactions`, `seating-chart` per `architecture-trim-V1.md:126`), realtime fills the gap. **`behaviors` has no realtime channel** — a teacher editing behaviors in tab A will not see the change in tab B until they trigger a refetch through another action. Acceptable: behaviors edits are rare, single-teacher-per-classroom is the default, and adding a realtime channel is tracked separately if a multi-tab behaviors-editing scenario emerges.
+- `refetchOnWindowFocus: false` eliminates cross-tab sync on focus. For tables covered by a realtime channel (see Decision §6 Realtime Domains table), realtime fills the gap. For non-realtime tables (§6 Non-Realtime Domains table — `behaviors`, `classrooms`, `layout_presets`), a user editing in tab A will not see the change in tab B until tab B triggers a refetch through another action. Acceptable **by policy** (§6) — reference-product verification confirmed ClassDojo operates the same way; single-teacher-per-classroom is the default; adding a realtime channel to a non-realtime domain requires updating §6 in the same commit.
 - `gcTime: 10 min` raises worst-case cache residency. Bounded — cache is cleared on sign-out and on user-id transitions (see `src/contexts/AuthContext.tsx`).
 - The `DevtoolsGate` pattern establishes the precedent for any future DEV-only panel (Sentry dev overlay, perf probe, etc.).
 - Adapter error contract unification: Phase 2's toast/onError work has one pattern. Phase 4's adapter dissolve becomes a pure type narrowing for `addBehavior` (drop `| null`).
