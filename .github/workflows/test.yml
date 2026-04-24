@@ -124,11 +124,40 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase local stack
+        run: supabase start
+
       - name: Install fnox
         uses: jdx/mise-action@v3
         with:
           tool_versions: |
             fnox latest
+
+      # .env.test drives playwright.config.ts — it overrides process.env so
+      # the allow-list guard sees the LOCAL stack URL (not the hosted URL in
+      # fnox.toml). Local URL + keys come from `supabase status`; test user
+      # credentials stay in fnox so it remains the single source for secrets.
+      - name: Write .env.test (local stack URL + fnox test creds)
+        env:
+          FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
+        run: |
+          supabase status -o env \
+            | sed -e 's/^API_URL=/VITE_SUPABASE_URL=/' \
+                  -e 's/^ANON_KEY=/VITE_SUPABASE_ANON_KEY=/' \
+                  -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_ROLE_KEY=/' \
+                  -e 's/"//g' > .env.test
+          fnox exec -- bash -c '
+            printf "VITE_TEST_EMAIL=%s\n" "$VITE_TEST_EMAIL"
+            printf "VITE_TEST_PASSWORD=%s\n" "$VITE_TEST_PASSWORD"
+          ' >> .env.test
+
+      - name: Seed test user
+        run: npm run test:seed
 
       - name: Run tests with retry
         uses: nick-fields/retry@v3
@@ -136,9 +165,7 @@ jobs:
           timeout_minutes: 15
           max_attempts: 2
           retry_on: error
-          command: fnox exec -- npm run test:e2e -- --shard=${{ matrix.shard }}/4
-        env:
-          FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
+          command: npm run test:e2e -- --shard=${{ matrix.shard }}/4
 
       - name: Upload test results
         if: failure()
@@ -183,20 +210,43 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase local stack
+        run: supabase start
+
       - name: Install fnox
         uses: jdx/mise-action@v3
         with:
           tool_versions: |
             fnox latest
 
+      - name: Write .env.test (local stack URL + fnox test creds)
+        env:
+          FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
+        run: |
+          supabase status -o env \
+            | sed -e 's/^API_URL=/VITE_SUPABASE_URL=/' \
+                  -e 's/^ANON_KEY=/VITE_SUPABASE_ANON_KEY=/' \
+                  -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_ROLE_KEY=/' \
+                  -e 's/"//g' > .env.test
+          fnox exec -- bash -c '
+            printf "VITE_TEST_EMAIL=%s\n" "$VITE_TEST_EMAIL"
+            printf "VITE_TEST_PASSWORD=%s\n" "$VITE_TEST_PASSWORD"
+          ' >> .env.test
+
+      - name: Seed test user
+        run: npm run test:seed
+
       - name: Run burn-in loop (10 iterations)
         run: |
           for i in {1..10}; do
             echo "🔥 Burn-in iteration $i/10"
-            fnox exec -- npm run test:e2e || exit 1
+            npm run test:e2e || exit 1
           done
-        env:
-          FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
 
       - name: Upload failure artifacts
         if: failure()
