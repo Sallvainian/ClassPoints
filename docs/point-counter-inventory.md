@@ -89,16 +89,16 @@ Compute site:
 
 ## Data sources
 
-| Counter                                      | DB source                                     | Maintained by                                                                            | Client read path                                                                        |
-| -------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Student lifetime net (`point_total`)         | `students.point_total` column                 | DB trigger on `point_transactions` INSERT/DELETE                                         | `useStudents.queryFn` → `students[i].point_total`                                       |
-| Student lifetime positive (`positive_total`) | `students.positive_total` column              | Same DB trigger                                                                          | Same path                                                                               |
-| Student lifetime negative (`negative_total`) | `students.negative_total` column              | Same DB trigger                                                                          | Same path                                                                               |
-| Student today delta (`today_total`)          | **Computed** by RPC `get_student_time_totals` | Returned fresh per query from `point_transactions` in today's window                     | `useStudents.fetchStudents` calls the RPC; also called in `useClassrooms.queryFn:50-58` |
-| Student week delta (`this_week_total`)       | **Computed** by the same RPC                  | Same                                                                                     | Same                                                                                    |
-| Classroom lifetime net/+/-                   | Aggregated client-side from students          | Summed in `useClassrooms.queryFn:72-98`                                                  | `classrooms.all` cache → `ClassroomWithCount`                                           |
-| Classroom today/week                         | Aggregated client-side                        | Summed in `AppContext.tsx:662-693` (`todayTotal`/`thisWeekTotal` reduce over `students`) | `activeClassroom` useMemo                                                               |
-| All-classrooms aggregates (H, I)             | Aggregated client-side                        | Summed in `TeacherDashboard.tsx:27-31` reduce over `classrooms`                          | Home view only                                                                          |
+| Counter                                      | DB source                                     | Maintained by                                                                            | Client read path                                                                                                                  |
+| -------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Student lifetime net (`point_total`)         | `students.point_total` column                 | DB trigger on `point_transactions` INSERT/DELETE                                         | `useStudents.queryFn` (TanStack Query) merges columns + RPC and returns `StudentWithPoints[]`; cached at `students.byClassroom`   |
+| Student lifetime positive (`positive_total`) | `students.positive_total` column              | Same DB trigger                                                                          | Same path                                                                                                                         |
+| Student lifetime negative (`negative_total`) | `students.negative_total` column              | Same DB trigger                                                                          | Same path                                                                                                                         |
+| Student today delta (`today_total`)          | **Computed** by RPC `get_student_time_totals` | Returned fresh per query from `point_transactions` in today's window                     | `useStudents.queryFn` calls the RPC inside TanStack Query and merges into the cache; also called in `useClassrooms.queryFn:38-46` |
+| Student week delta (`this_week_total`)       | **Computed** by the same RPC                  | Same                                                                                     | Same                                                                                                                              |
+| Classroom lifetime net/+/-                   | Aggregated client-side from students          | Summed in `useClassrooms.queryFn:72-98`                                                  | `classrooms.all` cache → `ClassroomWithCount`                                                                                     |
+| Classroom today/week                         | Aggregated client-side                        | Summed in `AppContext.tsx:662-693` (`todayTotal`/`thisWeekTotal` reduce over `students`) | `activeClassroom` useMemo                                                                                                         |
+| All-classrooms aggregates (H, I)             | Aggregated client-side                        | Summed in `TeacherDashboard.tsx:27-31` reduce over `classrooms`                          | Home view only                                                                                                                    |
 
 **Key asymmetry:** lifetime values live in columns (trigger-maintained, autoreactive to transaction changes via realtime). Time-windowed values (today/week) are RPC-computed on each fetch and require **explicit refetch invalidation** — they don't self-update when transactions change.
 
@@ -111,22 +111,19 @@ Compute site:
    - `point_transactions.DELETE` → DB trigger decrements same columns
    - Today/week totals are never written; they're always derived at read time by the RPC
 
-2. **Optimistic client writes (Phase 2)**
-   - `src/hooks/useTransactions.ts:132-160` — `useAwardPoints.onMutate` patches `classrooms.all` cache (bumps classroom-aggregate +/- / today / week)
-   - `src/hooks/useStudents.ts:389-393` — `updateStudentPointsOptimistically` patches `useStudents` local state (bumps all five fields)
+2. **Optimistic client writes (Phase 3)**
+   - `useAwardPoints.onMutate` patches THREE caches: `transactions.list(classroomId)`, `classrooms.all`, AND `students.byClassroom(classroomId)` (Phase 3 absorbed the helper). Per-student lifetime+/–/today/week arithmetic mirrors the per-classroom-aggregate patch and runs inside the same `alreadyPatched` idempotency guard.
 
 3. **Optimistic rollback**
-   - `src/hooks/useTransactions.ts:168-178` — `useAwardPoints.onError` restores `context.previousTransactions` / `context.previousClassrooms` snapshots (⚠ known partial-batch race, see recent investigation)
-   - `src/contexts/AppContext.tsx:345, 385, 430` — `awardPoints` wrappers call `updateStudentPointsOptimistically(-points)` to unwind student state
+   - `useAwardPoints.onError` restores `context.previousTransactions` / `context.previousClassrooms` / `context.previousStudents` snapshots — each null-guarded so a post-cancel `undefined` snapshot doesn't overwrite the cache (ADR-005 §4a).
+   - The standalone `awardPoints` / `awardClassPoints` / `awardPointsToStudents` wrappers in `AppContext.tsx` no longer hand-roll a student-side rollback; the mutation owns it.
 
 4. **Realtime-driven writes**
-   - `src/hooks/useStudents.ts:215-253` — `point_transactions` DELETE subscription decrements student time-based totals
-   - `src/hooks/useStudents.ts:176-201` — `students` UPDATE subscription refreshes lifetime totals (**preserves** today/week, per line 188 comment)
-   - `src/hooks/useClassrooms.ts:25-30` — `students` subscription invalidates `classrooms.all` via `onChange`
+   - `src/hooks/useStudents.ts` — `point_transactions` DELETE subscription decrements student time-based totals (REPLICA IDENTITY FULL provides the row data).
+   - `src/hooks/useStudents.ts` — `students` realtime `onChange` (single owner): INSERT dedup-appends, UPDATE merge-patches the row **preserving today_total / this_week_total** from cache, DELETE filters by id. Every event invalidates `classrooms.all` so cross-hook aggregates refresh.
+   - `src/hooks/useClassrooms.ts` — no longer subscribes; refresh comes from `useStudents.onChange` (deferred entry #4 RESOLVED in Phase 3).
 
-5. **Explicit refetch (Phase 2 bug fix, commit `9c7205e`)**
-   - `src/contexts/AppContext.tsx:442-465` — `undoTransaction` / `undoBatchTransaction` force `refetchStudents()` because the realtime DELETE handler was unreliable
-   - Same pattern in `clearStudentPoints` (577-582) and `resetClassroomPoints` (630-646)
+5. **Explicit refetch — REMOVED in Phase 3.** `void refetchStudents()` no longer exists at any AppContext call site. The five formerly bridged sites (`undoTransaction`, `undoBatchTransaction`, `clearStudentPoints`, `adjustStudentPoints`, `resetClassroomPoints`) now rely on each mutation hook's `onSettled` to invalidate `students.all` / `students.byClassroom`, which TanStack Query refetches automatically.
 
 ---
 

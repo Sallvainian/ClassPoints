@@ -5,6 +5,7 @@ import type {
   Behavior as DbBehavior,
   Classroom as DbClassroom,
   PointTransaction as DbPointTransaction,
+  Student as DbStudent,
 } from './database';
 import type { Behavior as AppBehavior } from './index';
 
@@ -75,4 +76,30 @@ export function dbToClassroom(row: DbClassroom, aggregate: ClassroomAggregate): 
 // src/types/database.ts must still be updated explicitly for static access.
 export function dbToPointTransaction(row: DbPointTransaction): DbPointTransaction {
   return { ...row };
+}
+
+// Extended student shape: lifetime totals from the row's stored columns (DB-trigger
+// maintained), time-windowed totals from the `get_student_time_totals` RPC merged
+// in `useStudents.queryFn`. New students with no cached totals receive 0 for the
+// time-windowed fields — RPC result keyed by student_id, missing rows default here.
+export interface StudentWithPoints extends DbStudent {
+  point_total: number;
+  positive_total: number;
+  negative_total: number;
+  today_total: number;
+  this_week_total: number;
+}
+
+export function dbToStudent(
+  row: DbStudent,
+  timeTotals: { today_total: number; this_week_total: number }
+): StudentWithPoints {
+  return {
+    ...row,
+    point_total: row.point_total ?? 0,
+    positive_total: row.positive_total ?? 0,
+    negative_total: row.negative_total ?? 0,
+    today_total: timeTotals.today_total,
+    this_week_total: timeTotals.this_week_total,
+  };
 }
