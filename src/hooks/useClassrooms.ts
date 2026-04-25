@@ -138,7 +138,7 @@ export function useUpdateClassroom() {
   return useMutation<DbClassroom, Error, UpdateClassroomInput>({
     mutationFn: async ({ id, updates }) => {
       // Typed UpdateClassroom payload per supabase-js 2.104 RejectExcessProperties
-      // (reference: src/hooks/useSeatingChart.ts @ cd67ada).
+      // (reference: src/hooks/useSeatingChart.ts).
       const { data, error } = await supabase
         .from('classrooms')
         .update(updates)

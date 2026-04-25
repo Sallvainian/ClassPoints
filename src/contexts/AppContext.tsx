@@ -1,7 +1,13 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from 'react';
 import { supabase } from '../lib/supabase';
-import { queryKeys } from '../lib/queryKeys';
 import {
   useClassrooms,
   useCreateClassroom,
@@ -19,7 +25,11 @@ import {
   useTransactions,
   useAwardPoints,
   useUndoTransaction,
+  useUndoBatchTransaction,
   useClearStudentPoints,
+  useResetClassroomPoints,
+  useAdjustStudentPoints,
+  AdjustNoOpError,
 } from '../hooks/useTransactions';
 import type {
   Classroom as DbClassroom,
@@ -55,10 +65,6 @@ const DEFAULT_BEHAVIORS: NewBehavior[] = [
   { name: 'Not Following Rules', points: -1, icon: '🚫', category: 'negative', is_custom: false },
   { name: 'Late', points: -1, icon: '⏰', category: 'negative', is_custom: false },
 ];
-
-// Manual adjustment constants
-const MANUAL_ADJUSTMENT_NAME = 'Manual Adjustment';
-const MANUAL_ADJUSTMENT_ICON = '✏️';
 
 interface AppContextValue {
   // Loading states
@@ -137,11 +143,19 @@ const UNDO_WINDOW_MS = 10000; // 10 seconds for undo
 const ACTIVE_CLASSROOM_STORAGE_KEY = 'app:activeClassroomId';
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const qc = useQueryClient();
   const [activeClassroomId, setActiveClassroomId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     return window.localStorage.getItem(ACTIVE_CLASSROOM_STORAGE_KEY);
   });
+
+  // Batch-kind tagging: awardClassPoints and awardPointsToStudents produce cluster
+  // inserts sharing a batch_id. Each kind is labeled differently in the UndoToast
+  // ('Entire Class' vs 'N students'), but the DB row carries no kind marker. This
+  // in-memory Map records the kind at award time so getRecentUndoableAction can
+  // route correctly. Local to this device; cross-device undo of a subset award
+  // falls back to the 'Entire Class' label (acknowledged limitation — see
+  // getRecentUndoableAction). Reset on whole-classroom/clear operations.
+  const batchKindRef = useRef<Map<string, 'class' | 'subset'>>(new Map());
 
   // Phase 2 adapter bridge: useClassrooms is now a TanStack Query wrapper; the three
   // classroom mutations are split hooks. AppContext reshapes the output to preserve
@@ -178,12 +192,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refetchBehaviors = behaviorsQuery.refetch;
 
   // Phase 2 adapter bridge: useTransactions is now a TanStack Query wrapper; the
-  // four transaction mutations are split hooks. useAwardPoints is the canonical
+  // transaction mutations are split hooks. useAwardPoints is the canonical
   // optimistic-mutation showcase (ADR-005 §4 checklist inline in the hook).
   const transactionsQuery = useTransactions(activeClassroomId);
   const awardPointsMutation = useAwardPoints();
   const undoTransactionMutation = useUndoTransaction();
+  const undoBatchTransactionMutation = useUndoBatchTransaction();
   const clearStudentPointsMutation = useClearStudentPoints();
+  const resetClassroomPointsMutation = useResetClassroomPoints();
+  const adjustStudentPointsMutation = useAdjustStudentPoints();
   const transactions = useMemo(() => transactionsQuery.data ?? [], [transactionsQuery.data]);
   const transactionsLoading = transactionsQuery.isPending;
   const transactionsError = transactionsQuery.error;
@@ -363,6 +380,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const batchId = crypto.randomUUID();
       const timestamp = Date.now();
 
+      // Tag AFTER the early-return guards so no-op calls don't leak Map entries.
+      // Paired with cleanup in the undoBatch/reset/clear wrappers below.
+      batchKindRef.current.set(batchId, 'class');
+
       // Student-level optimism remains in useStudents until Phase 3.
       students.forEach((student) => {
         updateStudentPointsOptimistically(student.id, pointsPerStudent);
@@ -390,7 +411,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         )
       );
 
-      return results.filter((r): r is DbPointTransaction => r !== null);
+      const successful = results.filter((r): r is DbPointTransaction => r !== null);
+      // If every mutation failed, no transaction was written → undoBatchTransaction
+      // never runs → batchKindRef entry would leak. Clean it up here.
+      if (successful.length === 0) batchKindRef.current.delete(batchId);
+      return successful;
     },
     [behaviors, students, awardPointsMutation, updateStudentPointsOptimistically]
   );
@@ -411,6 +436,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const pointsPerStudent = behavior.points;
       const batchId = crypto.randomUUID();
       const timestamp = Date.now();
+
+      // Tag AFTER the guards so no-op calls don't leak Map entries.
+      batchKindRef.current.set(batchId, 'subset');
 
       validStudents.forEach((student) => {
         updateStudentPointsOptimistically(student.id, pointsPerStudent);
@@ -435,7 +463,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         )
       );
 
-      return results.filter((r): r is DbPointTransaction => r !== null);
+      const successful = results.filter((r): r is DbPointTransaction => r !== null);
+      if (successful.length === 0) batchKindRef.current.delete(batchId);
+      return successful;
     },
     [behaviors, students, awardPointsMutation, updateStudentPointsOptimistically]
   );
@@ -443,32 +473,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const undoTransaction = useCallback(
     async (transactionId: string): Promise<void> => {
       await undoTransactionMutation.mutateAsync(transactionId);
-      // useStudents owns today_total/this_week_total via RPC (legacy hook, Phase 3
-      // migration will dissolve this). Realtime DELETE handler is unreliable, so
-      // force a fresh RPC fetch after undo so both the per-student and summed
-      // class-level today counters reflect the delete.
-      await refetchStudents();
+      // useStudents owns today_total/this_week_total via RPC (Phase 3 target).
+      // The refetch is fire-and-forget: it still happens — the caller just doesn't
+      // wait. Counters land on the next render (~150-300ms after mutateAsync
+      // resolves) instead of pre-resolution; trade-off is acceptable because the
+      // refetch completes reliably and Phase 3 will dissolve this bridge entirely.
+      void refetchStudents().catch((err) => console.error('refetch after undo:', err));
     },
     [undoTransactionMutation, refetchStudents]
   );
 
   const undoBatchTransaction = useCallback(
     async (batchId: string): Promise<void> => {
-      const { error: deleteError } = await supabase
-        .from('point_transactions')
-        .delete()
-        .eq('batch_id', batchId);
-
-      if (deleteError) {
-        console.error('Error undoing batch transaction:', deleteError);
-        throw new Error('Failed to undo class award. Please try again or refresh the page.');
-      }
-
-      await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
-      await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
-      await refetchStudents();
+      await undoBatchTransactionMutation.mutateAsync({ batchId });
+      batchKindRef.current.delete(batchId);
+      void refetchStudents().catch((err) => console.error('refetch after undoBatch:', err));
     },
-    [qc, refetchStudents]
+    [undoBatchTransactionMutation, refetchStudents]
   );
 
   const getStudentTransactions = useCallback(
@@ -541,22 +562,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Check if within undo window
     if (now - recentTimestamp > UNDO_WINDOW_MS) return null;
 
-    // Check if this is part of a batch (class-wide award)
+    // Check if this is part of a batch (class-wide OR multi-select subset).
     if (recent.batch_id) {
       const batchTransactions = transactions.filter((t) => t.batch_id === recent.batch_id);
       const transactionIds = batchTransactions.map((t) => t.id);
       const totalPoints = batchTransactions.reduce((sum, t) => sum + t.points, 0);
+      const studentCount = batchTransactions.length;
+
+      // Acknowledged limitation: batchKindRef is local to the originating device.
+      // Cross-device undo (teacher awards on phone, undoes on laptop within 10s)
+      // and page-reload-mid-window both fall back to 'Entire Class'. Solving
+      // requires persisting batch_kind as a DB column — schema change, out of
+      // Phase 2.5 scope.
+      const kind = batchKindRef.current.get(recent.batch_id);
+      const studentName =
+        kind === 'subset'
+          ? `${studentCount} student${studentCount === 1 ? '' : 's'}`
+          : 'Entire Class';
 
       return {
         transactionId: recent.id,
         transactionIds,
         batchId: recent.batch_id,
-        studentName: 'Entire Class',
+        studentName,
         behaviorName: recent.behavior_name,
         points: totalPoints,
         timestamp: recentTimestamp,
         isBatch: true,
-        studentCount: batchTransactions.length,
+        isClassWide: kind !== 'subset',
+        studentCount,
       };
     }
 
@@ -577,7 +611,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearStudentPoints = useCallback(
     async (_classroomId: string, studentId: string): Promise<void> => {
       await clearStudentPointsMutation.mutateAsync(studentId);
-      await refetchStudents();
+      // Clear deletes all transactions for this student, including any batch rows.
+      // Safer to wipe the whole Map than look up per-batch membership — the
+      // fallback 'Entire Class' label is acceptable for rare cross-classroom
+      // undo-after-clear edge cases.
+      batchKindRef.current.clear();
+      void refetchStudents().catch((err) => console.error('refetch after clear:', err));
     },
     [clearStudentPointsMutation, refetchStudents]
   );
@@ -596,55 +635,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      const currentTotal = student.point_total || 0;
-      const delta = targetPoints - currentTotal;
-
-      if (delta === 0) return null;
-
-      const { data, error: insertError } = await supabase
-        .from('point_transactions')
-        .insert({
-          student_id: studentId,
-          classroom_id: classroomId,
-          behavior_id: null,
-          behavior_name: MANUAL_ADJUSTMENT_NAME,
-          behavior_icon: MANUAL_ADJUSTMENT_ICON,
-          points: delta,
-          note: note || `Set points to ${targetPoints}`,
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error adjusting student points:', insertError);
-        throw new Error('Failed to adjust points. Please try again.');
+      try {
+        const result = await adjustStudentPointsMutation.mutateAsync({
+          classroomId,
+          studentId,
+          targetPoints,
+          currentPointTotal: student.point_total || 0,
+          note: note ?? null,
+        });
+        void refetchStudents().catch((err) => console.error('refetch after adjust:', err));
+        return result;
+      } catch (err) {
+        // Legacy contract: no-op (delta=0) returns null, not throws. Discriminate
+        // on the sentinel class so future error-message tweaks can't break it.
+        if (err instanceof AdjustNoOpError) return null;
+        throw err;
       }
-
-      await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
-      await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
-
-      return data;
     },
-    [students, qc]
+    [students, adjustStudentPointsMutation, refetchStudents]
   );
 
   const resetClassroomPoints = useCallback(
     async (classroomId: string): Promise<void> => {
-      const { error: deleteError } = await supabase
-        .from('point_transactions')
-        .delete()
-        .eq('classroom_id', classroomId);
-
-      if (deleteError) {
-        console.error('Error resetting classroom points:', deleteError);
-        throw new Error('Failed to reset points. Please try again.');
-      }
-
-      await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
-      await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
-      await refetchStudents();
+      await resetClassroomPointsMutation.mutateAsync({ classroomId });
+      // Reset wipes every transaction in the classroom; all batch_ids are now stale.
+      batchKindRef.current.clear();
+      void refetchStudents().catch((err) => console.error('refetch after reset:', err));
     },
-    [qc, refetchStudents]
+    [resetClassroomPointsMutation, refetchStudents]
   );
 
   // ============================================

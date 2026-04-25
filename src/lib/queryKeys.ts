@@ -16,7 +16,6 @@ export const queryKeys = {
   transactions: {
     all: ['transactions'] as const,
     list: (classroomId: string) => ['transactions', 'list', classroomId] as const,
-    student: (studentId: string) => ['transactions', 'student', studentId] as const,
   },
   behaviors: {
     all: ['behaviors'] as const,

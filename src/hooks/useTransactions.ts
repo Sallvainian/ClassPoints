@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
+import { MANUAL_ADJUSTMENT_NAME, MANUAL_ADJUSTMENT_ICON } from '../lib/manualAdjustmentConstants';
 import { useRealtimeSubscription } from './useRealtimeSubscription';
 import { dbToPointTransaction, type ClassroomWithCount } from '../types/transforms';
 import type {
@@ -8,6 +9,18 @@ import type {
   NewPointTransaction,
 } from '../types/database';
 import type { Behavior as AppBehavior } from '../types';
+
+/**
+ * Sentinel error thrown by `useAdjustStudentPoints` when the target equals the
+ * current total (delta = 0). Wrappers discriminate on `err instanceof AdjustNoOpError`
+ * — NOT a string match — so future error-message tweaks can't break the check.
+ */
+export class AdjustNoOpError extends Error {
+  constructor() {
+    super('useAdjustStudentPoints: no-op (delta=0)');
+    this.name = 'AdjustNoOpError';
+  }
+}
 
 export interface AwardPointsInput {
   studentId: string;
@@ -206,6 +219,96 @@ export function useClearStudentPoints() {
         .delete()
         .eq('student_id', studentId);
       if (error) throw new Error(error.message);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+    },
+  });
+}
+
+export interface UndoBatchTransactionInput {
+  batchId: string;
+}
+
+export function useUndoBatchTransaction() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, UndoBatchTransactionInput>({
+    mutationFn: async ({ batchId }) => {
+      // Empty string or null batchId would silently no-op (.eq('batch_id', ''))
+      // or mass-delete every single-student transaction (.eq('batch_id', null)).
+      // Guard explicitly; wrappers should never reach this path, but defense in depth.
+      if (!batchId) throw new Error('useUndoBatchTransaction: batchId required');
+      const { error } = await supabase.from('point_transactions').delete().eq('batch_id', batchId);
+      if (error) {
+        throw new Error('Failed to undo class award. Please try again or refresh the page.');
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+    },
+  });
+}
+
+export interface ResetClassroomPointsInput {
+  classroomId: string;
+}
+
+export function useResetClassroomPoints() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, ResetClassroomPointsInput>({
+    mutationFn: async ({ classroomId }) => {
+      const { error } = await supabase
+        .from('point_transactions')
+        .delete()
+        .eq('classroom_id', classroomId);
+      if (error) throw new Error('Failed to reset points. Please try again.');
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+    },
+  });
+}
+
+export interface AdjustStudentPointsInput {
+  classroomId: string;
+  studentId: string;
+  targetPoints: number;
+  // Caller supplies the current total from its React closure. Do NOT read from
+  // `qc.getQueryData` inside mutationFn — the cache may be mid-invalidate from
+  // an unrelated mutation; the closure is the source of truth at call time.
+  currentPointTotal: number;
+  note?: string | null;
+  behaviorName?: string;
+  behaviorIcon?: string;
+}
+
+export function useAdjustStudentPoints() {
+  const qc = useQueryClient();
+  return useMutation<DbPointTransaction, Error, AdjustStudentPointsInput>({
+    mutationFn: async (input) => {
+      const delta = input.targetPoints - input.currentPointTotal;
+      if (delta === 0) throw new AdjustNoOpError();
+
+      const { data, error } = await supabase
+        .from('point_transactions')
+        .insert({
+          student_id: input.studentId,
+          classroom_id: input.classroomId,
+          behavior_id: null,
+          behavior_name: input.behaviorName ?? MANUAL_ADJUSTMENT_NAME,
+          behavior_icon: input.behaviorIcon ?? MANUAL_ADJUSTMENT_ICON,
+          points: delta,
+          note: input.note ?? `Set points to ${input.targetPoints}`,
+          batch_id: null,
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error('Failed to adjust points. Please try again.');
+      return dbToPointTransaction(data);
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });

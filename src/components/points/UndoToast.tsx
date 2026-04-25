@@ -12,6 +12,13 @@ export function UndoToast({ action, onUndo, duration = 5000 }: UndoToastProps) {
   const [visible, setVisible] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
 
+  // Stable dep key: the parent polls getRecentUndoableAction every 1s, producing
+  // a fresh `action` object each tick. Keying on batchId (for batches) or timestamp
+  // (for single awards — `transactionId` flips when the optimistic temp id is
+  // replaced by the server UUID) keeps the timer running across polls and across
+  // the optimistic→real swap. Intentionally omits `action` from the dep list.
+  const actionKey = action?.batchId ?? action?.timestamp ?? null;
+
   useEffect(() => {
     if (action) {
       setVisible(true);
@@ -33,7 +40,8 @@ export function UndoToast({ action, onUndo, duration = 5000 }: UndoToastProps) {
     } else {
       setVisible(false);
     }
-  }, [action, duration]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionKey, duration]);
 
   if (!visible || !action) return null;
 
@@ -65,10 +73,10 @@ export function UndoToast({ action, onUndo, duration = 5000 }: UndoToastProps) {
             <div>
               <p className="text-sm font-medium">
                 {action.studentName}
-                {action.isBatch && action.studentCount && (
+                {action.isBatch && action.isClassWide && action.studentCount && (
                   <span className="text-gray-400 dark:text-zinc-600 font-normal">
                     {' '}
-                    ({action.studentCount} students)
+                    ({action.studentCount} student{action.studentCount === 1 ? '' : 's'})
                   </span>
                 )}
               </p>
