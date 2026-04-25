@@ -1,33 +1,17 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
-import { useRealtimeSubscription } from './useRealtimeSubscription';
 import { getDateBoundaries } from '../utils/dateUtils';
 import { dbToClassroom, type ClassroomWithCount, type StudentSummary } from '../types/transforms';
-import type {
-  Classroom as DbClassroom,
-  Student as DbStudent,
-  NewClassroom,
-  UpdateClassroom,
-} from '../types/database';
+import type { Classroom as DbClassroom, NewClassroom, UpdateClassroom } from '../types/database';
 
 // Re-exports preserved for Phase 0/1 consumers that imported these types from this module.
 export type { ClassroomWithCount, StudentSummary };
 
 export function useClassrooms(): UseQueryResult<ClassroomWithCount[], Error> {
-  const qc = useQueryClient();
-
   // §6: classrooms table is non-realtime — no subscription here.
-  // The `students`-table subscription is the cross-aggregate refresh trigger that
-  // keeps classroom roll-ups fresh when another device's award lands on the server
-  // (DB trigger bumps students.point_total → UPDATE event → invalidate). Phase 3
-  // migrates useStudents and can relocate this upstream.
-  useRealtimeSubscription<DbStudent>({
-    table: 'students',
-    onChange: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
-    },
-  });
+  // Students-table realtime is owned by useStudents (Phase 3, deferred entry #4
+  // RESOLVED). useClassrooms refreshes via cross-hook invalidation triggered there.
 
   return useQuery<ClassroomWithCount[], Error>({
     queryKey: queryKeys.classrooms.all,

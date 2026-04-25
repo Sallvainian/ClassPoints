@@ -14,7 +14,13 @@ import {
   useUpdateClassroom,
   useDeleteClassroom,
 } from '../hooks/useClassrooms';
-import { useStudents } from '../hooks/useStudents';
+import {
+  useStudents,
+  useAddStudent,
+  useAddStudents,
+  useUpdateStudent,
+  useRemoveStudent,
+} from '../hooks/useStudents';
 import {
   useBehaviors,
   useAddBehavior,
@@ -169,17 +175,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const classroomsLoading = classroomsQuery.isPending;
   const classroomsError = classroomsQuery.error;
 
-  const {
-    students,
-    loading: studentsLoading,
-    error: studentsError,
-    addStudent: addStudentHook,
-    addStudents: addStudentsHook,
-    updateStudent: updateStudentHook,
-    removeStudent: removeStudentHook,
-    updateStudentPointsOptimistically,
-    refetch: refetchStudents,
-  } = useStudents(activeClassroomId);
+  // Phase 3 adapter bridge: useStudents is now a TanStack Query wrapper; the four
+  // student mutations are split hooks. Student-level optimism + cross-hook
+  // invalidation are owned upstream (useAwardPoints.onMutate + the 5 transaction
+  // mutations' onSettled) — no helper or refetch bridge survives at this layer.
+  const studentsQuery = useStudents(activeClassroomId);
+  const addStudentMutation = useAddStudent();
+  const addStudentsMutation = useAddStudents();
+  const updateStudentMutation = useUpdateStudent();
+  const removeStudentMutation = useRemoveStudent();
+  const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
+  const studentsLoading = studentsQuery.isPending;
+  const studentsError = studentsQuery.error;
 
   // Phase 1 adapter bridge: useBehaviors is now a TanStack Query wrapper.
   const behaviorsQuery = useBehaviors();
@@ -252,32 +259,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Student Operations
   // ============================================
 
+  // Thin mutateAsync wrappers preserve legacy AppContextValue contracts:
+  // addStudent / addStudents return the inserted row(s) on success or null/[] on
+  // failure (caught here); updateStudent / removeStudent are fire-and-await void.
   const addStudent = useCallback(
     async (classroomId: string, name: string): Promise<DbStudent | null> => {
-      return await addStudentHook(classroomId, name);
+      try {
+        return await addStudentMutation.mutateAsync({ classroomId, name });
+      } catch (err) {
+        console.error('addStudent failed:', err);
+        return null;
+      }
     },
-    [addStudentHook]
+    [addStudentMutation]
   );
 
   const addStudents = useCallback(
     async (classroomId: string, names: string[]): Promise<DbStudent[]> => {
-      return await addStudentsHook(classroomId, names);
+      try {
+        return await addStudentsMutation.mutateAsync({ classroomId, names });
+      } catch (err) {
+        console.error('addStudents failed:', err);
+        return [];
+      }
     },
-    [addStudentsHook]
+    [addStudentsMutation]
   );
 
   const updateStudent = useCallback(
     async (_classroomId: string, studentId: string, updates: Partial<DbStudent>): Promise<void> => {
-      await updateStudentHook(studentId, updates);
+      await updateStudentMutation.mutateAsync({ id: studentId, updates });
     },
-    [updateStudentHook]
+    [updateStudentMutation]
   );
 
   const removeStudent = useCallback(
     async (_classroomId: string, studentId: string): Promise<void> => {
-      await removeStudentHook(studentId);
+      await removeStudentMutation.mutateAsync(studentId);
     },
-    [removeStudentHook]
+    [removeStudentMutation]
   );
 
   // ============================================
@@ -343,28 +363,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior) return null;
 
-      const pointsToAward = behavior.points;
-
-      // Student-level optimism still lives in useStudents (Phase 3 target).
-      // Classroom-level optimism is owned by useAwardPoints.onMutate (ADR-005 §4).
-      updateStudentPointsOptimistically(studentId, pointsToAward);
-
-      try {
-        return await awardPointsMutation.mutateAsync({
-          studentId,
-          classroomId,
-          behavior,
-          note: note ?? null,
-          timestamp: Date.now(),
-        });
-      } catch (err) {
-        // Roll back the student-level optimistic patch; the mutation's onError
-        // already restored the classroom-level one via its snapshot.
-        updateStudentPointsOptimistically(studentId, -pointsToAward);
-        throw err;
-      }
+      // Phase 3: useAwardPoints.onMutate now owns all three optimistic cache
+      // patches (transactions, classrooms, students) and onError rolls them back
+      // — the manual student-side patch + catch-block rollback are gone.
+      return await awardPointsMutation.mutateAsync({
+        studentId,
+        classroomId,
+        behavior,
+        note: note ?? null,
+        timestamp: Date.now(),
+      });
     },
-    [behaviors, awardPointsMutation, updateStudentPointsOptimistically]
+    [behaviors, awardPointsMutation]
   );
 
   const awardClassPoints = useCallback(
@@ -376,7 +386,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const behavior = behaviors.find((b) => b.id === behaviorId);
       if (!behavior || students.length === 0) return [];
 
-      const pointsPerStudent = behavior.points;
       const batchId = crypto.randomUUID();
       const timestamp = Date.now();
 
@@ -384,13 +393,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Paired with cleanup in the undoBatch/reset/clear wrappers below.
       batchKindRef.current.set(batchId, 'class');
 
-      // Student-level optimism remains in useStudents until Phase 3.
-      students.forEach((student) => {
-        updateStudentPointsOptimistically(student.id, pointsPerStudent);
-      });
-
-      // Each mutation owns its own classroom-aggregate optimism + rollback; a
-      // per-student failure rolls back just that row. batch_id is preserved so
+      // Each mutation owns its own optimism + rollback (3 caches, ADR-005 §4).
+      // A per-student failure rolls back just that row. batch_id is preserved so
       // getRecentUndoableAction / undoBatchTransaction continue to see the cluster.
       const results = await Promise.all(
         students.map((student) =>
@@ -404,7 +408,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
               timestamp,
             })
             .catch((err) => {
-              updateStudentPointsOptimistically(student.id, -pointsPerStudent);
               console.error('Error awarding class points:', err);
               return null;
             })
@@ -417,7 +420,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (successful.length === 0) batchKindRef.current.delete(batchId);
       return successful;
     },
-    [behaviors, students, awardPointsMutation, updateStudentPointsOptimistically]
+    [behaviors, students, awardPointsMutation]
   );
 
   const awardPointsToStudents = useCallback(
@@ -433,16 +436,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const validStudents = students.filter((s) => studentIds.includes(s.id));
       if (validStudents.length === 0) return [];
 
-      const pointsPerStudent = behavior.points;
       const batchId = crypto.randomUUID();
       const timestamp = Date.now();
 
       // Tag AFTER the guards so no-op calls don't leak Map entries.
       batchKindRef.current.set(batchId, 'subset');
-
-      validStudents.forEach((student) => {
-        updateStudentPointsOptimistically(student.id, pointsPerStudent);
-      });
 
       const results = await Promise.all(
         validStudents.map((student) =>
@@ -456,7 +454,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
               timestamp,
             })
             .catch((err) => {
-              updateStudentPointsOptimistically(student.id, -pointsPerStudent);
               console.error('Error awarding points to students:', err);
               return null;
             })
@@ -467,29 +464,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (successful.length === 0) batchKindRef.current.delete(batchId);
       return successful;
     },
-    [behaviors, students, awardPointsMutation, updateStudentPointsOptimistically]
+    [behaviors, students, awardPointsMutation]
   );
 
   const undoTransaction = useCallback(
     async (transactionId: string): Promise<void> => {
       await undoTransactionMutation.mutateAsync(transactionId);
-      // useStudents owns today_total/this_week_total via RPC (Phase 3 target).
-      // The refetch is fire-and-forget: it still happens — the caller just doesn't
-      // wait. Counters land on the next render (~150-300ms after mutateAsync
-      // resolves) instead of pre-resolution; trade-off is acceptable because the
-      // refetch completes reliably and Phase 3 will dissolve this bridge entirely.
-      void refetchStudents().catch((err) => console.error('refetch after undo:', err));
+      // useUndoTransaction.onSettled invalidates students.all — no refetch bridge.
     },
-    [undoTransactionMutation, refetchStudents]
+    [undoTransactionMutation]
   );
 
   const undoBatchTransaction = useCallback(
     async (batchId: string): Promise<void> => {
       await undoBatchTransactionMutation.mutateAsync({ batchId });
       batchKindRef.current.delete(batchId);
-      void refetchStudents().catch((err) => console.error('refetch after undoBatch:', err));
     },
-    [undoBatchTransactionMutation, refetchStudents]
+    [undoBatchTransactionMutation]
   );
 
   const getStudentTransactions = useCallback(
@@ -616,9 +607,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // fallback 'Entire Class' label is acceptable for rare cross-classroom
       // undo-after-clear edge cases.
       batchKindRef.current.clear();
-      void refetchStudents().catch((err) => console.error('refetch after clear:', err));
     },
-    [clearStudentPointsMutation, refetchStudents]
+    [clearStudentPointsMutation]
   );
 
   // Adjust student points to a target value (creates a manual adjustment transaction).
@@ -636,15 +626,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const result = await adjustStudentPointsMutation.mutateAsync({
+        return await adjustStudentPointsMutation.mutateAsync({
           classroomId,
           studentId,
           targetPoints,
           currentPointTotal: student.point_total || 0,
           note: note ?? null,
         });
-        void refetchStudents().catch((err) => console.error('refetch after adjust:', err));
-        return result;
       } catch (err) {
         // Legacy contract: no-op (delta=0) returns null, not throws. Discriminate
         // on the sentinel class so future error-message tweaks can't break it.
@@ -652,7 +640,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw err;
       }
     },
-    [students, adjustStudentPointsMutation, refetchStudents]
+    [students, adjustStudentPointsMutation]
   );
 
   const resetClassroomPoints = useCallback(
@@ -660,9 +648,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await resetClassroomPointsMutation.mutateAsync({ classroomId });
       // Reset wipes every transaction in the classroom; all batch_ids are now stale.
       batchKindRef.current.clear();
-      void refetchStudents().catch((err) => console.error('refetch after reset:', err));
     },
-    [resetClassroomPointsMutation, refetchStudents]
+    [resetClassroomPointsMutation]
   );
 
   // ============================================

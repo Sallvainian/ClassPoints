@@ -3,7 +3,11 @@ import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import { MANUAL_ADJUSTMENT_NAME, MANUAL_ADJUSTMENT_ICON } from '../lib/manualAdjustmentConstants';
 import { useRealtimeSubscription } from './useRealtimeSubscription';
-import { dbToPointTransaction, type ClassroomWithCount } from '../types/transforms';
+import {
+  dbToPointTransaction,
+  type ClassroomWithCount,
+  type StudentWithPoints,
+} from '../types/transforms';
 import type {
   PointTransaction as DbPointTransaction,
   NewPointTransaction,
@@ -39,6 +43,8 @@ export interface AwardPointsInput {
 interface AwardPointsContext {
   previousTransactions: DbPointTransaction[] | undefined;
   previousClassrooms: ClassroomWithCount[] | undefined;
+  // Phase 3: useAwardPoints owns student-level optimism via the 3rd cache patch.
+  previousStudents: StudentWithPoints[] | undefined;
 }
 
 export function useTransactions(
@@ -112,12 +118,15 @@ export function useAwardPoints() {
     },
     onMutate: async (input) => {
       const listKey = queryKeys.transactions.list(input.classroomId);
+      const studentsKey = queryKeys.students.byClassroom(input.classroomId);
       await qc.cancelQueries({ queryKey: listKey });
       await qc.cancelQueries({ queryKey: queryKeys.classrooms.all });
+      await qc.cancelQueries({ queryKey: studentsKey });
 
       // (e) read state from cache, not from closure
       const previousTransactions = qc.getQueryData<DbPointTransaction[]>(listKey);
       const previousClassrooms = qc.getQueryData<ClassroomWithCount[]>(queryKeys.classrooms.all);
+      const previousStudents = qc.getQueryData<StudentWithPoints[]>(studentsKey);
 
       // (c) deterministic temp id — same input → same id across StrictMode double-invoke
       const optimisticId = `optimistic-${input.studentId}-${input.behavior.id}-${input.timestamp}`;
@@ -171,9 +180,31 @@ export function useAwardPoints() {
             };
           });
         });
+
+        // Phase 3: 3rd cache patch — students.byClassroom. Mirrors the per-student
+        // arithmetic above, applied to the dedicated useStudents cache that
+        // previously lived in component state behind a manual optimistic helper.
+        // Skipped in the same alreadyPatched branch as the other two patches so
+        // StrictMode double-invoke can't double-bump.
+        qc.setQueryData<StudentWithPoints[]>(studentsKey, (prev) =>
+          prev
+            ? prev.map((s) =>
+                s.id === input.studentId
+                  ? {
+                      ...s,
+                      point_total: s.point_total + points,
+                      positive_total: points > 0 ? s.positive_total + points : s.positive_total,
+                      negative_total: points < 0 ? s.negative_total + points : s.negative_total,
+                      today_total: s.today_total + points,
+                      this_week_total: s.this_week_total + points,
+                    }
+                  : s
+              )
+            : prev
+        );
       }
 
-      return { previousTransactions, previousClassrooms };
+      return { previousTransactions, previousClassrooms, previousStudents };
     },
     // (a) null-guard context.previous — `undefined` after cancellation would wipe
     //     the cache on rollback, worse than leaving the optimistic write in place.
@@ -188,10 +219,17 @@ export function useAwardPoints() {
       if (context?.previousClassrooms !== undefined) {
         qc.setQueryData(queryKeys.classrooms.all, context.previousClassrooms);
       }
+      if (context?.previousStudents !== undefined) {
+        qc.setQueryData(
+          queryKeys.students.byClassroom(input.classroomId),
+          context.previousStudents
+        );
+      }
     },
     onSettled: (_data, _err, input) => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.list(input.classroomId) });
       qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+      qc.invalidateQueries({ queryKey: queryKeys.students.byClassroom(input.classroomId) });
     },
   });
 }
@@ -206,6 +244,7 @@ export function useUndoTransaction() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+      qc.invalidateQueries({ queryKey: queryKeys.students.all });
     },
   });
 }
@@ -223,6 +262,7 @@ export function useClearStudentPoints() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+      qc.invalidateQueries({ queryKey: queryKeys.students.all });
     },
   });
 }
@@ -247,6 +287,7 @@ export function useUndoBatchTransaction() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+      qc.invalidateQueries({ queryKey: queryKeys.students.all });
     },
   });
 }
@@ -268,6 +309,7 @@ export function useResetClassroomPoints() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+      qc.invalidateQueries({ queryKey: queryKeys.students.all });
     },
   });
 }
@@ -313,6 +355,7 @@ export function useAdjustStudentPoints() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+      qc.invalidateQueries({ queryKey: queryKeys.students.all });
     },
   });
 }
