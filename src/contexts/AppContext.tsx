@@ -1,7 +1,5 @@
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { queryKeys } from '../lib/queryKeys';
 import {
   useClassrooms,
   useCreateClassroom,
@@ -19,7 +17,11 @@ import {
   useTransactions,
   useAwardPoints,
   useUndoTransaction,
+  useUndoBatchTransaction,
   useClearStudentPoints,
+  useResetClassroomPoints,
+  useAdjustStudentPoints,
+  AdjustNoOpError,
 } from '../hooks/useTransactions';
 import type {
   Classroom as DbClassroom,
@@ -55,10 +57,6 @@ const DEFAULT_BEHAVIORS: NewBehavior[] = [
   { name: 'Not Following Rules', points: -1, icon: '🚫', category: 'negative', is_custom: false },
   { name: 'Late', points: -1, icon: '⏰', category: 'negative', is_custom: false },
 ];
-
-// Manual adjustment constants
-const MANUAL_ADJUSTMENT_NAME = 'Manual Adjustment';
-const MANUAL_ADJUSTMENT_ICON = '✏️';
 
 interface AppContextValue {
   // Loading states
@@ -137,7 +135,6 @@ const UNDO_WINDOW_MS = 10000; // 10 seconds for undo
 const ACTIVE_CLASSROOM_STORAGE_KEY = 'app:activeClassroomId';
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const qc = useQueryClient();
   const [activeClassroomId, setActiveClassroomId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     return window.localStorage.getItem(ACTIVE_CLASSROOM_STORAGE_KEY);
@@ -178,12 +175,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refetchBehaviors = behaviorsQuery.refetch;
 
   // Phase 2 adapter bridge: useTransactions is now a TanStack Query wrapper; the
-  // four transaction mutations are split hooks. useAwardPoints is the canonical
+  // transaction mutations are split hooks. useAwardPoints is the canonical
   // optimistic-mutation showcase (ADR-005 §4 checklist inline in the hook).
   const transactionsQuery = useTransactions(activeClassroomId);
   const awardPointsMutation = useAwardPoints();
   const undoTransactionMutation = useUndoTransaction();
+  const undoBatchTransactionMutation = useUndoBatchTransaction();
   const clearStudentPointsMutation = useClearStudentPoints();
+  const resetClassroomPointsMutation = useResetClassroomPoints();
+  const adjustStudentPointsMutation = useAdjustStudentPoints();
   const transactions = useMemo(() => transactionsQuery.data ?? [], [transactionsQuery.data]);
   const transactionsLoading = transactionsQuery.isPending;
   const transactionsError = transactionsQuery.error;
@@ -443,32 +443,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const undoTransaction = useCallback(
     async (transactionId: string): Promise<void> => {
       await undoTransactionMutation.mutateAsync(transactionId);
-      // useStudents owns today_total/this_week_total via RPC (legacy hook, Phase 3
-      // migration will dissolve this). Realtime DELETE handler is unreliable, so
-      // force a fresh RPC fetch after undo so both the per-student and summed
-      // class-level today counters reflect the delete.
-      await refetchStudents();
+      // useStudents owns today_total/this_week_total via RPC (Phase 3 target).
+      // The refetch is fire-and-forget: it still happens — the caller just doesn't
+      // wait. Counters land on the next render (~150-300ms after mutateAsync
+      // resolves) instead of pre-resolution; trade-off is acceptable because the
+      // refetch completes reliably and Phase 3 will dissolve this bridge entirely.
+      void refetchStudents().catch((err) => console.error('refetch after undo:', err));
     },
     [undoTransactionMutation, refetchStudents]
   );
 
   const undoBatchTransaction = useCallback(
     async (batchId: string): Promise<void> => {
-      const { error: deleteError } = await supabase
-        .from('point_transactions')
-        .delete()
-        .eq('batch_id', batchId);
-
-      if (deleteError) {
-        console.error('Error undoing batch transaction:', deleteError);
-        throw new Error('Failed to undo class award. Please try again or refresh the page.');
-      }
-
-      await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
-      await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
-      await refetchStudents();
+      await undoBatchTransactionMutation.mutateAsync({ batchId });
+      void refetchStudents().catch((err) => console.error('refetch after undoBatch:', err));
     },
-    [qc, refetchStudents]
+    [undoBatchTransactionMutation, refetchStudents]
   );
 
   const getStudentTransactions = useCallback(
@@ -577,7 +567,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearStudentPoints = useCallback(
     async (_classroomId: string, studentId: string): Promise<void> => {
       await clearStudentPointsMutation.mutateAsync(studentId);
-      await refetchStudents();
+      void refetchStudents().catch((err) => console.error('refetch after clear:', err));
     },
     [clearStudentPointsMutation, refetchStudents]
   );
@@ -596,55 +586,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      const currentTotal = student.point_total || 0;
-      const delta = targetPoints - currentTotal;
-
-      if (delta === 0) return null;
-
-      const { data, error: insertError } = await supabase
-        .from('point_transactions')
-        .insert({
-          student_id: studentId,
-          classroom_id: classroomId,
-          behavior_id: null,
-          behavior_name: MANUAL_ADJUSTMENT_NAME,
-          behavior_icon: MANUAL_ADJUSTMENT_ICON,
-          points: delta,
-          note: note || `Set points to ${targetPoints}`,
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error adjusting student points:', insertError);
-        throw new Error('Failed to adjust points. Please try again.');
+      try {
+        const result = await adjustStudentPointsMutation.mutateAsync({
+          classroomId,
+          studentId,
+          targetPoints,
+          currentPointTotal: student.point_total || 0,
+          note: note ?? null,
+        });
+        void refetchStudents().catch((err) => console.error('refetch after adjust:', err));
+        return result;
+      } catch (err) {
+        // Legacy contract: no-op (delta=0) returns null, not throws. Discriminate
+        // on the sentinel class so future error-message tweaks can't break it.
+        if (err instanceof AdjustNoOpError) return null;
+        throw err;
       }
-
-      await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
-      await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
-
-      return data;
     },
-    [students, qc]
+    [students, adjustStudentPointsMutation, refetchStudents]
   );
 
   const resetClassroomPoints = useCallback(
     async (classroomId: string): Promise<void> => {
-      const { error: deleteError } = await supabase
-        .from('point_transactions')
-        .delete()
-        .eq('classroom_id', classroomId);
-
-      if (deleteError) {
-        console.error('Error resetting classroom points:', deleteError);
-        throw new Error('Failed to reset points. Please try again.');
-      }
-
-      await qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
-      await qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
-      await refetchStudents();
+      await resetClassroomPointsMutation.mutateAsync({ classroomId });
+      void refetchStudents().catch((err) => console.error('refetch after reset:', err));
     },
-    [qc, refetchStudents]
+    [resetClassroomPointsMutation, refetchStudents]
   );
 
   // ============================================

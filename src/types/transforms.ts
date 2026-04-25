@@ -71,17 +71,8 @@ export function dbToClassroom(row: DbClassroom, aggregate: ClassroomAggregate): 
 // consumers read `DbPointTransaction` directly via `useApp().transactions`. The
 // transform formalizes the boundary (FR22, invariant #7) without reshaping fields;
 // app-shape camelCase conversion is a future-phase consumer-edit item.
+// Spread preserves any future DB columns at runtime; type definitions in
+// src/types/database.ts must still be updated explicitly for static access.
 export function dbToPointTransaction(row: DbPointTransaction): DbPointTransaction {
-  return {
-    id: row.id,
-    student_id: row.student_id,
-    classroom_id: row.classroom_id,
-    behavior_id: row.behavior_id,
-    behavior_name: row.behavior_name,
-    behavior_icon: row.behavior_icon,
-    points: row.points,
-    note: row.note,
-    batch_id: row.batch_id,
-    created_at: row.created_at,
-  };
+  return { ...row };
 }
