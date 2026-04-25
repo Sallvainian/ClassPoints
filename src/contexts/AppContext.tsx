@@ -411,7 +411,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         )
       );
 
-      return results.filter((r): r is DbPointTransaction => r !== null);
+      const successful = results.filter((r): r is DbPointTransaction => r !== null);
+      // If every mutation failed, no transaction was written → undoBatchTransaction
+      // never runs → batchKindRef entry would leak. Clean it up here.
+      if (successful.length === 0) batchKindRef.current.delete(batchId);
+      return successful;
     },
     [behaviors, students, awardPointsMutation, updateStudentPointsOptimistically]
   );
@@ -459,7 +463,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         )
       );
 
-      return results.filter((r): r is DbPointTransaction => r !== null);
+      const successful = results.filter((r): r is DbPointTransaction => r !== null);
+      if (successful.length === 0) batchKindRef.current.delete(batchId);
+      return successful;
     },
     [behaviors, students, awardPointsMutation, updateStudentPointsOptimistically]
   );
@@ -583,6 +589,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         points: totalPoints,
         timestamp: recentTimestamp,
         isBatch: true,
+        isClassWide: kind !== 'subset',
         studentCount,
       };
     }

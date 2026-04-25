@@ -73,7 +73,7 @@ export function UndoToast({ action, onUndo, duration = 5000 }: UndoToastProps) {
             <div>
               <p className="text-sm font-medium">
                 {action.studentName}
-                {action.isBatch && action.studentCount && (
+                {action.isBatch && action.isClassWide && action.studentCount && (
                   <span className="text-gray-400 dark:text-zinc-600 font-normal">
                     {' '}
                     ({action.studentCount} student{action.studentCount === 1 ? '' : 's'})

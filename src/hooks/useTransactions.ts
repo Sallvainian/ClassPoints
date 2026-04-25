@@ -308,7 +308,7 @@ export function useAdjustStudentPoints() {
         .single();
 
       if (error) throw new Error('Failed to adjust points. Please try again.');
-      return data as DbPointTransaction;
+      return dbToPointTransaction(data);
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });

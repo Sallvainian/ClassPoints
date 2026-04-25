@@ -92,5 +92,6 @@ export interface UndoableAction {
   points: number;
   timestamp: number;
   isBatch?: boolean; // True if this is a class-wide award
+  isClassWide?: boolean; // True if every student in the classroom was targeted (vs. a multi-select subset)
   studentCount?: number; // Number of students affected in batch
 }
