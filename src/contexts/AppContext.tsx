@@ -288,14 +288,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateStudent = useCallback(
     async (_classroomId: string, studentId: string, updates: Partial<DbStudent>): Promise<void> => {
-      await updateStudentMutation.mutateAsync({ id: studentId, updates });
+      try {
+        await updateStudentMutation.mutateAsync({ id: studentId, updates });
+      } catch (err) {
+        // Legacy contract: surface to console only; callers fire-and-forget without try/catch.
+        console.error('updateStudent failed:', err);
+      }
     },
     [updateStudentMutation]
   );
 
   const removeStudent = useCallback(
     async (_classroomId: string, studentId: string): Promise<void> => {
-      await removeStudentMutation.mutateAsync(studentId);
+      try {
+        await removeStudentMutation.mutateAsync(studentId);
+      } catch (err) {
+        console.error('removeStudent failed:', err);
+      }
     },
     [removeStudentMutation]
   );
