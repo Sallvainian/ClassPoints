@@ -1,4 +1,12 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from 'react';
 import { supabase } from '../lib/supabase';
 import {
   useClassrooms,
@@ -139,6 +147,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return null;
     return window.localStorage.getItem(ACTIVE_CLASSROOM_STORAGE_KEY);
   });
+
+  // Batch-kind tagging: awardClassPoints and awardPointsToStudents produce cluster
+  // inserts sharing a batch_id. Each kind is labeled differently in the UndoToast
+  // ('Entire Class' vs 'N students'), but the DB row carries no kind marker. This
+  // in-memory Map records the kind at award time so getRecentUndoableAction can
+  // route correctly. Local to this device; cross-device undo of a subset award
+  // falls back to the 'Entire Class' label (acknowledged limitation — see
+  // getRecentUndoableAction). Reset on whole-classroom/clear operations.
+  const batchKindRef = useRef<Map<string, 'class' | 'subset'>>(new Map());
 
   // Phase 2 adapter bridge: useClassrooms is now a TanStack Query wrapper; the three
   // classroom mutations are split hooks. AppContext reshapes the output to preserve
@@ -363,6 +380,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const batchId = crypto.randomUUID();
       const timestamp = Date.now();
 
+      // Tag AFTER the early-return guards so no-op calls don't leak Map entries.
+      // Paired with cleanup in the undoBatch/reset/clear wrappers below.
+      batchKindRef.current.set(batchId, 'class');
+
       // Student-level optimism remains in useStudents until Phase 3.
       students.forEach((student) => {
         updateStudentPointsOptimistically(student.id, pointsPerStudent);
@@ -412,6 +433,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const batchId = crypto.randomUUID();
       const timestamp = Date.now();
 
+      // Tag AFTER the guards so no-op calls don't leak Map entries.
+      batchKindRef.current.set(batchId, 'subset');
+
       validStudents.forEach((student) => {
         updateStudentPointsOptimistically(student.id, pointsPerStudent);
       });
@@ -456,6 +480,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const undoBatchTransaction = useCallback(
     async (batchId: string): Promise<void> => {
       await undoBatchTransactionMutation.mutateAsync({ batchId });
+      batchKindRef.current.delete(batchId);
       void refetchStudents().catch((err) => console.error('refetch after undoBatch:', err));
     },
     [undoBatchTransactionMutation, refetchStudents]
@@ -531,22 +556,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Check if within undo window
     if (now - recentTimestamp > UNDO_WINDOW_MS) return null;
 
-    // Check if this is part of a batch (class-wide award)
+    // Check if this is part of a batch (class-wide OR multi-select subset).
     if (recent.batch_id) {
       const batchTransactions = transactions.filter((t) => t.batch_id === recent.batch_id);
       const transactionIds = batchTransactions.map((t) => t.id);
       const totalPoints = batchTransactions.reduce((sum, t) => sum + t.points, 0);
+      const studentCount = batchTransactions.length;
+
+      // Acknowledged limitation: batchKindRef is local to the originating device.
+      // Cross-device undo (teacher awards on phone, undoes on laptop within 10s)
+      // and page-reload-mid-window both fall back to 'Entire Class'. Solving
+      // requires persisting batch_kind as a DB column — schema change, out of
+      // Phase 2.5 scope.
+      const kind = batchKindRef.current.get(recent.batch_id);
+      const studentName =
+        kind === 'subset'
+          ? `${studentCount} student${studentCount === 1 ? '' : 's'}`
+          : 'Entire Class';
 
       return {
         transactionId: recent.id,
         transactionIds,
         batchId: recent.batch_id,
-        studentName: 'Entire Class',
+        studentName,
         behaviorName: recent.behavior_name,
         points: totalPoints,
         timestamp: recentTimestamp,
         isBatch: true,
-        studentCount: batchTransactions.length,
+        studentCount,
       };
     }
 
@@ -567,6 +604,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearStudentPoints = useCallback(
     async (_classroomId: string, studentId: string): Promise<void> => {
       await clearStudentPointsMutation.mutateAsync(studentId);
+      // Clear deletes all transactions for this student, including any batch rows.
+      // Safer to wipe the whole Map than look up per-batch membership — the
+      // fallback 'Entire Class' label is acceptable for rare cross-classroom
+      // undo-after-clear edge cases.
+      batchKindRef.current.clear();
       void refetchStudents().catch((err) => console.error('refetch after clear:', err));
     },
     [clearStudentPointsMutation, refetchStudents]
@@ -609,6 +651,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const resetClassroomPoints = useCallback(
     async (classroomId: string): Promise<void> => {
       await resetClassroomPointsMutation.mutateAsync({ classroomId });
+      // Reset wipes every transaction in the classroom; all batch_ids are now stale.
+      batchKindRef.current.clear();
       void refetchStudents().catch((err) => console.error('refetch after reset:', err));
     },
     [resetClassroomPointsMutation, refetchStudents]
