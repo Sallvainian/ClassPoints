@@ -44,6 +44,36 @@ Surfaced but deliberately deferred from its originating spec. Each entry records
 - **Why deferred:** Fixing needs a UI affordance (per-mutation `isPaused` indicator or a top-level "pending sync" banner) plus a policy decision between `networkMode: 'always'` (queue and succeed-or-error when online) and fail-fast with toast. Neither is a code-only change — it touches UX.
 - **Follow-up:** Dedicated PR that wires `awardPointsMutation.isPaused` into `AppContext.error` or a dedicated pending-sync surface, and either (a) keeps `networkMode: 'online'` + shows a visible "awaiting connection" indicator, or (b) overrides to `networkMode: 'always'` and relies on the existing `refetchOnReconnect` infra for consistency checks. Decision needs design input — treat as UX work, not a pure refactor.
 
+## From spec-tanstack-phase-3 scoping (2026-04-25)
+
+### 6. DashboardView polls `getRecentUndoableAction()` on a 1-second interval
+
+- **Source:** Phase 2.5 edge-case-hunter v2 (finding F18). Captured during Phase 3 spec planning.
+- **Scenario:** `src/components/dashboard/DashboardView.tsx:43, 57-63` calls `getRecentUndoableAction()` every 1000ms via a `setInterval`, AND on every mutation completion handler (lines 116, 124, 134). Both flows produce a NEW object reference on each call even when the underlying transaction hasn't changed. Phase 2.5 fixed the user-visible symptom (the `UndoToast` timer kept resetting) by deriving a stable `actionKey` (`batchId ?? timestamp`) and using it as the effect dep. Root cause — the polling itself — is untouched. Net effect: a useless 1Hz spin that produces a fresh object even when no transaction was added/removed; benign today but wasteful, and any future `UndoableAction`-derived state needs to know about the polling churn.
+- **Why deferred:** Fix lives in `src/components/dashboard/DashboardView.tsx` — a component file. Same scope-creep boundary as Phase 2.5's UndoToast carve-out (Phase 3 strictly does not touch components). The polling is symptomatic, not load-bearing.
+- **Follow-up:** Standalone PR. Replace the `setInterval` (`DashboardView.tsx:57-63`) with a memoized derivation directly off `useTransactions().data` — `useMemo(() => getRecentUndoableAction(), [transactions])` — so the recomputation only fires when the underlying transactions array changes. Also remove the per-mutation `setUndoableAction(getRecentUndoableAction())` calls (lines 116, 124, 134) since the memo will handle it. Verifies via React DevTools (no more 1Hz state churn) and the existing `UndoToast` smoke tests.
+
+### 7. `batch_kind` DB column for cross-device subset/class undo labeling
+
+- **Source:** Phase 2.5 edge-case-hunter v2 (finding F11). Captured during Phase 3 spec planning.
+- **Scenario:** Phase 2.5 added `batchKindRef = useRef<Map<string, 'class' | 'subset'>>` to `src/contexts/AppContext.tsx` so `getRecentUndoableAction` can label undo toasts as "Entire Class" vs "3 students" depending on which award entry point was used. The Map lives in-memory on the originating device only. Cross-device scenario: teacher awards to a multi-select subset on phone → realtime fires the batch transactions to laptop within the 10-second undo window → laptop's `batchKindRef` is empty → `getRecentUndoableAction` falls back to the `'Entire Class'` label, indistinguishable from a real class-wide award. Same root cause for page-reload-mid-window on the originating device.
+- **Why deferred:** Real fix requires persisting the kind: add a `batch_kind` text column to the `point_transactions` table (or to a new `point_batches` summary table), populate it at insert time in both award wrappers, and read it in `getRecentUndoableAction` instead of the in-memory Map. Schema migration touches RLS, requires a Supabase migration file, and runs cross-environment validation — wrong shape for a hook-refactor PR like Phase 3.
+- **Follow-up:** Dedicated PR with migration `006_batch_kind.sql` (add column, backfill `NULL` → handled at read), update `awardClassPoints` / `awardPointsToStudents` to set the column, replace `batchKindRef` reads in `getRecentUndoableAction` with `recent.batch_kind`. Keep `batchKindRef` as a cache for during-mutation UX (so the originating device gets the right label before the server INSERT round-trips), but treat the DB column as the source of truth for cross-device readers.
+
+### 8. Batch the `get_student_time_totals` RPC fan-out in `useClassrooms.queryFn`
+
+- **Source:** Phase 2 efficiency review (#2). Re-surfaced during Phase 3 planning because Phase 3's invalidation pattern can amplify the fan-out cost.
+- **Scenario:** `src/hooks/useClassrooms.ts:50-58` calls `supabase.rpc('get_student_time_totals', { p_classroom_id: ... })` once per classroom every time the `classrooms.all` query runs. A teacher with 8 classrooms pays 8 round-trips. Phase 3 keeps the `students`-table realtime subscription as a single owner (in `useStudents`), but its `onChange` invalidates `classrooms.all` — so any cross-device student row update (DB trigger from a point award on another device) re-runs the entire 8-RPC fan-out. Pre-existing inefficiency, amplified by Phase 3's pattern.
+- **Why deferred:** Real fix is a new DB RPC `get_student_time_totals_all_for_user(p_start_of_today, p_start_of_week)` that returns time totals for every student across every classroom the calling user owns, in a single round-trip. RLS-bounded server-side. Schema/RPC change; out of Phase 3's hook-refactor scope.
+- **Follow-up:** Migration adds the new RPC; `useClassrooms.queryFn` (and `useStudents.queryFn` in Phase 3) call the single RPC instead of fanning out. Verifies via network panel (1 RPC call instead of N) and a direct latency benchmark on a teacher with 5+ classrooms.
+
+### 9. Mark deferred entry #4 RESOLVED at Phase 3 ship
+
+- **Source:** Phase 3 planning self-reference.
+- **Scenario:** Entry #4 ("cross-hook invalidation handoff for `useClassrooms` aggregates when Phase 3 migrates `useStudents`") tracks the Phase 2 carry-over: a `students`-table realtime subscription lives in `useClassrooms.ts` (lines 25-30) instead of `useStudents.ts`. Phase 3 relocates the subscription to `useStudents` and has its `onChange` invalidate BOTH `students.byClassroom` AND `classrooms.all` — exactly the design entry #4 asked for.
+- **Why this is its own entry:** Tracking-only. When Phase 3 lands, the same commit that deletes the `useClassrooms.ts` subscription block should also append "RESOLVED in `<phase-3-commit-sha>`" to entry #4, so future readers don't think it's still pending.
+- **Follow-up:** No code action separate from Phase 3. Just the docs maintenance.
+
 ---
 
 Append-only. Do not edit entries; add new ones below.
