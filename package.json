@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --mode test",
-    "dev:host": "vite --mode test --host",
+    "dev": "node scripts/dev.mjs",
+    "dev:host": "node scripts/dev.mjs --host",
     "dev:hosted": "fnox exec -- vite",
     "build": "tsc -b && fnox exec -- vite build",
     "lint": "eslint .",
