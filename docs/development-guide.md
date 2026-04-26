@@ -32,8 +32,11 @@ npm run prepare
 npm run dev
 ```
 
-It runs `vite --mode test`, so Vite reads `.env.test`. Use a local Supabase stack and local
-non-production credentials.
+It runs through `scripts/dev.mjs`, which launches `vite --mode test` with on-demand
+Supabase lifecycle: when `VITE_SUPABASE_URL` points at this machine, the wrapper starts
+the local stack if it isn't already running, then stops it on exit (only if the wrapper
+started it). When the URL is remote (e.g. another machine's Tailscale IP), lifecycle is
+skipped and the wrapper assumes the remote host is managing the stack.
 
 ### Hosted development fallback
 
@@ -50,24 +53,24 @@ Secrets are age-encrypted in `fnox.toml` and loaded through `fnox`. Do not hardc
 
 ## npm Scripts
 
-| Command                  | Purpose                                                |
-| ------------------------ | ------------------------------------------------------ |
-| `npm run dev`            | Start local-by-default Vite dev server                 |
-| `npm run dev:host`       | Local-by-default dev server exposed on LAN             |
-| `npm run dev:hosted`     | Hosted Supabase fallback through `fnox`                |
-| `npm run build`          | `tsc -b` plus `fnox exec -- vite build`                |
-| `npm run preview`        | Preview build through `fnox`                           |
-| `npm run lint`           | ESLint flat-config check                               |
-| `npm run typecheck`      | TypeScript project references check                    |
-| `npm run check:bundle`   | Assert React Query Devtools is absent from prod bundle |
-| `npm test`               | Vitest watch mode                                      |
-| `npm run test:seed`      | Seed the local E2E test user                           |
-| `npm run test:e2e`       | Playwright E2E                                         |
-| `npm run test:e2e:local` | Seed then run Playwright E2E                           |
-| `npm run test:e2e:ui`    | Playwright UI mode                                     |
-| `npm run migrate`        | Hosted/local migration script through `fnox`           |
-| `npm run supabase:up`    | Start local Supabase                                   |
-| `npm run supabase:down`  | Stop local Supabase                                    |
+| Command                  | Purpose                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `npm run dev`            | Local-by-default Vite dev server with on-demand Supabase lifecycle |
+| `npm run dev:host`       | Same as `dev`, exposed on LAN                                      |
+| `npm run dev:hosted`     | Hosted Supabase fallback through `fnox`                            |
+| `npm run build`          | `tsc -b` plus `fnox exec -- vite build`                            |
+| `npm run preview`        | Preview build through `fnox`                                       |
+| `npm run lint`           | ESLint flat-config check                                           |
+| `npm run typecheck`      | TypeScript project references check                                |
+| `npm run check:bundle`   | Assert React Query Devtools is absent from prod bundle             |
+| `npm test`               | Vitest watch mode                                                  |
+| `npm run test:seed`      | Seed the local E2E test user                                       |
+| `npm run test:e2e`       | Playwright E2E                                                     |
+| `npm run test:e2e:local` | Seed then run Playwright E2E                                       |
+| `npm run test:e2e:ui`    | Playwright UI mode                                                 |
+| `npm run migrate`        | Hosted/local migration script through `fnox`                       |
+| `npm run supabase:up`    | Manually start local Supabase (rare; `dev` and E2E auto-manage it) |
+| `npm run supabase:down`  | Manually stop local Supabase (rare; `dev` and E2E auto-manage it)  |
 
 ## Local Supabase
 
@@ -97,6 +100,28 @@ npm run test:seed
 
 `playwright.config.ts` parses `.env.test` directly and force-overrides shell env so E2E cannot
 accidentally target hosted Supabase.
+
+### On-demand lifecycle
+
+Day-to-day you don't run `npx supabase start` / `stop` manually. Both `npm run dev` and
+Playwright manage the stack on demand via `scripts/dev.mjs` and the Playwright global
+setup/teardown hooks (`tests/e2e/global-setup.ts`, `tests/e2e/global-teardown.ts`).
+
+The shared decision lives in `scripts/lib/supabase-host.mjs`, which combines Node
+`os.networkInterfaces` with the `tailscale ip` CLI to determine whether
+`VITE_SUPABASE_URL` resolves to the current machine:
+
+- **Local URL, stack down** → start the stack, stop it on exit.
+- **Local URL, stack already up** → leave it alone (do not stop on exit).
+- **Remote URL** (e.g. the Mac's Tailscale IP from the Linux box) → skip lifecycle; the
+  remote host is responsible for the stack.
+
+This makes the cross-machine Tailscale workflow ergonomic: on the Mac, `npm run dev` will
+boot the stack if needed; on the Linux box, `npm run dev` against the Mac's Tailscale URL
+will not try to start a parallel local stack.
+
+`npm run supabase:up` / `supabase:down` remain available for the few cases where explicit
+lifecycle helps — e.g. switching projects that share port 54321.
 
 ## Testing
 
