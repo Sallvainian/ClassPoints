@@ -18,7 +18,6 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:seed": "tsx scripts/seed-test-user.ts",
-    "test:e2e:local": "npm run test:seed && playwright test",
     "migrate": "fnox exec -- tsx scripts/migrate-data.ts",
     "prepare": "simple-git-hooks"
   },
@@ -47,6 +46,7 @@
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.5.0",
+    "dotenv": "^17.0.0",
     "eslint": "^9.39.2",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.5.2",

@@ -6,6 +6,7 @@ export default async function globalTeardown() {
   try {
     execFileSync('npx', ['supabase', 'stop'], { stdio: 'inherit' });
   } catch (err) {
-    console.error('[playwright] supabase stop failed:', (err as Error).message);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[playwright] supabase stop failed:', msg);
   }
 }
