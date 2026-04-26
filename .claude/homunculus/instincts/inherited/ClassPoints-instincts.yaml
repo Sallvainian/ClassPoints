@@ -1,0 +1,366 @@
+# Instincts generated from https://github.com/Sallvainian/ClassPoints
+# Generated: 2026-04-26T20:37:35.230Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: ClassPoints-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/Sallvainian/ClassPoints
+---
+
+# ClassPoints Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: docs, feat
+
+## Evidence
+
+- 3 commits analyzed
+- Detected conventional commit pattern
+- Examples: docs(context): refresh project context, feat(dev): on-demand local Supabase lifecycle for dev and e2e
+
+---
+id: ClassPoints-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/Sallvainian/ClassPoints
+---
+
+# ClassPoints Commit Length
+
+## Action
+
+Write moderate-length commit messages (~50 characters)
+
+## Evidence
+
+- Average commit message length: 50 chars
+- Based on 3 commits
+
+---
+id: ClassPoints-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Sallvainian/ClassPoints
+---
+
+# ClassPoints Naming Files
+
+## Action
+
+Use kebab-case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: kebab-case
+
+---
+id: ClassPoints-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Sallvainian/ClassPoints
+---
+
+# ClassPoints Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: ClassPoints-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Sallvainian/ClassPoints
+---
+
+# ClassPoints Export Style
+
+## Action
+
+Prefer default exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: default
+
+---
+id: ClassPoints-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Sallvainian/ClassPoints
+---
+
+# ClassPoints Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: ClassPoints-workflow-refresh-project-context-documentation
+trigger: "when doing refresh project context documentation"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/Sallvainian/ClassPoints
+---
+
+# ClassPoints Workflow Refresh Project Context Documentation
+
+## Action
+
+Follow the refresh-project-context-documentation workflow:
+1. Run project scan tooling to generate updated documentation files.
+2. Overwrite or update docs such as architecture.md, component-inventory.md, data-models.md, etc.
+3. Archive the previous project scan report under docs/.archive/.
+4. Commit all updated and archived documentation files.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: docs/architecture.md, docs/component-inventory.md, docs/data-models.md
+
+---
+id: classpoints-instinct-file-naming
+trigger: "When creating a new file in the codebase"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct File Naming
+
+## Action
+
+Name the file using kebab-case (e.g., my-component.ts)
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files
+- Consistent with TypeScript project conventions
+
+---
+id: classpoints-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct Function Naming
+
+## Action
+
+Use camelCase for function names (e.g., fetchData)
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions
+
+---
+id: classpoints-instinct-class-naming
+trigger: "When defining a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct Class Naming
+
+## Action
+
+Use PascalCase for class names (e.g., UserService)
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes
+
+---
+id: classpoints-instinct-constant-naming
+trigger: "When declaring a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names (e.g., MAX_RETRIES)
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants
+
+---
+id: classpoints-instinct-import-style
+trigger: "When importing modules in TypeScript files"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct Import Style
+
+## Action
+
+Use relative import paths (e.g., import foo from './foo')
+
+## Evidence
+
+- Pattern in codeStyle.importStyle
+
+---
+id: classpoints-instinct-export-style
+trigger: "When exporting modules or components"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct Export Style
+
+## Action
+
+Use default exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle
+
+---
+id: classpoints-instinct-try-catch-error-handling
+trigger: "When handling errors in code"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct Try Catch Error Handling
+
+## Action
+
+Use try-catch blocks for error handling
+
+## Evidence
+
+- Pattern in errorHandling.style
+
+---
+id: classpoints-instinct-test-location
+trigger: "When adding or updating tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct Test Location
+
+## Action
+
+Place test files in the separate 'tests' folder, not alongside source files
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation
+- Presence of 'tests' folder
+
+---
+id: classpoints-instinct-git-commit-prefix
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct Git Commit Prefix
+
+## Action
+
+Start the commit message with a conventional prefix such as 'docs' or 'feat' (e.g., 'docs(context): ...')
+
+## Evidence
+
+- Pattern in commits.prefixes
+- Examples: 'docs(context): ...', 'feat(dev): ...'
+
+---
+id: classpoints-instinct-git-commit-length
+trigger: "When composing a commit message"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct Git Commit Length
+
+## Action
+
+Keep the commit message concise, around 50 characters on average
+
+## Evidence
+
+- Pattern in commits.averageLength
+
+---
+id: classpoints-instinct-refresh-context-docs
+trigger: "When project context and architecture documentation needs to be updated to reflect recent codebase changes"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: Sallvainian/ClassPoints
+---
+
+# Classpoints Instinct Refresh Context Docs
+
+## Action
+
+Run project scan tooling, update documentation files in 'docs/', archive previous scan reports, and commit all changes
+
+## Evidence
+
+- Workflow: refresh-project-context-documentation
+- Files: docs/architecture.md, docs/component-inventory.md, docs/data-models.md, etc.
+- Commit sequence in workflow example
+
