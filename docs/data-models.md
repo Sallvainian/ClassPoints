@@ -1,332 +1,298 @@
-# Data Models
+# ClassPoints Data Models
 
-_Last generated: 2026-04-21 — Source of truth: `supabase/migrations/*.sql`, `src/types/database.ts`._
+_Generated: 2026-04-26 via BMad document-project full rescan, exhaustive scan._
 
-ClassPoints persists all state in a Supabase-hosted PostgreSQL 15+ database. There are **10 tables**, **2 enums**, **1 RPC**, **7 triggers**, and **5 realtime-publishing tables**. Access is authorized via Row Level Security keyed to `auth.uid()` — the client never bypasses RLS.
+## Overview
 
----
+ClassPoints uses Supabase Postgres as the source of truth. The current schema is defined by
+11 migrations in `supabase/migrations/` and typed in `src/types/database.ts`.
 
-## Quick Schema Map
+Scan totals:
 
-| Table                 | Purpose                                                | Ownership path to user                                                 |
-| --------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------- |
-| `classrooms`          | Teacher-owned classroom containers                     | `classrooms.user_id → auth.users`                                      |
-| `students`            | Students within a classroom (with denormalized totals) | via `classroom.user_id`                                                |
-| `behaviors`           | Point behavior templates (defaults + custom)           | default rows have `user_id = NULL`; custom rows `user_id → auth.users` |
-| `point_transactions`  | Immutable audit log of awarded points                  | via `classroom.user_id`                                                |
-| `user_sound_settings` | Per-user sound preferences                             | `user_id → auth.users` (UNIQUE)                                        |
-| `seating_charts`      | Canvas config, one per classroom                       | via `classroom.user_id`                                                |
-| `seating_groups`      | Letter-labeled table groups on a chart                 | via `seating_chart → classroom.user_id`                                |
-| `seating_seats`       | 4 seats per group, nullable student assignment         | via `group → chart → classroom.user_id`                                |
-| `room_elements`       | Static props on the seating canvas                     | via `seating_chart → classroom.user_id`                                |
-| `layout_presets`      | Saved canvas layouts (positions only)                  | `user_id → auth.users`                                                 |
+| Item                               | Count |
+| ---------------------------------- | ----: |
+| Public tables                      |    10 |
+| Enums                              |     2 |
+| RPC functions exposed in app types |     1 |
+| Trigger functions                  |     8 |
+| Triggers                           |    10 |
+| RLS policies                       |    43 |
+| Indexes                            |    20 |
 
----
-
-## Core Entities
+## Tables
 
 ### `classrooms`
 
-The root container. Everything below belongs to a classroom, which belongs to a user.
+Teacher-owned classroom containers.
 
-| Column       | Type                    | Notes                                                                   |
-| ------------ | ----------------------- | ----------------------------------------------------------------------- |
-| `id`         | `UUID PK`               | `gen_random_uuid()`                                                     |
-| `user_id`    | `UUID → auth.users(id)` | `ON DELETE CASCADE`. Auto-filled on INSERT via `set_user_id()` trigger. |
-| `name`       | `TEXT NOT NULL`         |                                                                         |
-| `created_at` | `TIMESTAMPTZ`           | `DEFAULT NOW()`                                                         |
-| `updated_at` | `TIMESTAMPTZ`           | Maintained by `update_updated_at_column()` BEFORE UPDATE trigger        |
+| Column       | Notes                                                |
+| ------------ | ---------------------------------------------------- |
+| `id`         | UUID primary key, generated                          |
+| `name`       | Required text                                        |
+| `created_at` | Timestamp default `now()`                            |
+| `updated_at` | Timestamp maintained by trigger                      |
+| `user_id`    | Nullable UUID FK to `auth.users(id)`, cascade delete |
 
 Indexes: `idx_classrooms_created_at`, `idx_classrooms_user_id`.
-Realtime: **enabled**.
 
 ### `students`
 
-Students inherit user ownership through their classroom. Lifetime point totals are denormalized onto the row and maintained by a trigger — **do not aggregate `point_transactions` client-side for display**.
+Students belong to classrooms. Lifetime point totals are stored on the row and maintained by
+`point_transactions` triggers.
 
-| Column           | Type                         | Notes                                    |
-| ---------------- | ---------------------------- | ---------------------------------------- |
-| `id`             | `UUID PK`                    |                                          |
-| `classroom_id`   | `UUID → classrooms(id)`      | `ON DELETE CASCADE`                      |
-| `name`           | `TEXT NOT NULL`              |                                          |
-| `avatar_color`   | `TEXT`                       | optional                                 |
-| `point_total`    | `INTEGER NOT NULL DEFAULT 0` | trigger-maintained                       |
-| `positive_total` | `INTEGER NOT NULL DEFAULT 0` | trigger-maintained (sum of `points > 0`) |
-| `negative_total` | `INTEGER NOT NULL DEFAULT 0` | trigger-maintained (sum of `points < 0`) |
-| `created_at`     | `TIMESTAMPTZ`                |                                          |
+| Column           | Notes                                           |
+| ---------------- | ----------------------------------------------- |
+| `id`             | UUID primary key                                |
+| `classroom_id`   | Required FK to `classrooms(id)`, cascade delete |
+| `name`           | Required text                                   |
+| `avatar_color`   | Optional text                                   |
+| `created_at`     | Timestamp default `now()`                       |
+| `point_total`    | Trigger-maintained lifetime total               |
+| `positive_total` | Trigger-maintained positive total               |
+| `negative_total` | Trigger-maintained negative total               |
 
 Indexes: `idx_students_classroom_id`.
-Realtime: **enabled**. `REPLICA IDENTITY FULL` so DELETE events include `classroom_id`.
-
-Today / this-week totals live **in application memory**, computed via the RPC `get_student_time_totals`. They are not stored columns.
 
 ### `behaviors`
 
-Two populations live in one table:
+Behavior templates used to create point transactions. Default behaviors have `user_id IS NULL`.
+Custom behaviors are user-owned.
 
-- **Default behaviors** — `user_id IS NULL`, `is_custom = false`. Seeded in migration `003`. 14 rows (8 positive, 6 negative).
-- **Custom behaviors** — user-owned, `is_custom = true`.
-
-`points` is constrained `CHECK (points >= -5 AND points <= 5 AND points != 0)`.
-
-| Column       | Type                             | Notes                                                                                                 |
-| ------------ | -------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `id`         | `UUID PK`                        |                                                                                                       |
-| `user_id`    | `UUID → auth.users(id)` nullable | `NULL` = default, visible to all users; user-set = custom. Auto-filled on INSERT via `set_user_id()`. |
-| `name`       | `TEXT NOT NULL`                  |                                                                                                       |
-| `points`     | `INTEGER NOT NULL`               | CHECK constraint above                                                                                |
-| `icon`       | `TEXT NOT NULL`                  | emoji                                                                                                 |
-| `category`   | `behavior_category`              | enum, see below                                                                                       |
-| `is_custom`  | `BOOLEAN NOT NULL DEFAULT true`  |                                                                                                       |
-| `created_at` | `TIMESTAMPTZ`                    |                                                                                                       |
+| Column       | Notes                           |
+| ------------ | ------------------------------- |
+| `id`         | UUID primary key                |
+| `name`       | Required text                   |
+| `points`     | Integer, -5..5 excluding 0      |
+| `icon`       | Required text                   |
+| `category`   | `behavior_category` enum        |
+| `is_custom`  | Boolean, default true           |
+| `created_at` | Timestamp default `now()`       |
+| `user_id`    | Optional FK to `auth.users(id)` |
 
 Indexes: `idx_behaviors_category`, `idx_behaviors_user_id`.
-Realtime: **enabled**.
 
 ### `point_transactions`
 
-Append-only audit log of every point award. This is the source-of-truth for history views and time-windowed totals. Inserts/deletes fire the `update_student_point_totals` trigger which mutates `students.*_total`.
+Append-style behavior history. Insert/delete events drive student lifetime totals through a trigger.
 
-| Column          | Type                            | Notes                                                  |
-| --------------- | ------------------------------- | ------------------------------------------------------ |
-| `id`            | `UUID PK`                       |                                                        |
-| `student_id`    | `UUID → students(id)`           | `ON DELETE CASCADE`                                    |
-| `classroom_id`  | `UUID → classrooms(id)`         | `ON DELETE CASCADE`                                    |
-| `behavior_id`   | `UUID → behaviors(id)` nullable | `ON DELETE SET NULL`                                   |
-| `behavior_name` | `TEXT NOT NULL`                 | snapshot — survives behavior rename/delete             |
-| `behavior_icon` | `TEXT NOT NULL`                 | snapshot                                               |
-| `points`        | `INTEGER NOT NULL`              |                                                        |
-| `note`          | `TEXT`                          | optional                                               |
-| `batch_id`      | `UUID` nullable                 | groups class-wide awards for single-click undo (`006`) |
-| `created_at`    | `TIMESTAMPTZ`                   |                                                        |
+| Column          | Notes                                                       |
+| --------------- | ----------------------------------------------------------- |
+| `id`            | UUID primary key                                            |
+| `student_id`    | Required FK to `students(id)`, cascade delete               |
+| `classroom_id`  | Required FK to `classrooms(id)`, cascade delete             |
+| `behavior_id`   | Optional FK to `behaviors(id)`, set null on behavior delete |
+| `behavior_name` | Snapshot text                                               |
+| `behavior_icon` | Snapshot text                                               |
+| `points`        | Required integer                                            |
+| `note`          | Optional text                                               |
+| `created_at`    | Timestamp default `now()`                                   |
+| `batch_id`      | Optional UUID for grouped class/subset awards               |
 
-Indexes: `idx_transactions_student_id`, `idx_transactions_classroom_id`, `idx_transactions_created_at`, `idx_transactions_student_created` (composite), `idx_transactions_classroom_created` (composite), `idx_point_transactions_batch_id` (partial, `WHERE batch_id IS NOT NULL`).
-Realtime: **enabled**. `REPLICA IDENTITY FULL` so DELETE events carry `classroom_id` and `points` for sidebar rollback.
-
----
-
-## Feature-Scoped Entities
+Indexes: `idx_transactions_student_id`, `idx_transactions_classroom_id`,
+`idx_transactions_created_at`, `idx_transactions_student_created`,
+`idx_point_transactions_batch_id`, `idx_transactions_classroom_created`.
 
 ### `user_sound_settings`
 
-One row per user (UNIQUE constraint). Controls the sound effects played on point awards.
+Per-user sound preferences.
 
-| Column                      | Type                                | Notes                                |
-| --------------------------- | ----------------------------------- | ------------------------------------ |
-| `id`                        | `UUID PK`                           |                                      |
-| `user_id`                   | `UUID → auth.users(id)`             | `UNIQUE`, `ON DELETE CASCADE`        |
-| `enabled`                   | `BOOLEAN NOT NULL DEFAULT true`     |                                      |
-| `volume`                    | `FLOAT NOT NULL DEFAULT 0.7`        | `CHECK (volume BETWEEN 0.0 AND 1.0)` |
-| `positive_sound`            | `TEXT NOT NULL DEFAULT 'chime'`     |                                      |
-| `negative_sound`            | `TEXT NOT NULL DEFAULT 'soft-buzz'` |                                      |
-| `custom_positive_url`       | `TEXT`                              | optional                             |
-| `custom_negative_url`       | `TEXT`                              | optional                             |
-| `created_at` / `updated_at` | `TIMESTAMPTZ`                       | `updated_at` maintained by trigger   |
+| Column                | Notes                                   |
+| --------------------- | --------------------------------------- |
+| `id`                  | UUID primary key                        |
+| `user_id`             | Required FK to `auth.users(id)`, unique |
+| `enabled`             | Boolean default true                    |
+| `volume`              | Float 0.0..1.0 default 0.7              |
+| `positive_sound`      | Built-in positive sound id              |
+| `negative_sound`      | Built-in negative sound id              |
+| `custom_positive_url` | Optional URL                            |
+| `custom_negative_url` | Optional URL                            |
+| `created_at`          | Timestamp                               |
+| `updated_at`          | Timestamp maintained by trigger         |
 
-Realtime: **enabled** for cross-device sync. `REPLICA IDENTITY FULL`.
+Indexes: `idx_user_sound_settings_user_id`.
 
-### Seating Chart Suite (4 tables + 1 props table)
+### `seating_charts`
 
-A seating chart is a 4-table structure scoped to one classroom.
+One seating chart per classroom.
 
-#### `seating_charts`
+| Column          | Notes                                                   |
+| --------------- | ------------------------------------------------------- |
+| `id`            | UUID primary key                                        |
+| `classroom_id`  | Required FK to `classrooms(id)`, unique, cascade delete |
+| `name`          | Text default `Seating Chart`                            |
+| `snap_enabled`  | Boolean default true                                    |
+| `grid_size`     | Integer default 40                                      |
+| `canvas_width`  | Integer default 1200 in DB                              |
+| `canvas_height` | Integer default 800                                     |
+| `created_at`    | Timestamp                                               |
+| `updated_at`    | Timestamp maintained by trigger                         |
 
-One row per classroom (UNIQUE on `classroom_id`). Stores canvas settings.
+Application default width in `src/types/seatingChart.ts` is 1600, so code and DB defaults differ.
 
-| Column                      | Type                                    | Notes                           |
-| --------------------------- | --------------------------------------- | ------------------------------- |
-| `id`                        | `UUID PK`                               |                                 |
-| `classroom_id`              | `UUID → classrooms(id)`                 | `UNIQUE`, `ON DELETE CASCADE`   |
-| `name`                      | `TEXT NOT NULL DEFAULT 'Seating Chart'` |                                 |
-| `snap_enabled`              | `BOOLEAN NOT NULL DEFAULT true`         |                                 |
-| `grid_size`                 | `INTEGER NOT NULL DEFAULT 40`           | px                              |
-| `canvas_width`              | `INTEGER NOT NULL DEFAULT 1200`         | px                              |
-| `canvas_height`             | `INTEGER NOT NULL DEFAULT 800`          | px                              |
-| `created_at` / `updated_at` | `TIMESTAMPTZ`                           | `updated_at` trigger-maintained |
+### `seating_groups`
 
-> Client app uses `canvas_width: 1600` as default (see `DEFAULT_SEATING_CHART_SETTINGS` in `src/types/seatingChart.ts`). This is a pre-existing drift between the DB default (`1200`) and the app-layer default (`1600`) — the app default wins for new charts created client-side.
+Lettered table groups in a seating chart.
 
-#### `seating_groups`
+| Column                     | Notes                                               |
+| -------------------------- | --------------------------------------------------- |
+| `id`                       | UUID primary key                                    |
+| `seating_chart_id`         | Required FK to `seating_charts(id)`, cascade delete |
+| `letter`                   | Single-character label, unique per chart            |
+| `position_x`, `position_y` | Required doubles                                    |
+| `rotation`                 | Double default 0                                    |
+| `created_at`               | Timestamp                                           |
 
-A labeled table-pair on the canvas. Letters A–Z; UNIQUE per chart.
+Trigger `auto_create_group_seats` inserts four seats when a group is created.
 
-| Column                      | Type                                  | Notes                              |
-| --------------------------- | ------------------------------------- | ---------------------------------- |
-| `id`                        | `UUID PK`                             |                                    |
-| `seating_chart_id`          | `UUID → seating_charts(id)`           | `ON DELETE CASCADE`                |
-| `letter`                    | `CHAR(1) NOT NULL`                    | `UNIQUE(seating_chart_id, letter)` |
-| `position_x` / `position_y` | `DOUBLE PRECISION NOT NULL`           | canvas coordinates                 |
-| `rotation`                  | `DOUBLE PRECISION NOT NULL DEFAULT 0` | degrees                            |
-| `created_at`                | `TIMESTAMPTZ`                         |                                    |
+### `seating_seats`
 
-On INSERT, `auto_create_group_seats()` immediately inserts 4 `seating_seats` rows (positions 1–4).
+Four seats per seating group.
 
-#### `seating_seats`
+| Column              | Notes                                                     |
+| ------------------- | --------------------------------------------------------- |
+| `id`                | UUID primary key                                          |
+| `seating_group_id`  | Required FK to `seating_groups(id)`, cascade delete       |
+| `position_in_group` | Integer 1..4, unique per group                            |
+| `student_id`        | Optional FK to `students(id)`, set null on student delete |
+| `created_at`        | Timestamp                                                 |
 
-Four per group. `student_id` is nullable; `UNIQUE(group_id, position_in_group)` ensures no collisions.
+Trigger `ensure_student_single_seat` prevents assigning the same student to multiple seats in
+one seating chart.
 
-| Column              | Type                           | Notes                                                                              |
-| ------------------- | ------------------------------ | ---------------------------------------------------------------------------------- |
-| `id`                | `UUID PK`                      |                                                                                    |
-| `seating_group_id`  | `UUID → seating_groups(id)`    | `ON DELETE CASCADE`                                                                |
-| `position_in_group` | `INTEGER NOT NULL`             | `CHECK (BETWEEN 1 AND 4)` — 1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right |
-| `student_id`        | `UUID → students(id)` nullable | `ON DELETE SET NULL`                                                               |
-| `created_at`        | `TIMESTAMPTZ`                  |                                                                                    |
+### `room_elements`
 
-`ensure_student_single_seat()` trigger raises `EXCEPTION` if the same `student_id` is assigned to two seats in the same chart.
+Canvas objects such as teacher desk, door, window, countertop, and sink.
 
-#### `room_elements`
+| Column                     | Notes                                                 |
+| -------------------------- | ----------------------------------------------------- |
+| `id`                       | UUID primary key                                      |
+| `seating_chart_id`         | Required FK to `seating_charts(id)`, cascade delete   |
+| `element_type`             | `room_element_type` enum                              |
+| `label`                    | Optional text                                         |
+| `position_x`, `position_y` | Required doubles                                      |
+| `width`, `height`          | Doubles, default currently 120x80 after migration 009 |
+| `rotation`                 | Double default 0                                      |
+| `created_at`               | Timestamp                                             |
 
-Static canvas props: teacher desks, doors, windows, countertops, sinks.
+### `layout_presets`
 
-| Column                      | Type                                    | Notes                                                   |
-| --------------------------- | --------------------------------------- | ------------------------------------------------------- |
-| `id`                        | `UUID PK`                               |                                                         |
-| `seating_chart_id`          | `UUID → seating_charts(id)`             | `ON DELETE CASCADE`                                     |
-| `element_type`              | `room_element_type` enum                | see below                                               |
-| `label`                     | `TEXT` nullable                         |                                                         |
-| `position_x` / `position_y` | `DOUBLE PRECISION NOT NULL`             |                                                         |
-| `width`                     | `DOUBLE PRECISION NOT NULL DEFAULT 120` | (was `100`, migration `009` updated to match 40px grid) |
-| `height`                    | `DOUBLE PRECISION NOT NULL DEFAULT 80`  | (was `60`, migration `009` updated)                     |
-| `rotation`                  | `DOUBLE PRECISION NOT NULL DEFAULT 0`   |                                                         |
-| `created_at`                | `TIMESTAMPTZ`                           |                                                         |
+User-owned saved seating layouts. Layout data is JSONB and stores positions/settings, not student
+assignments.
 
-#### `layout_presets`
-
-User-owned saved layouts. Stores positions only — never student assignments, so presets are portable across classrooms.
-
-| Column        | Type                    | Notes                                                       |
-| ------------- | ----------------------- | ----------------------------------------------------------- |
-| `id`          | `UUID PK`               |                                                             |
-| `user_id`     | `UUID → auth.users(id)` | `ON DELETE CASCADE`                                         |
-| `name`        | `TEXT NOT NULL`         |                                                             |
-| `layout_data` | `JSONB NOT NULL`        | See `LayoutPresetData` shape in `src/types/seatingChart.ts` |
-| `created_at`  | `TIMESTAMPTZ`           |                                                             |
-
----
+| Column        | Notes                                           |
+| ------------- | ----------------------------------------------- |
+| `id`          | UUID primary key                                |
+| `user_id`     | Required FK to `auth.users(id)`, cascade delete |
+| `name`        | Required text                                   |
+| `layout_data` | Required JSONB                                  |
+| `created_at`  | Timestamp                                       |
 
 ## Enums
 
-```sql
--- Category of a behavior
-CREATE TYPE behavior_category AS ENUM ('positive', 'negative');
+| Enum                | Values                                                 |
+| ------------------- | ------------------------------------------------------ |
+| `behavior_category` | `positive`, `negative`                                 |
+| `room_element_type` | `teacher_desk`, `door`, `window`, `countertop`, `sink` |
 
--- Kind of room element (migration 008 added teacher_desk + door; 010 added the rest)
-CREATE TYPE room_element_type AS ENUM (
-    'teacher_desk', 'door', 'window', 'countertop', 'sink'
-);
-```
+## RPCs
 
----
+### `get_student_time_totals`
 
-## RPC Functions
+Arguments:
 
-### `get_student_time_totals(p_classroom_id, p_start_of_today, p_start_of_week)`
+- `p_classroom_id UUID`
+- `p_start_of_today TIMESTAMPTZ`
+- `p_start_of_week TIMESTAMPTZ`
 
-Returns a set of `(student_id, today_total, this_week_total)` rows for all students in the classroom who had activity in the current week.
+Returns:
 
-- **Why an RPC, not a view:** date boundaries are caller-supplied (respecting the user's timezone), and the query scans `point_transactions` with the composite index `idx_transactions_classroom_created`.
-- **Called from:** `src/hooks/useStudents.ts` / `useTransactions.ts`. Returns `[]` for students with no recent activity — callers must default to `0`.
+- `student_id UUID`
+- `today_total INTEGER`
+- `this_week_total INTEGER`
 
----
+The function only scans transactions since `p_start_of_week`, which bounds query cost for
+dashboard time-window counters.
 
-## Triggers Summary
+## Triggers And Functions
 
-| Trigger                                    | Table                 | Timing                                | Purpose                                               |
-| ------------------------------------------ | --------------------- | ------------------------------------- | ----------------------------------------------------- |
-| `update_classrooms_updated_at`             | `classrooms`          | BEFORE UPDATE                         | Bump `updated_at`                                     |
-| `set_classrooms_user_id`                   | `classrooms`          | BEFORE INSERT                         | Auto-fill `user_id` from `auth.uid()`                 |
-| `set_behaviors_user_id`                    | `behaviors`           | BEFORE INSERT                         | Auto-fill `user_id` from `auth.uid()` (when non-NULL) |
-| `trigger_update_student_totals`            | `point_transactions`  | AFTER INSERT / AFTER DELETE           | Maintain `students.{point,positive,negative}_total`   |
-| `trigger_update_sound_settings_updated_at` | `user_sound_settings` | BEFORE UPDATE                         | Bump `updated_at`                                     |
-| `trigger_update_seating_chart_timestamp`   | `seating_charts`      | BEFORE UPDATE                         | Bump `updated_at`                                     |
-| `trigger_auto_create_group_seats`          | `seating_groups`      | AFTER INSERT                          | Create 4 rows in `seating_seats`                      |
-| `trigger_ensure_student_single_seat`       | `seating_seats`       | BEFORE INSERT OR UPDATE OF student_id | RAISE if student already seated in same chart         |
+| Function                           | Trigger/use                                                    |
+| ---------------------------------- | -------------------------------------------------------------- |
+| `update_updated_at_column`         | Updates `classrooms.updated_at`                                |
+| `set_user_id`                      | Auto-fills `user_id` for `classrooms` and custom `behaviors`   |
+| `update_sound_settings_updated_at` | Updates `user_sound_settings.updated_at`                       |
+| `auto_create_group_seats`          | Creates four `seating_seats` after a group insert              |
+| `ensure_student_single_seat`       | Blocks duplicate student assignment in a chart                 |
+| `update_seating_chart_timestamp`   | Updates `seating_charts.updated_at`                            |
+| `update_student_point_totals`      | Maintains student lifetime totals on transaction insert/delete |
+| `get_student_time_totals`          | RPC used by `useStudents` and `useClassrooms`                  |
 
----
+## RLS Model
 
-## Realtime Publication
+RLS is enabled on every public table.
 
-Tables included in `supabase_realtime`:
+| Table group           | Authorization model                                                 |
+| --------------------- | ------------------------------------------------------------------- |
+| `classrooms`          | Direct `auth.uid() = user_id` policies                              |
+| `students`            | User owns the parent classroom                                      |
+| `behaviors`           | Defaults visible to all authenticated users; custom rows user-owned |
+| `point_transactions`  | User owns the parent classroom                                      |
+| `user_sound_settings` | Direct user ownership                                               |
+| Seating chart tables  | User owns the related classroom through chart/group joins           |
+| `layout_presets`      | Direct user ownership                                               |
 
-- `classrooms`, `students`, `behaviors`, `point_transactions` (migration `004`)
-- `user_sound_settings` (migration `007`)
+## Realtime And Replica Identity
 
-Seating tables are **not** on realtime — the seating editor assumes one active editor per classroom and reconciles on save.
+Migration publication history:
 
-`REPLICA IDENTITY FULL` is set on:
+- `point_transactions`
+- `classrooms`
+- `students`
+- `behaviors`
+- `user_sound_settings`
 
-- `point_transactions`, `students` (migration `005`)
-- `user_sound_settings` (migration `007`)
+Replica identity full is configured for:
 
-**Rule:** any table receiving realtime DELETE events that the client needs to react to must be `REPLICA IDENTITY FULL`. Without it, DELETE payloads arrive with only the PK, and optimistic rollback cannot touch denormalized totals.
+- `point_transactions`
+- `students`
+- `user_sound_settings`
 
----
+Current React code subscribes to:
 
-## Row Level Security Patterns
+- `students`
+- `point_transactions`
+- `layout_presets` (legacy hook; note that no migration currently adds it to the publication)
 
-Three patterns are used across the 10 tables:
+Any table whose DELETE payload is used by Realtime code needs `REPLICA IDENTITY FULL` and a fallback
+path for RLS-filtered `payload.old` rows.
 
-**1. Direct user_id (5 tables)** — `classrooms`, `behaviors` (custom), `user_sound_settings`, `layout_presets`, and the `user_id IS NULL` case for default behaviors.
+## Type Mapping
 
-```sql
-USING (auth.uid() = user_id)
--- or for defaults (behaviors only):
-USING (user_id IS NULL OR user_id = auth.uid())
-```
+Database row, insert, and update types live in `src/types/database.ts`. App-facing camelCase types
+live in `src/types/index.ts`.
 
-**2. Via classroom ownership (2 tables)** — `students`, `point_transactions`.
+Transforms:
 
-```sql
-USING (EXISTS (
-  SELECT 1 FROM classrooms
-  WHERE classrooms.id = <this>.classroom_id
-    AND classrooms.user_id = auth.uid()
-))
-```
+| Transform              | Behavior                                                    |
+| ---------------------- | ----------------------------------------------------------- |
+| `dbToBehavior`         | snake_case DB row -> app `Behavior`                         |
+| `dbToClassroom`        | DB classroom plus aggregate payload -> `ClassroomWithCount` |
+| `dbToStudent`          | DB student plus RPC time totals -> `StudentWithPoints`      |
+| `dbToPointTransaction` | passthrough for legacy snake_case transaction consumers     |
 
-**3. Via seating chart → classroom (3 tables)** — `seating_groups`, `seating_seats`, `room_elements`. (`seating_charts` itself uses pattern 2.)
+Seating chart transforms live in `src/types/seatingChart.ts`.
 
-```sql
-USING (EXISTS (
-  SELECT 1 FROM seating_groups
-    JOIN seating_charts ON seating_charts.id = seating_groups.seating_chart_id
-    JOIN classrooms ON classrooms.id = seating_charts.classroom_id
-  WHERE seating_groups.id = seating_seats.seating_group_id
-    AND classrooms.user_id = auth.uid()
-))
-```
+## Migration Inventory
 
-All four operations (SELECT/INSERT/UPDATE/DELETE) have a policy on every table. **Do not rely on service-role access from the client** — the anon key is constrained by these policies, which is the authorization boundary.
-
----
-
-## App ↔ DB Type Mapping
-
-- DB row types live in `src/types/database.ts` (auto-generated via `npx supabase gen types typescript --project-id …`). They use `snake_case`.
-- App-level types live in `src/types/index.ts` and `src/types/seatingChart.ts`. They use `camelCase`.
-- Transform at the context/hook boundary — never let a `snake_case` field leak into a component. Seating types have explicit `dbToSeatingChart` / `dbToSeatingGroup` / `dbToRoomElement` / `dbToLayoutPreset` helpers. Core types (classroom, student, behavior, transaction) are transformed inline in hooks.
-
-> Note: `src/types/index.ts` defines `Student` with `todayTotal` and `thisWeekTotal` as required fields, but the database has no such columns — these are computed at fetch time from the `get_student_time_totals` RPC and merged onto the row by `useStudents`. When writing new code that creates `Student` objects (tests, fixtures), set these to `0`.
-
----
-
-## Migration Log
-
-All 11 migrations, in order:
-
-| #   | File                                  | Scope                                                                                     |
-| --- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
-| 001 | `001_initial_schema.sql`              | Initial: classrooms, students, behaviors (with seed), point_transactions. Permissive RLS. |
-| 002 | `002_add_user_auth.sql`               | Add `user_id` to classrooms/behaviors, drop permissive RLS, install user-scoped policies. |
-| 003 | `003_sync_default_behaviors.sql`      | Reseed default behaviors (14 rows) to match `localStorage` defaults.                      |
-| 004 | `004_enable_realtime.sql`             | Add classrooms/students/behaviors/point_transactions to `supabase_realtime`.              |
-| 005 | `005_replica_identity_full.sql`       | `REPLICA IDENTITY FULL` on point_transactions + students.                                 |
-| 006 | `006_add_batch_id.sql`                | Add `batch_id` to point_transactions for class-wide undo.                                 |
-| 007 | `007_add_sound_settings.sql`          | `user_sound_settings` table + RLS + trigger + realtime.                                   |
-| 008 | `008_add_seating_charts.sql`          | Seating chart suite (4 tables) + `room_elements` + `layout_presets` + 3 triggers.         |
-| 009 | `009_fix_room_element_dimensions.sql` | Backfill element dimensions to match 40px grid; update defaults.                          |
-| 010 | `010_add_room_element_types.sql`      | Extend `room_element_type` enum with window/countertop/sink.                              |
-| 011 | `011_add_student_point_totals.sql`    | Add denormalized totals to students + trigger + `get_student_time_totals` RPC + indexes.  |
-
-**Next migration number:** `012_*.sql` (zero-padded sequential prefix — increment from the last file).
+| File                                  | Purpose                                                                                       |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `001_initial_schema.sql`              | Core classrooms, students, behaviors, transactions, initial permissive RLS, default behaviors |
+| `002_add_user_auth.sql`               | User ownership, auth-scoped RLS, `set_user_id` triggers                                       |
+| `003_sync_default_behaviors.sql`      | Replaces seed behaviors with 14 defaults                                                      |
+| `004_enable_realtime.sql`             | Adds initial realtime publication tables                                                      |
+| `005_replica_identity_full.sql`       | Full DELETE payloads for transactions/students                                                |
+| `006_add_batch_id.sql`                | Batch undo support for grouped awards                                                         |
+| `007_add_sound_settings.sql`          | Sound settings table, policies, realtime                                                      |
+| `008_add_seating_charts.sql`          | Seating chart schema, policies, triggers                                                      |
+| `009_fix_room_element_dimensions.sql` | Room element dimension defaults                                                               |
+| `010_add_room_element_types.sql`      | Window, countertop, sink enum values                                                          |
+| `011_add_student_point_totals.sql`    | Stored lifetime totals, trigger, time-total RPC                                               |
