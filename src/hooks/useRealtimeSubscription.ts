@@ -99,7 +99,12 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
       channelRef.current = null;
     }
 
-    const channelName = `${table}-changes-${filter || 'all'}-${Date.now()}`;
+    // Use a UUID, not Date.now(): under React 18 StrictMode dev double-mount,
+    // cleanup → remount runs in the same microtask (and same millisecond), so
+    // Date.now() collides. supabase.channel(topic) returns the EXISTING channel
+    // for a matching topic, and the second .on('postgres_changes', …) on a
+    // joining channel throws. Per-mount UUID guarantees a fresh channel.
+    const channelName = `${table}-changes-${filter || 'all'}-${crypto.randomUUID()}`;
     const channel = supabase.channel(channelName);
     channelRef.current = channel;
 
