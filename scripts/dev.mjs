@@ -45,7 +45,7 @@ process.on('SIGTERM', handleSignal('SIGTERM'));
 process.on('SIGHUP', handleSignal('SIGHUP'));
 
 if (manageRequested) {
-  if (isStackRunning()) {
+  if (isStackRunning(url)) {
     console.log(`[dev] Local Supabase already running at ${url} — leaving as-is`);
   } else {
     console.log(`[dev] Starting local Supabase (${url})`);
@@ -66,8 +66,27 @@ if (manageRequested) {
 }
 
 const passthrough = process.argv.slice(2);
+
+// `npm run dev` is local-by-default per CLAUDE.md — Vite must read VITE_SUPABASE_*
+// from `.env.test`, NOT from process.env. But the project's mise.toml enables the
+// `mise-env-fnox` plugin which auto-injects fnox.toml secrets (hosted Supabase URL)
+// into the shell when mise activates in this directory. Vite reads process.env
+// BEFORE .env.test, so without this strip the auto-injected hosted URL silently
+// wins. Use `npm run dev:hosted` (explicit `fnox exec --` wrapper) for the hosted
+// fallback flow. The strip is local to this child process and does not affect the
+// parent shell or any other tool.
+const FNOX_AUTO_INJECT_KEYS = [
+  'VITE_SUPABASE_URL',
+  'VITE_SUPABASE_ANON_KEY',
+  'VITE_TEST_EMAIL',
+  'VITE_TEST_PASSWORD',
+];
+const childEnv = { ...process.env };
+for (const k of FNOX_AUTO_INJECT_KEYS) delete childEnv[k];
+
 child = spawn('npx', ['vite', '--mode', 'test', ...passthrough], {
   stdio: 'inherit',
+  env: childEnv,
 });
 
 child.on('error', (err) => {

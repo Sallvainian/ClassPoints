@@ -44,13 +44,27 @@ export function shouldManageLocalStack(supabaseUrl) {
   return collectLocalIps().has(host);
 }
 
-export function isStackRunning() {
+/**
+ * Probe whether the local Supabase stack is actually serving traffic at `url`.
+ *
+ * Why not `npx supabase status`? It exits 0 even when containers are missing
+ * (it logs `failed to inspect container health: No such container ...` to
+ * stderr and returns success anyway). That false positive made dev.mjs decide
+ * the stack was already up after a previous run had torn it down — leaving
+ * `weStartedIt=false`, so the script never restarted the stack and never
+ * cleaned it up on exit. A plain HTTP probe tests exactly what the app does:
+ * "can I reach the URL?" — and is correct under every container state.
+ */
+export function isStackRunning(url) {
+  if (!url) return false;
   try {
-    execFileSync('npx', ['supabase', 'status'], {
-      stdio: ['ignore', 'ignore', 'ignore'],
-    });
-    return true;
+    execFileSync(
+      'curl',
+      ['-s', '-o', '/dev/null', '-m', '2', `${url.replace(/\/$/, '')}/auth/v1/health`],
+      { stdio: ['ignore', 'ignore', 'ignore'] }
+    );
+    return true; // any HTTP response (200/4xx/5xx) means the gateway is up
   } catch {
-    return false;
+    return false; // connection refused, DNS failure, timeout
   }
 }
