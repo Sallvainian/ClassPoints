@@ -103,6 +103,16 @@ body {
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* Seating chart grid lines — theme-aware, consumed by inline styles.
+ * NOTE: `:root` MUST come BEFORE the `.dark` override below. Both selectors
+ * have specificity (0,1,0); when the `.dark` class is on <html>, both match,
+ * and the later rule wins. If `:root` were after `.dark`, dark mode would
+ * silently inherit the light value. (This bit us before — the grid was
+ * showing #f0f0f0 in dark mode no matter what we set in .dark.) */
+:root {
+  --chart-grid-line: #f0f0f0;
+}
+
 /* Semantic-token + chart-grid dark-mode overrides — utilities resolve via var(). */
 .dark {
   --color-surface-1: #0a0a0b;
@@ -113,12 +123,10 @@ body {
   --color-ink-muted: #7a766f;
   --color-hairline: #2a2a30;
   --color-hairline-strong: #3d3d46;
-  --chart-grid-line: #2a2a30;
-}
-
-/* Seating chart grid lines — theme-aware, consumed by inline styles. */
-:root {
-  --chart-grid-line: #f0f0f0;
+  /* Seating chart grid — neutral gray (no blue cast), darker than the
+     hairline so it reads as structure, not chrome. ~10pp lift over the
+     #0a page bg — enough to define cells, not enough to compete. */
+  --chart-grid-line: #353535;
 }
 
 /* Student-avatar circles in dark mode are colored by JS via

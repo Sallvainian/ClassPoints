@@ -8,6 +8,7 @@ import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { StudentGrid } from '../students/StudentGrid';
 import { AwardPointsModal } from '../points/AwardPointsModal';
 import { ClassAwardModal } from '../points/ClassAwardModal';
+import { ClassPointsBox } from '../points/ClassPointsBox';
 import { MultiAwardModal } from '../points/MultiAwardModal';
 import { UndoToast } from '../points/UndoToast';
 import { TodaySummary } from '../points/TodaySummary';
@@ -335,29 +336,6 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
             {/* View mode */}
             <ViewModeToggle viewMode={settings.viewMode} onSetViewMode={setViewMode} />
-
-            {/* Class total chip — clickable; only in alphabetical view */}
-            {settings.viewMode === 'alphabetical' && studentCount > 0 && totalReady && (
-              <button
-                onClick={() => setIsClassAwardModalOpen(true)}
-                className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-[10px] border border-hairline bg-surface-1 hover:border-accent-500/40 hover:bg-accent-500/5 transition-colors"
-              >
-                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-muted">
-                  Class total
-                </span>
-                <span
-                  className={`font-mono tabular-nums text-sm font-semibold ${
-                    totalPoints >= 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}
-                >
-                  {totalPoints >= 0 ? '+' : ''}
-                  {totalPoints}
-                </span>
-                <span className="font-mono text-[10px] tracking-[0.16em] text-accent-600">→</span>
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -371,6 +349,20 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
         >
           {settings.viewMode === 'alphabetical' ? (
             <div className="pt-4">
+              {studentCount > 0 && totalReady && (
+                <div className="px-4 pb-4">
+                  <ClassPointsBox
+                    classPoints={{
+                      total: totalPoints,
+                      positiveTotal: activeClassroom.positiveTotal ?? 0,
+                      negativeTotal: activeClassroom.negativeTotal ?? 0,
+                      today: todayPoints,
+                      thisWeek: activeClassroom.thisWeekTotal ?? 0,
+                    }}
+                    onClick={() => setIsClassAwardModalOpen(true)}
+                  />
+                </div>
+              )}
               <StudentGrid
                 students={activeClassroom.students}
                 onStudentClick={handleStudentClick}

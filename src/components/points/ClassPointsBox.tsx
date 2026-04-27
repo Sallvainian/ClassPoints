@@ -2,11 +2,10 @@ import type { StudentPoints } from '../../types';
 
 interface ClassPointsBoxProps {
   classPoints: StudentPoints;
-  studentCount: number;
   onClick: () => void;
 }
 
-export function ClassPointsBox({ classPoints, studentCount, onClick }: ClassPointsBoxProps) {
+export function ClassPointsBox({ classPoints, onClick }: ClassPointsBoxProps) {
   const { total, positiveTotal, negativeTotal, today, thisWeek } = classPoints;
   const isPositive = total >= 0;
 
@@ -17,13 +16,10 @@ export function ClassPointsBox({ classPoints, studentCount, onClick }: ClassPoin
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">
+          <h3 className="font-display text-3xl lg:text-4xl tracking-[-0.02em] text-ink-strong leading-[1.05]">
             Class total
-          </p>
-          <h3 className="mt-1 font-display text-2xl tracking-[-0.01em] text-ink-strong leading-tight">
-            All {studentCount} student{studentCount !== 1 ? 's' : ''}
           </h3>
-          <p className="mt-1 font-mono text-[11px] tracking-[0.04em] text-ink-muted">
+          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-muted">
             Tap to award the whole class →
           </p>
         </div>
