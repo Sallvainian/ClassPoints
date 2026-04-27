@@ -1,7 +1,7 @@
 ---
 project_name: ClassPoints
 user_name: Sallvain
-date: 2026-04-26
+date: 2026-04-27
 sections_completed:
   [
     'migration_status',
@@ -12,8 +12,9 @@ sections_completed:
     'testing_rules',
     'code_quality_rules',
     'critical_dont_miss',
+    'ui_design_system_rules',
   ]
-existing_patterns_found: 12
+existing_patterns_found: 13
 status: 'complete'
 optimized_for_llm: true
 ---
@@ -26,7 +27,7 @@ _Critical rules and patterns AI agents must follow when implementing code in thi
 
 ## Migration Status (READ FIRST)
 
-**Snapshot taken at HEAD `1b0decb` (2026-04-26).** If `git log --oneline -5` no longer matches the recent commit list (`1b0decb` → `613a010` → `8bbe268` → `832e6de` → `9ecf4ad`), treat this section as a stale snapshot and re-derive phase status from `_bmad-output/planning-artifacts/prd.md` + the actual hook code before trusting the claims below.
+**Snapshot taken at HEAD `d652260` on branch `redesign/editorial-engineering` (2026-04-27).** If `git log --oneline -5` no longer matches the recent commit list (`d652260` → `136f493` → `fb3f239` → `21c821f` → `e1b3c49`), treat this section as a stale snapshot and re-derive phase status from `_bmad-output/planning-artifacts/prd.md` + the actual hook code before trusting the claims below. Note: this branch is 5 commits ahead of `main` and includes the editorial UI redesign (commits `ae7a9a8` + `fb3f239`), the local-Supabase-lifecycle dev script (commits `21c821f` + `136f493`), the realtime channel-name fix (`e1b3c49`), and the stale-JWT graceful-degrade auth fix (`d652260`). See the **UI / Design System Rules** section for redesign-era patterns.
 
 **Phase 3 of the core TanStack Query migration is COMPLETE for the hooks below.** These hooks are TanStack `useQuery` / `useMutation` wrappers and return the target shape (`data`, `isLoading`, `isPending`, `error`, `mutate`, …):
 
@@ -622,18 +623,16 @@ src/
 
 Feature work goes into the existing folder; don't invent parallel hierarchies.
 
-**Modal chrome — use `components/ui/Modal`, don't re-implement**
+**Modal chrome — use the shared primitives, don't re-implement**
 
-The shared `Modal` wrapper in `src/components/ui/Modal.tsx` handles fixed-inset positioning + escape-key handling + overflow + backdrop click.
+Two shared primitives in `src/components/ui/`:
 
-**Four modals currently re-implement modal chrome** instead of using the wrapper (audit cluster, eligible for cleanup PR):
+- `Modal.tsx` — enforces title-and-body layout (header is just a heading). ARIA `aria-labelledby="modal-title"`, body-scroll-lock, escape-to-close.
+- `Dialog.tsx` — chrome-only (overlay + ARIA `aria-label` + scroll-lock + escape + entry animation); body owner controls every pixel inside. Use when you need a custom header (avatar, multi-row meta).
 
-- `src/components/points/ClassAwardModal.tsx`
-- `src/components/points/AwardPointsModal.tsx`
-- `src/components/points/MultiAwardModal.tsx` (same pattern at `:98-110`)
-- `src/components/settings/SoundSettingsModal.tsx`
+`AwardPointsModal`, `ClassAwardModal`, and `MultiAwardModal` were converted from hand-rolled chrome to `<Dialog>` in commit `ae7a9a8`. **`SoundSettingsModal` (`src/components/settings/SoundSettingsModal.tsx`) is the lone holdout still re-implementing chrome** — eligible for cleanup PR onto `<Dialog>`.
 
-For new modals: import from `'../ui/Modal'` (or `'../../ui/Modal'` based on depth) — there is no `@/` alias.
+For new modals: import from `'../ui'` (or `'../../ui'` based on depth) — there is no `@/` alias. Choose `<Modal>` if the header is just a title; `<Dialog>` if you need custom header markup. See **UI / Design System Rules** for the full primitive choice rationale.
 
 **Lists with stable keys — `key={index}` is a real bug source**
 
@@ -687,6 +686,99 @@ For new modals: import from `'../ui/Modal'` (or `'../../ui/Modal'` based on dept
 **Audit-tagged dead code**
 
 - `src/hooks/usePersistedState.ts` is exported from `src/hooks/index.ts:1` but has **zero importers** in `src/` beyond its own export barrel. Real dead code; `git rm` candidate when next touching the hooks barrel.
+
+### UI / Design System Rules
+
+_Captures the editorial/engineering redesign that landed in commits `ae7a9a8` (Phase 1: tokens + primitives + 4 surfaces) and `fb3f239` (Phase 2: inner-screen restructure), plus the dev-script and auth fixes that shipped alongside it. New UI work should match these patterns; legacy screens that haven't been redesigned cascade into them automatically via the token aliases._
+
+**Token foundation — all design tokens live in `src/index.css`**
+
+- Tailwind v4 reads the `@theme { … }` block (`index.css:36-104`) as both CSS variables AND utility generators. Consume tokens via Tailwind utilities (`bg-accent-500`, `text-ink-strong`, `border-hairline`, `font-display`, `font-mono`); do NOT hand-write `var(--color-…)` references.
+- Semantic scales:
+  - `accent-{50..950}` (terracotta) — brand, primary CTAs, structural highlights, focus rings.
+  - `surface-{1,2,3}` — page bg / card / hover wash. Light defaults are warm off-white; `.dark` flips them to near-black greys (`index.css:117-130`).
+  - `ink-{strong,mid,muted}` — text hierarchy.
+  - `hairline` / `hairline-strong` — borders. Hairline borders carry the visual weight, not heavy box-shadows.
+- The `@theme` block ALSO aliases stock Tailwind `blue-{50..950}` AND `indigo`/`purple-{50,100,400-700}` onto the terracotta scale (`index.css:44-71`). Intentional — retones every legacy `bg-blue-*` / `from-indigo-*` cascade screen we don't redesign by hand. **In new code use `bg-accent-*` directly**; the aliases exist so legacy code doesn't have to be rewritten.
+- **Dark-mode CSS gotcha (load-bearing):** any explicit `:root { … }` rule that defines a token must come BEFORE the `.dark { … }` override. `:root` and `.dark` have equal specificity (0,1,0); when `.dark` is on `<html>`, both match and source order wins. The `:root { --chart-grid-line }` block at `index.css:112-114` carries an inline comment about a concrete bug this caused — preserve that ordering for any new tokens you add at `:root` scope.
+- Class-based dark mode is wired via `@custom-variant dark (&:where(.dark, .dark *));` (`index.css:4`). The `.dark` class lands on `<html>` from the inline FOUC-prevention script in `index.html:15-26` BEFORE React mounts. **Do not move that script.**
+
+**Typography**
+
+- Three families loaded via Google Fonts in `index.html:11-14`:
+  - **Instrument Serif** → `font-display` — headings only.
+  - **Geist** (400/500/600) → `font-sans` — body / UI labels / button text. Set as the body default in `index.css:16`; you don't need to add `font-sans` explicitly.
+  - **JetBrains Mono** (500 only) → `font-mono` — used with `tabular-nums` for ALL numerals (point totals, deltas, ranks, counts, time). **Numerals are never serif.**
+- Big point displays add `tracking-[-0.02em]` (e.g. `StudentPointCard.tsx:137`, `ClassroomCard.tsx:46`).
+- Section-label pattern (4-file precedent — `Sidebar.tsx:14-20`, `ProfileView.tsx:15-17`, `ClassSettingsView.tsx:15-17`, `SoundSettings.tsx:16-18`): `font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted`. Each of those files declares a local `function SectionLabel({ children }) { … }`. New screens with 3+ such labels: declare the same local helper rather than promoting to a shared one — call sites differ enough (badges, counts) that abstracting hasn't paid off.
+
+**Component primitives — use, don't re-implement**
+
+- `<Button>` (`src/components/ui/Button.tsx`) — six variants: `primary` (the singular important action per surface), `secondary` (hairline support), `ghost` (transparent tertiary), `danger`, `success`, `warning`. Sizes `sm` / `md` / `lg`. Carries `hover:-translate-y-[1px]` micro-lift; `primary` adds an `0_1px_0_rgba(255,255,255,0.12)_inset` highlight.
+- `<Input>` (`src/components/ui/Input.tsx`) — `label` (mono uppercase, `text-[11px] tracking-[0.12em] text-ink-muted`) and `error` props. Auto-derives `id` from `label.toLowerCase().replace(/\s+/g, '-')` if `id` not provided. Hairline border + accent-500 focus ring; switches to red-500 border/ring when `error` is set.
+- `<Modal>` (`src/components/ui/Modal.tsx`) — title-and-body. ARIA: `role="dialog" aria-modal="true" aria-labelledby="modal-title"`. Built-in body-scroll-lock + escape-to-close + animated fade/scale entry. Use when the header is just a heading.
+- `<Dialog>` (`src/components/ui/Dialog.tsx`) — chrome-only (overlay + ARIA `aria-label` + scroll-lock + escape + entry animation). Body owner controls every pixel inside. Use when you need a custom header (avatar, multi-row meta). Same scroll-lock + escape semantics as `Modal`.
+- **Do not hand-roll modal markup.** `AwardPointsModal`, `ClassAwardModal`, `MultiAwardModal` were converted onto `<Dialog>` in commit `ae7a9a8`. `SoundSettingsModal` is the lone holdout still re-implementing chrome (also flagged in Code Quality / Modal chrome).
+
+**Card / tile pattern**
+
+- Stat or content tile baseline: `bg-surface-2 border border-hairline rounded-2xl p-{4 | 5}` (`StudentPointCard.tsx`, `ClassroomCard.tsx`, `BehaviorButton.tsx`).
+- Hover: `hover:border-accent-500/40 hover:-translate-y-[1px]`. Scope `transition-[border-color,transform,box-shadow,background-color]` so re-paints stay cheap.
+- Selected / active: full `border-accent-500 ring-2 ring-accent-500/30` (`StudentPointCard.tsx:90`).
+- Focus-visible: `focus-visible:ring-2 focus-visible:ring-accent-500/{30|40} focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1` — keep this on every interactive tile.
+- "Raised" cards meant to look lifted use an inline highlight rather than a heavy box-shadow. Two alphas in current use: `Button` primary uses `0_1px_0_rgba(255,255,255,0.12)_inset` (subtle); `LoginForm.tsx:42` uses `0_1px_0_rgba(255,255,255,0.4)_inset,0_20px_50px_-30px_rgba(0,0,0,0.2)` (panel-level). Pick alpha by visual weight; otherwise hairline border alone is enough.
+
+**Color semantics — DO NOT conflate**
+
+- `emerald-*` (Tailwind built-in) = positive points, "good behavior", success.
+- `red-*` (Tailwind built-in) = negative points, "needs work", destructive.
+- `accent-*` (terracotta) = brand, primary CTAs, structural highlights, focus rings.
+- Not interchangeable. `accent` for "good" feedback, or `emerald` for a primary CTA, would muddle three distinct meanings. `BehaviorButton.tsx` is the canonical emerald/red tile; primary `<Button>` is the canonical accent CTA.
+
+**Animations (defined in `src/index.css:135-215`)**
+
+- Entrance: `animate-fade-up`, `animate-fade-in`, `animate-scale-in`.
+- Toasts: `animate-slide-up` (`UndoToast`, `ErrorToast`).
+- Pulse-on-award: `animate-pulse-green`, `animate-pulse-red`.
+- Stagger entrance children with inline `[animation-delay:80ms]` / `[animation-delay:160ms]` (see `TeacherDashboard.tsx:127, 150`, `AuthPage.tsx:53`).
+- `.dot-grid` utility (`index.css:218-222`) — editorial dotted background; current callers `AuthPage.tsx:15`, `TeacherDashboard.tsx:85`.
+
+**Auth boot — graceful stale-JWT degrade (`src/contexts/AuthContext.tsx`)**
+
+- On boot the provider reads the cached session via `supabase.auth.getSession()`, then validates against the server with `supabase.auth.getUser()`. On any validateError (network, 401, refresh-token rejected), it calls `supabase.auth.signOut({ scope: 'local' })` and then iterates `localStorage`, removing every `sb-*` key, and clears local React state — routing the app to the login screen rather than letting the GoTrueClient's auto-refresh loop forever (`AuthContext.tsx:55-138`).
+- A 5-second `setTimeout` + `AbortController` is set up around the validation block; the abort `signal` is **not** currently passed to `supabase.auth.getUser()`, so it functions as scaffolding for a future hard timeout rather than enforcing one today. Treat the stale-JWT branch as "any error → purge `sb-*` and route to login," not "exactly 5 s."
+- The provider also gates `queryClient.clear()` on a real user-id transition — first event (`prev === undefined`) and `null → null` no-ops pass through; only `userA → userB` (or explicit `signOut`) clears the cache (`AuthContext.tsx:43, 146-158, 224-232`). Don't clear elsewhere on auth events; you'll race with this.
+- **Don't bypass this flow.** New auth surfaces hook into `onAuthStateChange` and trust `loading` / `user` from `useAuth()`.
+
+**Local Supabase lifecycle (`scripts/dev.mjs` + `scripts/lib/supabase-host.mjs`)**
+
+- `npm run dev` is local-by-default. The script:
+  1. **Strips fnox-auto-injected `VITE_*` env vars** from the spawned `vite` child process so Vite reads `.env.test` instead of process.env (`dev.mjs:94-101`). The `mise-env-fnox` plugin in `mise.toml` injects them at the shell level — keep the plugin; the strip is local to the child.
+  2. Calls `ensureDockerRunning()` — starts OrbStack → Docker Desktop → Colima (in that preference order on macOS) if the daemon is dead, polls up to ~30 s. **Never stops Docker** (shared resource). On Linux, prints a hint to start `dockerd` via systemd rather than starting it itself.
+  3. Probes Supabase with `curl -s -o /dev/null -m 2 {url}/auth/v1/health`. **Do NOT use `npx supabase status`** — it exits 0 even when containers are missing (false-positive that previously caused the script to skip a needed start, then fail to clean up on exit; see `supabase-host.mjs:132-155` comment).
+  4. Starts the stack on launch if down; stops it on dev exit (signal handlers cover SIGINT/SIGTERM/SIGHUP). If the stack was already up before launch, leaves it alone on exit.
+- `shouldManageLocalStack()` decides whether to manage by parsing the URL hostname against `os.networkInterfaces()` + `tailscale ip` — loopback / RFC1918 LAN / Tailscale CGNAT count as local; remote hosts skip lifecycle.
+- `npm run dev:hosted` is the explicit `fnox exec -- vite` fallback for hosted-Supabase repro.
+
+**Realtime channel naming — `crypto.randomUUID()`, not `Date.now()`**
+
+- `useRealtimeSubscription.ts:107` derives channel names with `crypto.randomUUID()`. Reason: under React 18 StrictMode dev double-mount, cleanup → remount runs in the same microtask (often the same millisecond), so `Date.now()` collides; `supabase.channel(topic)` returns the EXISTING channel for a matching topic; the second `.on('postgres_changes', …)` on a joining channel throws and brings the React tree down. Per-mount UUID guarantees a fresh channel. **Do not revert.** (Distinct from the deterministic temp-row IDs in `useAwardPoints` — see Framework section; that case wants determinism, this one wants uniqueness.)
+
+**Test-string load-bearing literals**
+
+- `src/test/TeacherDashboard.test.tsx` pins these exact strings — do not rename without updating the test:
+  - `"Loading your dashboard..."`, `"Unable to load dashboard"`, `"Welcome to ClassPoints!"`
+  - button names: `"Retry"`, regex `/Create Your First Classroom/i`
+  - greeting regex `/Welcome back, …!/`
+  - bare numerals: `"+105"`, `"3"`, `"+15"`, and the literal `"across 2 classes"`
+  - classroom rows must remain `<button>` (selected by `getByRole('button', { name: /Class A/i })`)
+- The active Playwright spec (`tests/e2e/example.spec.ts`) only asserts the page title regex `/ClassPoints|Vite|React/i`. Don't shrink or remove `<title>` in `index.html`.
+- The `e2e.legacy/` folder is NOT wired into Playwright config — copy is free to change there. Don't import from it in active tests.
+
+**Lucide-react gotcha — pinned `^1.9.0`**
+
+- The codebase prefers the post-rename names (e.g. `SquareCheck` over `CheckSquare`; see `BottomToolbar.tsx:2`).
+- Both legacy and new names typically exist as aliases in `1.9.0` — `node_modules/lucide-react/dist/esm/lucide-react.mjs` exports both `CheckSquare` and `SquareCheck` (one points to `square-check-big`, the other to `square-check` — they are different icons that share the legacy/new name pairing). When in doubt about a name OR which icon a name resolves to, grep that file for `as <Name>` rather than guessing — defaults moved between minor versions.
 
 ### Critical Don't-Miss Rules
 
@@ -906,4 +998,4 @@ function MyNewComponent() {
 - Remove rules that become enforceable by tooling (e.g., when `unwrap()` lands and ESLint enforces it, the planned-fix paragraph collapses to one line).
 - Re-run the audit (`_bmad-output/anti-pattern-audit.md`) periodically to catch new clusters; cite verdicts (REAL / OVERSTATED / FALSE POSITIVE) in this file rather than re-litigating.
 
-_Last updated: 2026-04-26_
+_Last updated: 2026-04-27_
