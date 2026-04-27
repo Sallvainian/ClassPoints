@@ -44,12 +44,101 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Initialize auth state
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    let cancelled = false;
+
+    /**
+     * Manually purge any cached Supabase auth keys from localStorage.
+     * Last-resort fallback when supabase.auth.signOut itself fails (which can
+     * happen if the auth endpoint is unreachable). Without this, a stale JWT
+     * stays in storage and the GoTrueClient's auto-refresh loops forever.
+     */
+    const purgeAuthStorage = () => {
+      try {
+        for (const k of Object.keys(localStorage)) {
+          if (k.startsWith('sb-')) localStorage.removeItem(k);
+        }
+      } catch {
+        // localStorage unavailable (private browsing edge case) — nothing to purge
+      }
+    };
+
+    /**
+     * On boot, the GoTrueClient hydrates from localStorage and immediately
+     * starts auto-refreshing the access token. If the cached session was
+     * issued by a different Supabase instance (project switched, local stack
+     * recreated, JWT secret rotated) OR the auth endpoint is unreachable,
+     * the refresh fails and the client retries forever — bricking the page.
+     *
+     * Mitigation: validate the cached session against the server with a
+     * bounded timeout. If it doesn't validate, clear local state so the app
+     * routes to the login screen instead of spinning.
+     */
+    const init = async () => {
+      try {
+        const {
+          data: { session: cached },
+        } = await supabase.auth.getSession();
+
+        if (!cached) {
+          if (!cancelled) {
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Validate against the server with a timeout — we can't trust the
+        // cached session alone. AbortController cancels the fetch the
+        // GoTrueClient issues internally for getUser().
+        const ac = new AbortController();
+        const timeoutId = setTimeout(() => ac.abort(), 5000);
+        let validateError: unknown = null;
+        try {
+          const { error } = await supabase.auth.getUser();
+          validateError = error;
+        } catch (e) {
+          validateError = e;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        if (validateError) {
+          console.warn(
+            '[auth] cached session is stale (refresh/validate failed); clearing local state',
+            validateError
+          );
+          try {
+            await supabase.auth.signOut({ scope: 'local' });
+          } catch {
+            // signOut itself can hit the network — purge directly
+          }
+          purgeAuthStorage();
+          if (!cancelled) {
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setSession(cached);
+          setUser(cached.user);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn('[auth] init failed:', err);
+        purgeAuthStorage();
+        if (!cancelled) {
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+        }
+      }
+    };
+
+    void init();
 
     // Listen for auth changes
     const {
@@ -68,7 +157,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = useCallback(
