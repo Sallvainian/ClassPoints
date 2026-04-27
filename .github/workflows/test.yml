@@ -57,7 +57,7 @@ jobs:
           cache: 'npm'
 
       - name: Install fnox
-        uses: jdx/mise-action@v3
+        uses: jdx/mise-action@v4
         with:
           tool_versions: |
             fnox latest
@@ -154,7 +154,7 @@ jobs:
           command: supabase stop --no-backup 2>/dev/null; supabase start
 
       - name: Install fnox
-        uses: jdx/mise-action@v3
+        uses: jdx/mise-action@v4
         with:
           tool_versions: |
             fnox latest
@@ -270,7 +270,7 @@ jobs:
           command: supabase stop --no-backup 2>/dev/null; supabase start
 
       - name: Install fnox
-        uses: jdx/mise-action@v3
+        uses: jdx/mise-action@v4
         with:
           tool_versions: |
             fnox latest
