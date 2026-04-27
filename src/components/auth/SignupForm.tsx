@@ -51,7 +51,7 @@ export function SignupForm({ onSwitchToLogin, onSuccess }: SignupFormProps) {
     const { success, error: signUpError } = await signUp(email, password, name);
 
     if (success) {
-      setSuccessMessage('Account created! Check your email to confirm your account.');
+      setSuccessMessage('Account created. Check your email to confirm.');
       onSuccess?.();
     } else if (signUpError) {
       setFormError(signUpError.message);
@@ -61,93 +61,94 @@ export function SignupForm({ onSwitchToLogin, onSuccess }: SignupFormProps) {
   const displayError = formError || error?.message;
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-50">Create Account</h1>
-          <p className="text-gray-600 dark:text-zinc-400 mt-2">
-            Start tracking classroom points today
-          </p>
-        </div>
-
-        {successMessage ? (
-          <div className="text-center">
-            <div className="p-4 rounded-md bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900/50 mb-6">
-              <p className="text-green-700 dark:text-green-300">{successMessage}</p>
-            </div>
-            <Button onClick={onSwitchToLogin} className="w-full">
-              Go to Login
-            </Button>
-          </div>
-        ) : (
-          <>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
-                label="Name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-                autoComplete="name"
-                disabled={loading}
-              />
-
-              <Input
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-                disabled={loading}
-              />
-
-              <Input
-                label="Password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
-                autoComplete="new-password"
-                disabled={loading}
-              />
-
-              <Input
-                label="Confirm Password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your password"
-                autoComplete="new-password"
-                disabled={loading}
-              />
-
-              {displayError && (
-                <div className="p-3 rounded-md bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50">
-                  <p className="text-sm text-red-600 dark:text-red-400">{displayError}</p>
-                </div>
-              )}
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Creating account...' : 'Create Account'}
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600 dark:text-zinc-400">
-                Already have an account?{' '}
-                <button
-                  type="button"
-                  onClick={onSwitchToLogin}
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium"
-                >
-                  Sign in
-                </button>
-              </p>
-            </div>
-          </>
-        )}
+    <div className="bg-surface-2 border border-hairline rounded-2xl p-8 shadow-[0_1px_0_rgba(255,255,255,0.4)_inset,0_20px_50px_-30px_rgba(0,0,0,0.2)]">
+      <div className="mb-8">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-3">
+          02 / Create
+        </p>
+        <h1 className="font-display text-4xl leading-tight tracking-[-0.01em] text-ink-strong">
+          Start fresh.
+        </h1>
+        <p className="text-sm text-ink-mid mt-2">A few details and you're tracking points.</p>
       </div>
+
+      {successMessage ? (
+        <div className="space-y-6">
+          <div className="px-3 py-2.5 rounded-[10px] bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40">
+            <p className="text-xs text-emerald-700 dark:text-emerald-300">{successMessage}</p>
+          </div>
+          <Button onClick={onSwitchToLogin} className="w-full">
+            Back to sign in →
+          </Button>
+        </div>
+      ) : (
+        <>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="Name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              autoComplete="name"
+              disabled={loading}
+            />
+
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              disabled={loading}
+            />
+
+            <Input
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+              autoComplete="new-password"
+              disabled={loading}
+            />
+
+            <Input
+              label="Confirm Password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm your password"
+              autoComplete="new-password"
+              disabled={loading}
+            />
+
+            {displayError && (
+              <div className="px-3 py-2.5 rounded-[10px] bg-red-50 dark:bg-red-950/30 border border-red-200/60 dark:border-red-900/40">
+                <p className="text-xs text-red-700 dark:text-red-300">{displayError}</p>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Creating account...' : 'Create account →'}
+            </Button>
+          </form>
+
+          <div className="mt-6 pt-6 border-t border-hairline">
+            <p className="text-sm text-ink-mid">
+              Already a teacher here?{' '}
+              <button
+                type="button"
+                onClick={onSwitchToLogin}
+                className="text-accent-600 hover:text-accent-700 font-medium underline-offset-4 hover:underline"
+              >
+                Sign in
+              </button>
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

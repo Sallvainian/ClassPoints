@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
+import { X } from 'lucide-react';
 import type { Behavior, Student } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
+import { Dialog } from '../ui';
 
 interface MultiAwardModalProps {
   isOpen: boolean;
@@ -23,24 +25,6 @@ export function MultiAwardModal({
   const [isAwarding, setIsAwarding] = useState(false);
   const [awardError, setAwardError] = useState<string | null>(null);
 
-  // Handle escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isAwarding) onClose();
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, isAwarding, onClose]);
-
-  // Reset state when modal opens/closes
   useEffect(() => {
     if (!isOpen) {
       setAwardError(null);
@@ -56,10 +40,7 @@ export function MultiAwardModal({
       setAwardError(null);
 
       try {
-        // Extract student IDs for the atomic batch operation
         const studentIds = selectedStudents.map((s) => s.id);
-
-        // awardPointsToStudents throws on error with automatic rollback
         await awardPointsToStudents(
           classroomId,
           studentIds,
@@ -67,7 +48,6 @@ export function MultiAwardModal({
           `Multi-select award (${selectedStudents.length} students)`
         );
 
-        // Play sound once after successful batch award
         if (behavior.category === 'positive') {
           playPositive();
         } else {
@@ -95,88 +75,79 @@ export function MultiAwardModal({
   if (!isOpen || selectedStudents.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={isAwarding ? undefined : onClose}
-        aria-hidden="true"
-      />
+    <Dialog
+      isOpen={isOpen}
+      onClose={isAwarding ? () => undefined : onClose}
+      ariaLabel={`Award points to ${selectedStudents.length} selected students`}
+      maxWidth="max-w-lg"
+    >
+      {/* Header */}
+      <div className="relative px-6 pt-6 pb-5 border-b border-hairline">
+        {!isAwarding && (
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 inline-flex items-center justify-center w-8 h-8 rounded-md text-ink-mid hover:bg-surface-3 hover:text-ink-strong transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" strokeWidth={1.75} />
+          </button>
+        )}
 
-      {/* Modal */}
-      <div
-        className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="multi-award-modal-title"
-      >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6">
-          {!isAwarding && (
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 text-white/80 hover:text-white text-2xl"
-              aria-label="Close"
-            >
-              ×
-            </button>
-          )}
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-3">
+          Award points · multi-select
+        </p>
 
-          <div className="flex items-center gap-4">
-            {/* Multiple avatars indicator */}
-            <div className="flex -space-x-2">
-              {selectedStudents.slice(0, 3).map((student, i) => (
-                <div
-                  key={student.id}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-white/20 border-2 border-white/40"
-                  style={{ zIndex: 3 - i }}
-                >
-                  {student.name.charAt(0).toUpperCase()}
-                </div>
-              ))}
-              {selectedStudents.length > 3 && (
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-white/30 border-2 border-white/40">
-                  +{selectedStudents.length - 3}
-                </div>
-              )}
-            </div>
+        <div className="flex items-center gap-4">
+          <div className="flex -space-x-2">
+            {selectedStudents.slice(0, 3).map((student, i) => (
+              <div
+                key={student.id}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold bg-accent-500/15 text-accent-700 dark:text-accent-400 border-2 border-surface-2"
+                style={{ zIndex: 3 - i }}
+              >
+                {student.name.charAt(0).toUpperCase()}
+              </div>
+            ))}
+            {selectedStudents.length > 3 && (
+              <div className="w-10 h-10 rounded-full flex items-center justify-center font-mono text-xs font-semibold bg-surface-3 text-ink-mid border-2 border-surface-2">
+                +{selectedStudents.length - 3}
+              </div>
+            )}
+          </div>
 
-            <div>
-              <h2 id="multi-award-modal-title" className="text-xl font-bold">
-                Award Points
-              </h2>
-              <p className="text-white/80 text-sm">
-                {selectedStudents.length} student{selectedStudents.length !== 1 ? 's' : ''} selected
-              </p>
-            </div>
+          <div>
+            <h2 className="font-display text-2xl tracking-[-0.01em] text-ink-strong leading-tight">
+              {selectedStudents.length} student{selectedStudents.length !== 1 ? 's' : ''}
+            </h2>
+            <p className="mt-0.5 font-mono text-xs text-ink-muted">selected</p>
           </div>
         </div>
-
-        {/* Behavior Picker */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
-          {awardError && (
-            <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg mb-4 text-sm">
-              {awardError}
-            </div>
-          )}
-
-          {isAwarding ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mb-3" />
-              <p className="text-gray-600 dark:text-zinc-400">
-                Awarding points to {selectedStudents.length} students...
-              </p>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-gray-600 dark:text-zinc-400 mb-4 text-center">
-                Select a behavior to award to all {selectedStudents.length} selected students
-              </p>
-              <BehaviorPicker behaviors={behaviors} onSelect={handleBehaviorSelect} />
-            </>
-          )}
-        </div>
       </div>
-    </div>
+
+      {/* Body */}
+      <div className="p-6 overflow-y-auto max-h-[60vh]">
+        {awardError && (
+          <div className="px-3 py-2.5 rounded-[10px] bg-red-50 dark:bg-red-950/30 border border-red-200/60 dark:border-red-900/40 text-red-700 dark:text-red-300 text-xs mb-4">
+            {awardError}
+          </div>
+        )}
+
+        {isAwarding ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-hairline border-t-accent-500 mb-3" />
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-muted">
+              Awarding to {selectedStudents.length} students...
+            </p>
+          </div>
+        ) : (
+          <>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-4 text-center">
+              Select a behavior for all {selectedStudents.length} students
+            </p>
+            <BehaviorPicker behaviors={behaviors} onSelect={handleBehaviorSelect} />
+          </>
+        )}
+      </div>
+    </Dialog>
   );
 }

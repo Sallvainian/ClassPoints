@@ -12,10 +12,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Show loading spinner while checking auth state
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-900">
+      <div className="min-h-screen flex items-center justify-center bg-surface-1">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-zinc-400">Loading...</p>
+          <div className="animate-spin rounded-full h-10 w-10 border-2 border-hairline border-t-accent-500 mx-auto"></div>
+          <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-muted">
+            Loading
+          </p>
         </div>
       </div>
     );

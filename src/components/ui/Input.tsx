@@ -9,20 +9,23 @@ export function Input({ label, error, className = '', id, ...props }: InputProps
   const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       {label && (
-        <label htmlFor={inputId} className="text-sm font-medium text-gray-700 dark:text-zinc-200">
+        <label
+          htmlFor={inputId}
+          className="text-[11px] font-mono uppercase tracking-[0.12em] text-ink-muted"
+        >
           {label}
         </label>
       )}
       <input
         id={inputId}
-        className={`rounded-md border border-gray-300 dark:border-zinc-700 dark:bg-zinc-900 px-3 py-2 text-gray-900 dark:text-zinc-50 placeholder:text-gray-400 dark:placeholder:text-zinc-600 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 ${
-          error ? 'border-red-500' : ''
+        className={`rounded-[10px] border border-hairline bg-surface-2 px-3 py-2.5 text-sm text-ink-strong placeholder:text-ink-muted/70 focus:outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 transition-colors ${
+          error ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''
         } ${className}`}
         {...props}
       />
-      {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
+      {error && <span className="text-xs text-red-600 dark:text-red-400">{error}</span>}
     </div>
   );
 }

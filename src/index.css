@@ -3,42 +3,128 @@
 /* Class-based dark mode (Tailwind v4) — toggled by .dark on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Root surface — prevents white flash on overscroll / beyond the app layout. */
+/* Root surface — warm off-white light / true near-black dark.
+ * Prevents flash on overscroll / beyond the app layout. */
 html {
-  background-color: #ffffff;
+  background-color: #f7f5f1;
 }
 html.dark {
   background-color: #0a0a0b;
 }
 body {
   background-color: inherit;
+  font-family: var(--font-sans);
+  color: var(--color-ink-strong);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark palette override — tuned to match a near-black kitty terminal bg.
- * All dark surfaces use zinc-* via `dark:bg-zinc-N` classes, so overriding
- * the zinc scale here restyles every card, modal, panel, border, and hover
- * state in one place. Light-mode classes don't use zinc, so untouched. */
+/* === Theme tokens ===
+ *
+ * Tailwind v4 reads `@theme` as CSS variables AND generates utilities
+ * (e.g. `bg-accent-500` ⇨ `background-color: var(--color-accent-500)`).
+ * `.dark { ... }` overrides below flip semantic tokens at runtime.
+ *
+ * Two layers:
+ *  1. Existing zinc scale + new blue/indigo/purple aliases. The codebase
+ *     has ~80 hardcoded `bg-blue-*` / `from-indigo-*` / `from-purple-*`
+ *     references in screens we don't redesign by hand; aliasing those
+ *     scales onto terracotta retones every cascade screen for free.
+ *  2. Semantic tokens (accent / surface / ink / hairline / fonts) for
+ *     new code in the redesigned surfaces.
+ */
 @theme {
-  --color-zinc-950: #0a0a0b; /* page background — matches kitty */
-  --color-zinc-900: #18181c; /* card / panel surface — clear lift from page */
-  --color-zinc-800: #2a2a30; /* hover states, modal headers, subtle borders */
-  --color-zinc-700: #3d3d46; /* visible borders, inactive toggles */
-  --color-zinc-600: #52525b; /* strong borders, muted foreground alt */
+  /* Dark zinc scale — tuned to kitty terminal bg, used everywhere in dark mode. */
+  --color-zinc-950: #0a0a0b;
+  --color-zinc-900: #18181c;
+  --color-zinc-800: #2a2a30;
+  --color-zinc-700: #3d3d46;
+  --color-zinc-600: #52525b;
+
+  /* Cascade alias: hardcoded blues retone to terracotta. */
+  --color-blue-50: #fbf3ee;
+  --color-blue-100: #f6dccf;
+  --color-blue-200: #ecb39a;
+  --color-blue-300: #df8965;
+  --color-blue-400: #d36b46;
+  --color-blue-500: #c1573a;
+  --color-blue-600: #a8462d;
+  --color-blue-700: #883722;
+  --color-blue-800: #6a2b1c;
+  --color-blue-900: #582418;
+  --color-blue-950: #2f120a;
+
+  /* Indigo/purple aliases — used by the hand-rolled point modals
+     (ClassAwardModal, MultiAwardModal) and a few other gradients. */
+  --color-indigo-50: #fbf3ee;
+  --color-indigo-100: #f6dccf;
+  --color-indigo-400: #d36b46;
+  --color-indigo-500: #c1573a;
+  --color-indigo-600: #a8462d;
+  --color-indigo-700: #883722;
+
+  --color-purple-50: #fbf3ee;
+  --color-purple-100: #f6dccf;
+  --color-purple-400: #d36b46;
+  --color-purple-500: #c1573a;
+  --color-purple-600: #a8462d;
+  --color-purple-700: #883722;
+
+  /* Explicit accent scale for new code — terracotta. */
+  --color-accent-50: #fbf3ee;
+  --color-accent-100: #f6dccf;
+  --color-accent-200: #ecb39a;
+  --color-accent-300: #df8965;
+  --color-accent-400: #d36b46;
+  --color-accent-500: #c1573a;
+  --color-accent-600: #a8462d;
+  --color-accent-700: #883722;
+  --color-accent-800: #6a2b1c;
+  --color-accent-900: #582418;
+  --color-accent-950: #2f120a;
+
+  /* Semantic surfaces — defaults are LIGHT mode. `.dark { … }` flips them. */
+  --color-surface-1: #f7f5f1; /* page bg */
+  --color-surface-2: #ffffff; /* cards / raised panels */
+  --color-surface-3: #efece5; /* hover wash */
+
+  /* Semantic ink */
+  --color-ink-strong: #1a1715;
+  --color-ink-mid: #57524d;
+  --color-ink-muted: #8c857d;
+
+  /* Hairline borders */
+  --color-hairline: #e8e3da;
+  --color-hairline-strong: #d4cdc1;
+
+  /* Type stack */
+  --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Semantic-token + chart-grid dark-mode overrides — utilities resolve via var(). */
+.dark {
+  --color-surface-1: #0a0a0b;
+  --color-surface-2: #18181c;
+  --color-surface-3: #2a2a30;
+  --color-ink-strong: #f5f3ef;
+  --color-ink-mid: #b8b4ad;
+  --color-ink-muted: #7a766f;
+  --color-hairline: #2a2a30;
+  --color-hairline-strong: #3d3d46;
+  --chart-grid-line: #2a2a30;
 }
 
 /* Seating chart grid lines — theme-aware, consumed by inline styles. */
 :root {
   --chart-grid-line: #f0f0f0;
 }
-.dark {
-  --chart-grid-line: #2a2a30;
-}
 
-/* Student-avatar circles in dark mode are now colored by JS via
- * `resolveAvatarDisplay()` (hooks/useAvatarColor.ts) — darker HSL + forced
- * white text ensures real contrast. No CSS overlay needed. */
+/* Student-avatar circles in dark mode are colored by JS via
+ * `resolveAvatarDisplay()` (hooks/useAvatarColor.ts). */
 
-/* Custom animations */
+/* === Animations === */
 @keyframes slide-up {
   from {
     opacity: 0;
@@ -70,16 +156,61 @@ body {
   }
 }
 
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .animate-slide-up {
   animation: slide-up 0.3s ease-out forwards;
 }
-
 .animate-pulse-green {
   animation: pulse-green 1s ease-in-out;
 }
-
 .animate-pulse-red {
   animation: pulse-red 1s ease-in-out;
+}
+.animate-fade-up {
+  animation: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out both;
+}
+.animate-scale-in {
+  animation: scale-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Dot-grid background — used on AuthPage editorial panel. */
+.dot-grid {
+  background-image: radial-gradient(circle, var(--color-hairline-strong) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
 }
 
 /* Utility for line clamping */

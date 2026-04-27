@@ -27,7 +27,7 @@ const TeacherDashboard = lazy(() =>
 function ViewFallback() {
   return (
     <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-hairline border-t-accent-500" />
     </div>
   );
 }
@@ -56,7 +56,7 @@ function AppContent() {
   // Migration wizard view
   if (view === 'migration') {
     return (
-      <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-surface-1 flex items-center justify-center p-4">
         <Suspense fallback={<ViewFallback />}>
           <MigrationWizard
             onComplete={() => setView('dashboard')}

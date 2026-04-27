@@ -1,13 +1,25 @@
 import { useEffect, type ReactNode } from 'react';
 
-interface ModalProps {
+interface DialogProps {
   isOpen: boolean;
   onClose: () => void;
-  title: string;
+  /** Accessible label for the dialog. Read by screen readers. */
+  ariaLabel: string;
+  /** Tailwind class for max width (e.g. "max-w-lg", "max-w-2xl"). Default `max-w-md`. */
+  maxWidth?: string;
   children: ReactNode;
 }
 
-export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+/** Chrome-only dialog primitive. Owner of the body content controls every pixel
+ * inside; this component handles overlay, ARIA, escape-to-close, body scroll lock,
+ * and the entry animation. Distinct from `Modal`, which enforces a title-and-body layout. */
+export function Dialog({
+  isOpen,
+  onClose,
+  ariaLabel,
+  maxWidth = 'max-w-md',
+  children,
+}: DialogProps) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -34,20 +46,12 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         aria-hidden="true"
       />
       <div
-        className="relative bg-surface-2 border border-hairline rounded-2xl shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] max-w-md w-full animate-scale-in"
+        className={`relative bg-surface-2 border border-hairline rounded-2xl shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] w-full ${maxWidth} animate-scale-in overflow-hidden`}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-label={ariaLabel}
       >
-        <div className="px-6 pt-6 pb-2">
-          <h2
-            id="modal-title"
-            className="font-display text-2xl leading-tight text-ink-strong tracking-[-0.01em]"
-          >
-            {title}
-          </h2>
-        </div>
-        <div className="px-6 pb-6 pt-2">{children}</div>
+        {children}
       </div>
     </div>
   );

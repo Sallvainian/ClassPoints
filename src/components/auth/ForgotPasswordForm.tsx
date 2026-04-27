@@ -27,7 +27,7 @@ export function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordFormProps) {
     const { success, error: resetError } = await resetPassword(email);
 
     if (success) {
-      setSuccessMessage('Check your email for password reset instructions.');
+      setSuccessMessage('Check your email for reset instructions.');
     } else if (resetError) {
       setFormError(resetError.message);
     }
@@ -36,60 +36,61 @@ export function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordFormProps) {
   const displayError = formError || error?.message;
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-50">Reset Password</h1>
-          <p className="text-gray-600 dark:text-zinc-400 mt-2">
-            Enter your email to receive reset instructions
-          </p>
-        </div>
-
-        {successMessage ? (
-          <div className="text-center">
-            <div className="p-4 rounded-md bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900/50 mb-6">
-              <p className="text-green-700 dark:text-green-300">{successMessage}</p>
-            </div>
-            <Button onClick={onBackToLogin} className="w-full">
-              Back to Login
-            </Button>
-          </div>
-        ) : (
-          <>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-                disabled={loading}
-              />
-
-              {displayError && (
-                <div className="p-3 rounded-md bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50">
-                  <p className="text-sm text-red-600 dark:text-red-400">{displayError}</p>
-                </div>
-              )}
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Sending...' : 'Send Reset Link'}
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <button
-                type="button"
-                onClick={onBackToLogin}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
-              >
-                Back to Login
-              </button>
-            </div>
-          </>
-        )}
+    <div className="bg-surface-2 border border-hairline rounded-2xl p-8 shadow-[0_1px_0_rgba(255,255,255,0.4)_inset,0_20px_50px_-30px_rgba(0,0,0,0.2)]">
+      <div className="mb-8">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-3">
+          ⤺ Recover
+        </p>
+        <h1 className="font-display text-4xl leading-tight tracking-[-0.01em] text-ink-strong">
+          Reset password.
+        </h1>
+        <p className="text-sm text-ink-mid mt-2">We'll email you a link to set a new one.</p>
       </div>
+
+      {successMessage ? (
+        <div className="space-y-6">
+          <div className="px-3 py-2.5 rounded-[10px] bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40">
+            <p className="text-xs text-emerald-700 dark:text-emerald-300">{successMessage}</p>
+          </div>
+          <Button onClick={onBackToLogin} className="w-full">
+            Back to sign in →
+          </Button>
+        </div>
+      ) : (
+        <>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              disabled={loading}
+            />
+
+            {displayError && (
+              <div className="px-3 py-2.5 rounded-[10px] bg-red-50 dark:bg-red-950/30 border border-red-200/60 dark:border-red-900/40">
+                <p className="text-xs text-red-700 dark:text-red-300">{displayError}</p>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Sending...' : 'Send reset link →'}
+            </Button>
+          </form>
+
+          <div className="mt-6 pt-6 border-t border-hairline">
+            <button
+              type="button"
+              onClick={onBackToLogin}
+              className="text-sm text-ink-mid hover:text-accent-600 transition-colors"
+            >
+              ← Back to sign in
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
