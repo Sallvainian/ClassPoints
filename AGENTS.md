@@ -9,7 +9,7 @@ ClassPoints is a React classroom management app for teachers to track student be
 ## Commands
 
 ```bash
-npm run dev          # Start dev server LOCAL-by-default (loads .env.test; http://localhost:5173)
+npm run dev          # Start dev server LOCAL-by-default (loads .env.test; http://localhost:5173). Auto-starts/stops local Supabase when the URL points at this machine.
 npm run dev:host     # Same as dev, exposed on LAN
 npm run dev:hosted   # Dev against HOSTED Supabase (fnox exec -- vite — requires age key)
 npm run build        # TypeScript compile + Vite build (fnox exec -- for hosted build)
@@ -61,3 +61,13 @@ npm run test:e2e:local                # runs full suite against local stack
 ```
 
 `playwright.config.ts` fail-closes: it parses `VITE_SUPABASE_URL` and refuses to run unless the host is loopback, RFC1918 LAN, or Tailscale CGNAT. `.env.test` holds local (non-secret) credentials and is gitignored; `.env.test.example` is the committed template.
+
+### On-demand local stack
+
+`npm run dev` (via `scripts/dev.mjs`) and Playwright (via `tests/e2e/global-setup.ts` / `global-teardown.ts`) auto-manage the local Supabase stack. `scripts/lib/supabase-host.mjs` decides whether the URL points at this machine using Node `os.networkInterfaces` plus the `tailscale ip` CLI:
+
+- URL is local AND stack is down → start it; stop it on exit.
+- URL is local AND stack is already up → leave it alone (do not stop on exit).
+- URL is remote (e.g. another machine's Tailscale IP) → skip lifecycle entirely; assume the remote host is managing it.
+
+`npm run supabase:up` / `supabase:down` remain available for explicit lifecycle (e.g. switching projects on the same port).

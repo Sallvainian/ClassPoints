@@ -1,7 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import dotenv from 'dotenv';
+import { readEnvTest } from './scripts/lib/supabase-host.mjs';
 
 // E2E force-overrides shell env. Unlike app runtime, tests must be
 // reproducible from .env.test alone — a leaked fnox session in the
@@ -11,14 +9,7 @@ import dotenv from 'dotenv';
 // vars shadow the dotenv file, which defeats the override. Parse the
 // file directly with dotenv (handles quoted values, escapes, comments
 // — the bespoke splitter we had before did not).
-const readTestEnv = (): Record<string, string> => {
-  try {
-    return dotenv.parse(readFileSync(join(process.cwd(), '.env.test'), 'utf8'));
-  } catch {
-    return {};
-  }
-};
-const testEnv = readTestEnv();
+const testEnv = readEnvTest();
 for (const [key, value] of Object.entries(testEnv)) {
   process.env[key] = value;
 }
@@ -52,6 +43,8 @@ if (!isPrivateHost) {
 
 export default defineConfig({
   testDir: './tests/e2e',
+  globalSetup: './tests/e2e/global-setup.ts',
+  globalTeardown: './tests/e2e/global-teardown.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -87,7 +80,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    // Raw vite — globalSetup owns Supabase lifecycle. Using `npm run dev` here
+    // would race with globalSetup over stack management.
+    command: 'npx vite --mode test',
     url: 'http://localhost:5173',
     // Never reuse an existing dev server for E2E — a manually-started server may be
     // pointed at production Supabase. Force a fresh spawn with the .env.test values.

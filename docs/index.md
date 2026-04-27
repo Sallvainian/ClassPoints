@@ -1,125 +1,123 @@
 # ClassPoints Documentation
 
-_Last generated: 2026-04-21 — regenerated via BMad document-project (full rescan, exhaustive)._
+_Last generated: 2026-04-26 via BMad document-project full rescan, exhaustive scan._
 
-ClassPoints is a React classroom-management app for teachers to track student behavior points. Supabase-backed, Realtime-synced, deployed to GitHub Pages.
+ClassPoints is a React classroom-management app for teachers to track behavior points, classroom
+totals, student totals, seating charts, and sound feedback. It is a client-only SPA backed by
+Supabase Auth, Postgres, Realtime, RLS, and RPCs.
 
-| Attribute        | Value                                             |
-| ---------------- | ------------------------------------------------- |
-| Type             | Single-Page Application (SPA), monolith           |
-| Architecture     | Client-only React + Supabase BaaS                 |
-| Primary language | TypeScript 5.9 (strict)                           |
-| Framework        | React 18.3                                        |
-| Build            | Vite 6.0 (subpath deploy `/ClassPoints/`)         |
-| Styling          | Tailwind CSS 4.1                                  |
-| Backend          | Supabase 2.90 — Postgres 15+, Auth, Realtime, RLS |
-| Test             | Vitest 4 (unit) + Playwright 1.57 (E2E)           |
-
----
+| Attribute    | Value                                 |
+| ------------ | ------------------------------------- |
+| Type         | Single-page web application, monolith |
+| Architecture | React SPA + Supabase BaaS             |
+| Language     | TypeScript 5.9.3 strict               |
+| Framework    | React 18.3.1                          |
+| Build        | Vite 6.4.2, base `/ClassPoints/`      |
+| Styling      | Tailwind CSS 4.2.4                    |
+| Server state | TanStack Query 5.100.1                |
+| Backend      | Supabase JS 2.104.1                   |
+| Tests        | Vitest 4.1.5 + Playwright 1.59.1      |
 
 ## Start Here
 
-Pick the doc that matches what you're doing:
-
-| I want to...                     | Read                                                                                               |
-| -------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Understand the system end-to-end | **[Architecture](./architecture.md)** — master overview with cross-links                           |
-| Make a code change               | [Development Guide](./development-guide.md) — setup, daily commands, conventions                   |
-| Touch the database schema        | [Data Models](./data-models.md) — tables, RLS, triggers, migrations                                |
-| Add a context / hook / state     | [State Management](./state-management.md) — context hierarchy, data-hook shape, optimistic updates |
-| Find a component                 | [Component Inventory](./component-inventory.md) — all 45 components, grouped by feature            |
-| Navigate the repo                | [Source Tree Analysis](./source-tree-analysis.md) — annotated directory layout                     |
-
----
+| I want to...                     | Read                                              |
+| -------------------------------- | ------------------------------------------------- |
+| Get the short project summary    | [Project Overview](./project-overview.md)         |
+| Understand the full architecture | [Architecture](./architecture.md)                 |
+| Touch the database or migrations | [Data Models](./data-models.md)                   |
+| Work on data hooks or app state  | [State Management](./state-management.md)         |
+| Find UI components               | [Component Inventory](./component-inventory.md)   |
+| Navigate the repo                | [Source Tree Analysis](./source-tree-analysis.md) |
+| Run/build/test locally           | [Development Guide](./development-guide.md)       |
 
 ## Quick Reference
 
-**Daily commands** (always via npm scripts — they wrap `fnox exec` for secrets):
-
 ```bash
-npm run dev                # http://localhost:5173/ClassPoints/
-npm run build              # tsc -b && vite build → dist/
+npm run dev              # local-by-default Vite dev server
+npm run dev:hosted       # hosted Supabase fallback through fnox
+npm run build            # tsc -b && fnox exec -- vite build
+npm run check:bundle     # assert no React Query Devtools in prod bundle
 npm run lint
 npm run typecheck
-npm test                   # Vitest watch
-npm run test:e2e:local     # Playwright against LOCAL Supabase
+npm test -- --run
+npm run test:e2e:local   # seed local test user, then Playwright
 ```
 
-**Entry points:**
+Entry points:
 
-- Application: `src/main.tsx` → `src/App.tsx`
-- State facade: `useApp()` from `src/contexts/AppContext.tsx`
+- App root: `src/main.tsx` -> `src/App.tsx`
 - Supabase client: `src/lib/supabase.ts`
+- Query client: `src/lib/queryClient.ts`
+- Query keys: `src/lib/queryKeys.ts`
+- Legacy app facade: `src/contexts/AppContext.tsx`
 
-**Database tables** (see [`data-models.md`](./data-models.md) for full schema):
+## Generated Documentation
 
-| Table                 | Purpose                                                    |
-| --------------------- | ---------------------------------------------------------- |
-| `classrooms`          | Teacher-owned classroom containers                         |
-| `students`            | Students with trigger-maintained point totals              |
-| `behaviors`           | Point templates — 14 defaults (user_id NULL) + user custom |
-| `point_transactions`  | Append-only audit log; drives student totals via trigger   |
-| `user_sound_settings` | Per-user sound preferences (syncs via realtime)            |
-| `seating_charts`      | One per classroom (canvas config)                          |
-| `seating_groups`      | Letter-labeled table clusters                              |
-| `seating_seats`       | 4 per group; optional student_id                           |
-| `room_elements`       | Teacher desk, door, window, countertop, sink               |
-| `layout_presets`      | User-owned saved canvas layouts                            |
+- [Project Overview](./project-overview.md)
+- [Architecture](./architecture.md)
+- [Data Models](./data-models.md)
+- [State Management](./state-management.md)
+- [Component Inventory](./component-inventory.md)
+- [Source Tree Analysis](./source-tree-analysis.md)
+- [Development Guide](./development-guide.md)
 
-**Context provider tree** (`src/App.tsx`):
+## High-Signal Existing Docs
 
-```
-AuthProvider → AuthGuard → ThemeProvider → SoundProvider → AppProvider → AppContent
-```
+- [Modernization Plan](./modernization-plan.md)
+- [ADR-005 QueryClient Defaults](./adr/ADR-005-queryclient-defaults.md)
+- [Point Counter Inventory](./point-counter-inventory.md)
+- [Rules Review Category 3](./rules-review-category-3.md)
+- [Legacy Context Inventory](./legacy/legacy-contexts.md)
+- [Legacy Hooks Inventory](./legacy/legacy-hooks.md)
+- [Legacy Supabase Inventory](./legacy/legacy-supabase.md)
+- [Legacy Testing Inventory](./legacy/legacy-testing.md)
 
----
+## BMAD Artifacts
 
-## Feature Domains
+- [`_bmad-output/project-context.md`](../_bmad-output/project-context.md)
+- [`_bmad-output/planning-artifacts/prd.md`](../_bmad-output/planning-artifacts/prd.md)
+- [`_bmad-output/planning-artifacts/architecture.md`](../_bmad-output/planning-artifacts/architecture.md)
+- [`_bmad-output/implementation-artifacts/spec-tanstack-phase-3.md`](../_bmad-output/implementation-artifacts/spec-tanstack-phase-3.md)
+- [`_bmad-output/anti-pattern-audit.md`](../_bmad-output/anti-pattern-audit.md)
 
-| Folder under `src/components/` | Components                                                                                         | Primary hooks consumed                |
-| ------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `auth/`                        | 5 (AuthGuard, AuthPage, LoginForm, SignupForm, ForgotPasswordForm)                                 | `useAuth`                             |
-| `behaviors/`                   | 2 (BehaviorButton, BehaviorPicker)                                                                 | —                                     |
-| `classes/`                     | 1 (ImportStudentsModal)                                                                            | —                                     |
-| `common/`                      | 1 (SyncStatus singleton)                                                                           | —                                     |
-| `dashboard/`                   | 2 (DashboardView, BottomToolbar)                                                                   | `useApp`, `useDisplaySettings`        |
-| `home/`                        | 4 (TeacherDashboard, ClassroomCard, StatsCard, LeaderboardCard)                                    | `useApp`, `useRotatingCategory`       |
-| `layout/`                      | 2 (Layout, Sidebar)                                                                                | `useApp`, `useAuth`, `useTheme`       |
-| `migration/`                   | 1 (MigrationWizard, lazy)                                                                          | —                                     |
-| `points/`                      | 6 (AwardPointsModal, ClassAwardModal, MultiAwardModal, ClassPointsBox, TodaySummary, UndoToast)    | `useApp`, `useSoundEffects`           |
-| `profile/`                     | 2 (ProfileView lazy, DeleteClassroomModal)                                                         | `useApp`, `useAuth`                   |
-| `seating/`                     | 8 (SeatingChartView, SeatingChartEditor lazy, + 6 others)                                          | `useSeatingChart`, `useLayoutPresets` |
-| `settings/`                    | 5 (ClassSettingsView lazy, AdjustPointsModal, ResetPointsModal, SoundSettings, SoundSettingsModal) | `useApp`                              |
-| `students/`                    | 2 (StudentGrid, StudentPointCard)                                                                  | —                                     |
-| `ui/`                          | 4 (Button, Input, Modal, ErrorToast) — design-system primitives                                    | —                                     |
+## Current System Snapshot
 
----
+| Area              | Current state                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------- |
+| Core data hooks   | `useClassrooms`, `useStudents`, `useTransactions`, `useBehaviors` are TanStack-backed |
+| Legacy data hooks | `useLayoutPresets`, `useSeatingChart` remain hand-rolled                              |
+| Main facade       | `AppContext` adapts migrated hooks to legacy `useApp()` consumers                     |
+| Realtime in React | `students`, `point_transactions`, legacy `layout_presets`                             |
+| Database          | 10 public tables, 43 RLS policies, trigger-maintained point totals                    |
+| E2E safety        | Playwright refuses hosted/public Supabase hosts                                       |
 
-## AI-Instruction Docs (not generated)
+## Feature Map
 
-- [`CLAUDE.md`](../CLAUDE.md) — project-root rules for Claude Code. Commands + secret management + E2E safety.
-- [`.github/copilot-instructions.md`](../.github/copilot-instructions.md) — GitHub Copilot rules.
-- [`_bmad-output/project-context.md`](../_bmad-output/project-context.md) — detailed AI context. **Note: sections on state management are aspirational (TanStack Query migration not installed).** The docs in this directory are the source of truth.
+| Feature                    | Primary files                                                                    |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| Authentication             | `src/contexts/AuthContext.tsx`, `src/components/auth/*`                          |
+| Teacher home               | `src/components/home/*`                                                          |
+| Active classroom dashboard | `src/components/dashboard/DashboardView.tsx`                                     |
+| Point awards and undo      | `src/hooks/useTransactions.ts`, `src/components/points/*`                        |
+| Student data               | `src/hooks/useStudents.ts`, `src/components/students/*`                          |
+| Classroom settings         | `src/components/settings/ClassSettingsView.tsx`                                  |
+| Seating charts             | `src/hooks/useSeatingChart.ts`, `src/components/seating/*`                       |
+| Sound settings             | `src/contexts/SoundContext.tsx`, `src/components/settings/SoundSettings*.tsx`    |
+| localStorage migration     | `src/components/migration/MigrationWizard.tsx`, `src/utils/migrateToSupabase.ts` |
 
-## Archived
+## AI Agent Notes
 
-- [`docs/legacy/`](./legacy/) — 8 `legacy-*.md` files that used to live at `.claude/rules/`. `.claude/rules/` no longer exists; kept as historical reference.
-- [`docs/.archive/`](./.archive/) — prior `project-scan-report.json` snapshots.
-
----
-
-## For AI Agents
-
-1. Start with this index.
-2. Read [architecture.md](./architecture.md) for system-level context.
-3. Read [CLAUDE.md](../CLAUDE.md) for the rules and commands.
-4. For specific work, follow the "Start Here" table above.
-5. Before editing `src/**` or `supabase/migrations/**`, read [state-management.md](./state-management.md) and [data-models.md](./data-models.md) — they encode invariants the code relies on.
-
----
+1. Check this index first.
+2. For implementation rules, also read `AGENTS.md`, `CLAUDE.md`, and `_bmad-output/project-context.md`.
+3. Treat `docs/legacy/` as historical inventory, not current architecture guidance.
+4. For data work, read [Data Models](./data-models.md), [State Management](./state-management.md),
+   and [ADR-005](./adr/ADR-005-queryclient-defaults.md).
+5. If line-specific claims in `_bmad-output/project-context.md` disagree with HEAD, verify against
+   source before acting.
 
 ## Generated-Doc Provenance
 
-Regenerated 2026-04-21 via BMad document-project (full rescan, exhaustive scan level). Previous run was 2026-01-23.
+This documentation was regenerated on 2026-04-26 from an exhaustive scan of the current checkout.
+The prior scan state was archived under `docs/.archive/`.
 
-State file: `docs/project-scan-report.json` (current run) + `docs/.archive/` (prior).
+State file: `docs/project-scan-report.json`.
