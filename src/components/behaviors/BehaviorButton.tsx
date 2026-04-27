@@ -11,23 +11,22 @@ export function BehaviorButton({ behavior, onClick }: BehaviorButtonProps) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 hover:scale-105 active:scale-95 ${
+      className={`group flex flex-col items-center justify-between gap-2 p-3 rounded-xl border bg-surface-2 transition-[transform,border-color,background-color] duration-150 hover:-translate-y-[1px] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-2 ${
         isPositive
-          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/50 hover:border-emerald-400 dark:hover:border-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
-          : 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900/50 hover:border-red-400 dark:hover:border-red-500 hover:bg-red-100 dark:hover:bg-red-900/40'
+          ? 'border-emerald-500/20 hover:border-emerald-500/60 hover:bg-emerald-500/5 focus-visible:ring-emerald-500/40'
+          : 'border-red-500/20 hover:border-red-500/60 hover:bg-red-500/5 focus-visible:ring-red-500/40'
       }`}
     >
-      {/* Icon */}
-      <span className="text-3xl mb-1">{behavior.icon}</span>
+      <span className="text-2xl leading-none mt-1" aria-hidden="true">
+        {behavior.icon}
+      </span>
 
-      {/* Name */}
-      <span className="text-xs font-medium text-gray-700 dark:text-zinc-200 text-center line-clamp-2">
+      <span className="text-[13px] font-display tracking-[-0.005em] text-ink-strong text-center leading-tight line-clamp-2">
         {behavior.name}
       </span>
 
-      {/* Points */}
       <span
-        className={`text-sm font-bold mt-1 ${
+        className={`font-mono tabular-nums text-sm font-semibold ${
           isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
         }`}
       >

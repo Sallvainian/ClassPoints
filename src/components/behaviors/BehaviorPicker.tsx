@@ -8,7 +8,6 @@ interface BehaviorPickerProps {
 }
 
 export function BehaviorPicker({ behaviors, onSelect }: BehaviorPickerProps) {
-  // Separate positive and negative behaviors
   const { positive, negative } = useMemo(() => {
     const positive = behaviors.filter((b) => b.category === 'positive');
     const negative = behaviors.filter((b) => b.category === 'negative');
@@ -17,13 +16,14 @@ export function BehaviorPicker({ behaviors, onSelect }: BehaviorPickerProps) {
 
   return (
     <div className="space-y-6">
-      {/* Positive Behaviors */}
       {positive.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 mb-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            Positive
-          </h3>
+        <section>
+          <header className="flex items-center gap-2 mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+            <h3 className="font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">
+              Positive · {positive.length}
+            </h3>
+          </header>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {positive.map((behavior) => (
               <BehaviorButton
@@ -33,16 +33,17 @@ export function BehaviorPicker({ behaviors, onSelect }: BehaviorPickerProps) {
               />
             ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Negative Behaviors */}
       {negative.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-red-700 dark:text-red-300 mb-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500" />
-            Needs Work
-          </h3>
+        <section>
+          <header className="flex items-center gap-2 mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500" aria-hidden="true" />
+            <h3 className="font-mono text-[10px] uppercase tracking-[0.18em] text-red-700 dark:text-red-400">
+              Needs work · {negative.length}
+            </h3>
+          </header>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {negative.map((behavior) => (
               <BehaviorButton
@@ -52,13 +53,16 @@ export function BehaviorPicker({ behaviors, onSelect }: BehaviorPickerProps) {
               />
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {behaviors.length === 0 && (
-        <p className="text-center text-gray-500 dark:text-zinc-500 py-8">
-          No behaviors configured. Add some in settings.
-        </p>
+        <div className="text-center py-12 px-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-2">
+            Empty
+          </p>
+          <p className="text-sm text-ink-mid">No behaviors configured. Add some in settings.</p>
+        </div>
       )}
     </div>
   );

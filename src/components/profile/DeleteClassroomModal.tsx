@@ -17,7 +17,6 @@ export function DeleteClassroomModal({
 }: DeleteClassroomModalProps) {
   const [confirmationText, setConfirmationText] = useState('');
 
-  // Reset confirmation text when modal opens/closes or classroom changes
   useEffect(() => {
     if (isOpen) {
       setConfirmationText('');
@@ -44,31 +43,27 @@ export function DeleteClassroomModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Delete "${classroom.name}"?`}>
-      <div className="space-y-4">
-        {/* Warning message */}
-        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-lg p-3">
-          <p className="text-sm text-red-800 dark:text-red-200">
-            <strong>Warning:</strong> This will permanently delete this classroom and all its data:
+      <div className="space-y-5">
+        <div className="rounded-[10px] border border-red-200/60 dark:border-red-900/40 bg-red-50/60 dark:bg-red-950/30 p-3.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-red-700 dark:text-red-400 mb-2">
+            Permanent · cannot be undone
           </p>
-          <ul className="text-sm text-red-700 dark:text-red-300 mt-2 ml-4 list-disc">
+          <p className="text-sm text-red-700 dark:text-red-300 mb-2">
+            This will delete the classroom and all of its data:
+          </p>
+          <ul className="text-xs text-red-700 dark:text-red-300 ml-4 list-disc space-y-0.5">
             <li>
               {studentCount} student{studentCount !== 1 ? 's' : ''}
             </li>
             <li>All point history and transactions</li>
             <li>Seating charts and arrangements</li>
           </ul>
-          <p className="text-sm text-red-800 dark:text-red-200 mt-2 font-medium">
-            This action cannot be undone.
-          </p>
         </div>
 
-        {/* Confirmation input */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-zinc-200 mb-1">
-            Type{' '}
-            <span className="font-bold text-gray-900 dark:text-zinc-50">"{classroom.name}"</span> to
-            confirm:
-          </label>
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-muted mb-2">
+            Type the classroom name to confirm
+          </p>
           <Input
             value={confirmationText}
             onChange={(e) => setConfirmationText(e.target.value)}
@@ -76,17 +71,16 @@ export function DeleteClassroomModal({
             placeholder={classroom.name}
             autoFocus
             className={
-              confirmationText.length > 0
-                ? isMatch
-                  ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
-                  : 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                : ''
+              confirmationText.length > 0 && !isMatch
+                ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
+                : confirmationText.length > 0 && isMatch
+                  ? 'border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500/20'
+                  : ''
             }
           />
         </div>
 
-        {/* Actions */}
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 pt-1">
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>

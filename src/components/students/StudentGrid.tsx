@@ -22,8 +22,8 @@ const GRID_COLUMNS = {
 
 const GAP_SIZES = {
   small: 'gap-2',
-  medium: 'gap-4',
-  large: 'gap-6',
+  medium: 'gap-3',
+  large: 'gap-4',
 };
 
 export function StudentGrid({
@@ -43,16 +43,22 @@ export function StudentGrid({
 
   if (students.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-zinc-500">
-        <div className="text-6xl mb-4">👨‍🎓</div>
-        <p className="text-lg font-medium">No students yet</p>
-        <p className="text-sm mt-1">Add students in the settings to get started</p>
+      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-3">
+          Empty roster
+        </p>
+        <p className="font-display text-3xl tracking-[-0.01em] text-ink-strong leading-tight">
+          No students yet.
+        </p>
+        <p className="mt-2 text-sm text-ink-mid max-w-sm">
+          Add students from settings to start tracking points.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className={`grid ${GRID_COLUMNS[size]} ${GAP_SIZES[size]} p-4`}>
+    <div className={`grid ${GRID_COLUMNS[size]} ${GAP_SIZES[size]} px-4 pb-4`}>
       {sortedStudents.map((student) => (
         <StudentPointCard
           key={student.id}
