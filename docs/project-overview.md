@@ -1,106 +1,75 @@
-# ClassPoints Project Overview
+# Project Overview
 
-_Generated: 2026-04-26 via BMad document-project full rescan, exhaustive scan._
+_Generated 2026-04-28 (deep-scan rescan)._
 
-ClassPoints is a classroom-management SPA for teachers. It tracks behavior points,
-student totals, classroom totals, seating charts, sound feedback, and import/migration
-workflows. The app is browser-only and uses Supabase for authentication, Postgres data,
-RLS authorization, RPCs, and Realtime.
+ClassPoints is a classroom-management web app for teachers. It tracks per-student behavior points, classroom totals, today/this-week roll-ups, seating charts, and per-user sound feedback. It is a client-only React SPA — there is no app server. The browser talks directly to Supabase Auth + Postgres + Realtime + RLS + RPCs.
 
-## Classification
+## Snapshot
 
-| Attribute         | Value                                       |
-| ----------------- | ------------------------------------------- |
-| Repository type   | Monolith                                    |
-| Project type      | Web application                             |
-| Runtime shape     | Client-only React SPA with Supabase BaaS    |
-| Primary entry     | `src/main.tsx` -> `src/App.tsx`             |
-| Data boundary     | `src/lib/supabase.ts` typed with `Database` |
-| Deployment target | GitHub Pages, Vite base `/ClassPoints/`     |
+| Attribute          | Value                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| Type               | Single-page web application, monolith                                              |
+| Architecture       | React SPA + Supabase BaaS                                                          |
+| Language           | TypeScript ~5.9.3, strict mode                                                     |
+| Framework          | React 18.3.1                                                                       |
+| Build              | Vite 6.0.5 (`base: '/ClassPoints/'`)                                               |
+| Styling            | Tailwind CSS 4.1.17 + `@tailwindcss/postcss` 4.2.4 (v4 syntax only)                |
+| Server-state cache | TanStack Query 5.99.2 (devtools 5.100.1)                                           |
+| Backend            | `@supabase/supabase-js` 2.104.1                                                    |
+| Drag-and-drop      | `@dnd-kit/core` 6.3.1 + `@dnd-kit/utilities` 3.2.2                                 |
+| Icons              | `lucide-react` 1.9.0 (sole library — no Heroicons / FontAwesome)                   |
+| Tests              | Vitest 4.1.5 + jsdom 27.4.0 + Playwright 1.59.1 (Chromium only)                    |
+| Lint / Format      | ESLint 9.39.2 (flat config), Prettier 3.8.3                                        |
+| Hooks              | `simple-git-hooks` + `lint-staged` (pre-commit: eslint-fix + prettier + typecheck) |
+| Secrets            | `fnox` + age-encrypted `fnox.toml`                                                 |
+| Env loader         | mise (`mise.toml`)                                                                 |
+| Deploy             | GitHub Pages (`.github/workflows/deploy.yml`)                                      |
+| Local DB           | Supabase CLI 2.95.0 (`npx supabase start` / `npm run dev` lifecycle)               |
 
-## Current Stack
+## Active branch
 
-Versions below are resolved from `package-lock.json` unless noted.
+`redesign/editorial-engineering` — UI redesign track. Includes the editorial / engineering token cascade (commit `ae7a9a8`), Phase-2 inner-screen restructure (`fb3f239`), local-by-default dev script (`b35fa99`, `21c821f`, `136f493`), realtime channel-name UUID fix (`e1b3c49`), stale-JWT graceful degrade (`d652260`), class-total promotion to ClassPointsBox + tightened seating-chart visibility (`350c7c9`), context refresh + UI Design System Rules (`078d9fe`), and reverse-engineered UX design specification (`9004e6d`).
 
-| Category     | Technology                                     |
-| ------------ | ---------------------------------------------- |
-| UI runtime   | React 18.3.1, React DOM 18.3.1                 |
-| Language     | TypeScript 5.9.3, strict mode                  |
-| Build        | Vite 6.4.2                                     |
-| Styling      | Tailwind CSS 4.2.4 via `@tailwindcss/postcss`  |
-| Backend      | Supabase JS 2.104.1, local Supabase CLI 2.95.0 |
-| Server state | TanStack Query 5.100.1                         |
-| Drag/drop    | `@dnd-kit/core` and `@dnd-kit/utilities`       |
-| Icons        | `lucide-react`                                 |
-| Unit testing | Vitest 4.1.5, jsdom, Testing Library           |
-| E2E          | Playwright 1.59.1, Chromium                    |
-| Secrets      | `fnox` + age via `mise`                        |
+## What's in motion
 
-## Scanned Surface
+- **TanStack migration**: `useClassrooms`, `useStudents`, `useTransactions`, `useBehaviors` are migrated. `useLayoutPresets` and `useSeatingChart` are legacy hand-rolled hooks scheduled for migration. `AppContext` is being dissolved (Phase 4).
+- **Editorial UI redesign**: terracotta accent, Instrument Serif + Geist + JetBrains Mono typography, semantic-token system. Cascade aliases retone hardcoded `bg-blue-*`/`from-indigo-*`/`from-purple-*` for free; hand-redesigned surfaces include Sidebar, ClassPointsBox, DashboardView, and parts of seating + settings.
+- **Local-first dev loop**: `npm run dev` is local-by-default; Docker daemon preflight + auto-managed Supabase stack lifecycle. Hosted-Supabase is `npm run dev:hosted` (explicit fnox).
 
-| Area                        | Count |
-| --------------------------- | ----: |
-| Source files under `src/`   |   103 |
-| Component TSX files         |    45 |
-| Component folders           |    14 |
-| Hook files in `src/hooks/`  |    12 |
-| Context providers           |     4 |
-| Supabase migrations         |    11 |
-| Public tables               |    10 |
-| RLS policies                |    43 |
-| Trigger functions           |     8 |
-| Triggers                    |    10 |
-| Unit test files             |     6 |
-| Playwright setup/spec files |     2 |
+## Quick reference
 
-## Main Domains
+```bash
+npm run dev              # Local-by-default dev server (auto-manages local Supabase)
+npm run dev:hosted       # Hosted-Supabase fallback (fnox exec -- vite)
+npm run build            # Production build (tsc -b && fnox exec -- vite build)
+npm run check:bundle     # CI: assert no react-query-devtools in prod bundle
+npm run lint             # ESLint
+npm run typecheck        # tsc -b --noEmit
+npm test                 # Vitest watch
+npm test -- --run        # Vitest single run
+npm run test:e2e         # Playwright (auto-starts/seeds/stops local Supabase)
+npm run test:e2e:ui      # Playwright UI mode
+npm run supabase:up      # Explicit local-stack lifecycle
+npm run supabase:down
+```
 
-| Domain                      | Primary files                                                                    |
-| --------------------------- | -------------------------------------------------------------------------------- |
-| Auth                        | `src/contexts/AuthContext.tsx`, `src/components/auth/*`                          |
-| Classroom and student data  | `src/hooks/useClassrooms.ts`, `src/hooks/useStudents.ts`                         |
-| Point transactions          | `src/hooks/useTransactions.ts`, `src/components/points/*`                        |
-| Behaviors                   | `src/hooks/useBehaviors.ts`, `src/components/behaviors/*`                        |
-| Dashboard                   | `src/components/dashboard/DashboardView.tsx`, `src/components/home/*`            |
-| Seating charts              | `src/hooks/useSeatingChart.ts`, `src/components/seating/*`                       |
-| Sound settings              | `src/contexts/SoundContext.tsx`, `src/components/settings/SoundSettings*.tsx`    |
-| Migration from localStorage | `src/components/migration/MigrationWizard.tsx`, `src/utils/migrateToSupabase.ts` |
+## Entry points
 
-## Current Migration Status
+- App root: `src/main.tsx` → `src/App.tsx`
+- Supabase client: `src/lib/supabase.ts`
+- Query client: `src/lib/queryClient.ts`
+- Query keys (single source of truth): `src/lib/queryKeys.ts`
+- Legacy app facade: `src/contexts/AppContext.tsx` (Phase 4 dissolution target)
 
-The core server-state migration is mid-flight. These hooks are TanStack Query-backed:
+## See also
 
-- `useClassrooms`
-- `useStudents`
-- `useTransactions`
-- `useBehaviors`
-
-These remain hand-rolled with `useState` / `useEffect`:
-
-- `useLayoutPresets`
-- `useSeatingChart`
-
-`AppContext` is still the legacy facade for most components. It adapts TanStack hooks
-to the older `useApp()` shape and also stores UI/session state such as active classroom,
-modal-adjacent helpers, and batch undo tracking. New data flows should prefer direct
-hook usage where the migration plan allows it.
-
-## Documentation Map
-
-Start with `docs/index.md`. The generated documentation set is:
-
-- `docs/architecture.md`
-- `docs/data-models.md`
-- `docs/state-management.md`
-- `docs/component-inventory.md`
-- `docs/source-tree-analysis.md`
-- `docs/development-guide.md`
-- `docs/project-overview.md`
-
-Additional high-signal context lives in:
-
-- `docs/adr/ADR-005-queryclient-defaults.md`
-- `docs/modernization-plan.md`
-- `_bmad-output/project-context.md`
-- `_bmad-output/planning-artifacts/prd.md`
-- `_bmad-output/anti-pattern-audit.md`
+- [Architecture](./architecture.md) — full architectural detail
+- [Data Models](./data-models.md) — schema, RLS, triggers, RPC
+- [State Management](./state-management.md) — TanStack patterns + adapter layer
+- [Component Inventory](./component-inventory.md) — UI surface map
+- [Source Tree Analysis](./source-tree-analysis.md) — directory walkthrough
+- [Development Guide](./development-guide.md) — setup, scripts, CI/CD
+- [ADR-005 QueryClient Defaults](./adr/ADR-005-queryclient-defaults.md) — authoritative §1-§6
+- [Modernization Plan](./modernization-plan.md) — TanStack migration strategy
+- [`_bmad-output/project-context.md`](../_bmad-output/project-context.md) — LLM-optimized rule digest
+- [`_bmad-output/planning-artifacts/prd.md`](../_bmad-output/planning-artifacts/prd.md) — migration PRD
