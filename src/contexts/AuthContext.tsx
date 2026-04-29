@@ -88,14 +88,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Validate against the server with a timeout — we can't trust the
-        // cached session alone. AbortController cancels the fetch the
-        // GoTrueClient issues internally for getUser().
-        const ac = new AbortController();
-        const timeoutId = setTimeout(() => ac.abort(), 5000);
+        // Validate against the server with a wall-clock bound — we can't
+        // trust the cached session alone. supabase.auth.getUser() accepts no
+        // AbortSignal in @supabase/auth-js, and the underlying fetch has no
+        // default timeout, so a dead /auth/v1/user endpoint would hang boot
+        // indefinitely without this race.
+        const userPromise = supabase.auth.getUser();
+        // Detach: if the timeout wins the race, this promise stays pending
+        // and may later reject (e.g. when GoTrue's internal lock timeout
+        // fires). Without a no-op handler that surfaces as an unhandled
+        // rejection.
+        userPromise.catch(() => {});
+
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('auth validation timeout')), 5000);
+        });
+
         let validateError: unknown = null;
         try {
-          const { error } = await supabase.auth.getUser();
+          const { error } = await Promise.race([userPromise, timeoutPromise]);
           validateError = error;
         } catch (e) {
           validateError = e;

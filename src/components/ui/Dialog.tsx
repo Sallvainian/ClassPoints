@@ -10,7 +10,7 @@ interface DialogProps {
   children: ReactNode;
 }
 
-/** Chrome-only dialog primitive. Owner of the body content controls every pixel
+/** Chromeless dialog primitive. Owner of the body content controls every pixel
  * inside; this component handles overlay, ARIA, escape-to-close, body scroll lock,
  * and the entry animation. Distinct from `Modal`, which enforces a title-and-body layout. */
 export function Dialog({
@@ -21,18 +21,19 @@ export function Dialog({
   children,
 }: DialogProps) {
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
+    const prevOverflow = document.body.style.overflow;
+    document.addEventListener('keydown', handleEscape);
+    document.body.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
+      document.body.style.overflow = prevOverflow;
     };
   }, [isOpen, onClose]);
 

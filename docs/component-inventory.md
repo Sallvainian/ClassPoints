@@ -145,7 +145,7 @@ A file exporting a component should export ONLY components — `allowConstantExp
 | Component    | Purpose                                                                                                |
 | ------------ | ------------------------------------------------------------------------------------------------------ |
 | `Button`     | Primary / secondary / ghost button variants. Editorial-redesign aware (terracotta accent for primary). |
-| `Dialog`     | Chrome-only dialog primitive: overlay, ARIA, escape-to-close, scroll lock, body owner controls markup. |
+| `Dialog`     | Chromeless dialog primitive: overlay, ARIA, escape-to-close, scroll lock, body owner controls markup.  |
 | `Modal`      | Title-and-body modal primitive with overlay, ARIA, escape-to-close, and scroll lock.                   |
 | `Input`      | Text input with consistent border / focus ring.                                                        |
 | `ErrorToast` | Top-of-screen error toast (auto-dismiss).                                                              |
