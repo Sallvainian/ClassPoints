@@ -1,12 +1,12 @@
 # Architecture
 
-_Generated 2026-04-28 (deep-scan rescan)._
+_Generated 2026-04-29 (exhaustive full rescan)._
 
 ## Executive summary
 
 ClassPoints is a single-page React application backed by Supabase (Auth + Postgres + Realtime + RLS + RPCs). It runs entirely in the browser; there is no app server, no Node backend, no API layer of our own. The browser talks directly to Supabase via `@supabase/supabase-js`. Authorization happens at the database layer via Postgres Row-Level Security policies — every classroom, student, behavior, transaction, seating chart, and sound-settings row is gated on `auth.uid()`.
 
-The app is mid-migration from a hand-rolled `useState + useEffect + AppContext` data layer to TanStack Query. As of HEAD on `redesign/editorial-engineering` (2026-04-28), four core domains — `useClassrooms`, `useStudents`, `useTransactions`, `useBehaviors` — are fully migrated. Two legacy hooks remain (`useLayoutPresets`, `useSeatingChart`); they are migration targets, not templates. `AppContext` survives as a thin imperative-wrapper layer for legacy consumers and is scheduled for Phase 4 dissolution. `useAwardPoints` is the canonical optimistic-mutation showcase (3 cache patches: transactions + classrooms + students).
+The app is mid-migration from a hand-rolled `useState + useEffect + AppContext` data layer to TanStack Query. As of HEAD `4126a49` on `redesign/editorial-engineering` (2026-04-29), four core domains — `useClassrooms`, `useStudents`, `useTransactions`, `useBehaviors` — are fully migrated. Two legacy hooks remain (`useLayoutPresets`, `useSeatingChart`); they are migration targets, not templates. `AppContext` survives as a thin imperative-wrapper layer for legacy consumers and is scheduled for Phase 4 dissolution. `useAwardPoints` is the canonical optimistic-mutation showcase (3 cache patches: transactions + classrooms + students).
 
 A separate, parallel UI redesign (the "editorial / engineering" track on `redesign/editorial-engineering`) replaces the prior visual language with a terracotta accent, Instrument Serif + Geist + JetBrains Mono typography, and a semantic-token system in `src/index.css` `@theme`. Phase 1 introduced the token cascade; Phase 2 redesigned inner screens (in-class workflow + settings). Hardcoded `bg-blue-*` / `from-indigo-*` references throughout the codebase pick up the new accent automatically via the cascade aliases.
 
@@ -23,19 +23,19 @@ See `docs/project-overview.md` for the version-pinned table. Critical version co
 
 ## Architecture pattern
 
-| Aspect        | Choice                                                                                                                                                                                                                                                                                                                                          |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Topology      | Client SPA + BaaS. No app-tier server.                                                                                                                                                                                                                                                                                                          |
-| State         | Server state in TanStack Query (4 migrated domains, 2 legacy). UI state in component-local React state. Cross-cutting UI/session state (active classroom, modal flags, batch correlation refs) in `AppContext`.                                                                                                                                 |
-| Auth          | Supabase Auth (`@supabase/supabase-js`). JWT in `localStorage` (key prefix `sb-`). On boot, `AuthContext` validates the cached session against the server with a 5s timeout — if it fails, sign-out + manually purge `sb-*` keys + route to login (avoids GoTrueClient infinite-refresh on stale tokens / project-switch / rotated JWT secret). |
-| Authorization | Postgres RLS. Every table has policies keyed on `auth.uid()`; classrooms own users, and students/transactions/seating descend transitively.                                                                                                                                                                                                     |
-| Realtime      | 3 domains: `students` table (point + time totals), `point_transactions`, and `seating-chart` (target state). `useStudents` is the SINGLE realtime owner for `students` AND for `point_transactions` DELETE events; `useTransactions` subscribes to `point_transactions` for invalidation.                                                       |
-| Routing       | None. View state is `useState<View>` in `App.tsx`, persisted to `localStorage:app:view`. Five views: `home`, `dashboard`, `settings`, `migration`, `profile`.                                                                                                                                                                                   |
-| Styling       | Tailwind v4 with `@theme` tokens. Semantic tokens (surface-1/2/3, ink-strong/mid/muted, hairline) flip via `.dark { ... }` overrides. Cascade aliases retone hardcoded `bg-blue-*`/`from-indigo-*`/`from-purple-*` to terracotta.                                                                                                               |
-| Build         | Vite 6, React plugin, `base: '/ClassPoints/'` for GitHub Pages.                                                                                                                                                                                                                                                                                 |
-| Bundle        | Lazy-loaded views: `MigrationWizard`, `DashboardView`, `ClassSettingsView`, `ProfileView`, `TeacherDashboard`. React Query Devtools dynamically imported inside a `useEffect` body gated on `import.meta.env.DEV` so Rollup never registers the chunk in prod (CI-asserted by `scripts/check-bundle.mjs`).                                      |
-| Testing       | Vitest unit + Playwright E2E (Chromium only, fail-closed network allow-list).                                                                                                                                                                                                                                                                   |
-| Deployment    | GitHub Pages via `.github/workflows/deploy.yml`. Build with hosted Supabase creds inlined; anon key is public, RLS guards data.                                                                                                                                                                                                                 |
+| Aspect        | Choice                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Topology      | Client SPA + BaaS. No app-tier server.                                                                                                                                                                                                                                                                                                                                          |
+| State         | Server state in TanStack Query (4 migrated domains, 2 legacy). UI state in component-local React state. Cross-cutting UI/session state (active classroom, modal flags, batch correlation refs) in `AppContext`.                                                                                                                                                                 |
+| Auth          | Supabase Auth (`@supabase/supabase-js`). JWT in `localStorage` (key prefix `sb-`). On boot, `AuthContext` validates the cached session with `supabase.auth.getUser()`; validation failure signs out locally, purges `sb-*` keys, and routes to login. A 5s `AbortController` exists in code, but its signal is not passed to `getUser()` yet, so it is not an enforced timeout. |
+| Authorization | Postgres RLS. Every table has policies keyed on `auth.uid()`; classrooms own users, and students/transactions/seating descend transitively.                                                                                                                                                                                                                                     |
+| Realtime      | 3 domains: `students` table (stored lifetime totals / identity changes), `point_transactions`, and `seating-chart` (target state). `useStudents` is the SINGLE realtime owner for `students` AND for `point_transactions` DELETE events; `useTransactions` subscribes to `point_transactions` for invalidation.                                                                 |
+| Routing       | None. View state is `useState<View>` in `App.tsx`, persisted to `localStorage:app:view`. Five views: `home`, `dashboard`, `settings`, `migration`, `profile`.                                                                                                                                                                                                                   |
+| Styling       | Tailwind v4 with `@theme` tokens. Semantic tokens (surface-1/2/3, ink-strong/mid/muted, hairline) flip via `.dark { ... }` overrides. Cascade aliases retone hardcoded `bg-blue-*`/`from-indigo-*`/`from-purple-*` to terracotta.                                                                                                                                               |
+| Build         | Vite 6, React plugin, `base: '/ClassPoints/'` for GitHub Pages.                                                                                                                                                                                                                                                                                                                 |
+| Bundle        | Lazy-loaded views: `MigrationWizard`, `DashboardView`, `ClassSettingsView`, `ProfileView`, `TeacherDashboard`. React Query Devtools dynamically imported inside a `useEffect` body gated on `import.meta.env.DEV` so Rollup never registers the chunk in prod (CI-asserted by `scripts/check-bundle.mjs`).                                                                      |
+| Testing       | Vitest unit + Vitest backend integration + Playwright E2E (Chromium only, fail-closed network allow-list for local Supabase).                                                                                                                                                                                                                                                   |
+| Deployment    | GitHub Pages via `.github/workflows/deploy.yml`. Build with hosted Supabase creds inlined; anon key is public, RLS guards data.                                                                                                                                                                                                                                                 |
 
 ## Provider stack (`src/App.tsx`)
 
@@ -80,15 +80,15 @@ See `docs/data-models.md` for full schema. Highlights:
 
 ADR-005 §6 specifies the realtime scope as exactly 3 domains:
 
-| Domain                           | Tables                                                               | Why                                                     |
-| -------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
-| `students` (point + time totals) | `students`                                                           | Smartboard reflects phone awards within ~1s             |
-| `point_transactions`             | `point_transactions`                                                 | Cross-device undo; DELETE branch decrements time totals |
-| `seating-chart`                  | `seating_charts`, `seating_groups`, `seating_seats`, `room_elements` | Drag on laptop → smartboard moves the seat              |
+| Domain                             | Tables                                                               | Why                                                     |
+| ---------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
+| `students` (lifetime point totals) | `students`                                                           | Cross-device student-row changes update stored totals   |
+| `point_transactions`               | `point_transactions`                                                 | Cross-device undo; DELETE branch decrements time totals |
+| `seating-chart`                    | `seating_charts`, `seating_groups`, `seating_seats`, `room_elements` | Drag on laptop → smartboard moves the seat              |
 
 Non-realtime (explicit, NOT default-by-omission): `classrooms`, `behaviors`, `layout_presets`, `user_sound_settings` (the last is realtime-enabled in the migration but only used for cross-device settings sync, which doesn't fit the 3-domain count). They use `refetchOnWindowFocus: false` defaults + on-demand `invalidateQueries` after mutations.
 
-**Current HEAD drift from target**: `useStudents` subscribes to `students` + `point_transactions` (DELETE), `useTransactions` subscribes to `point_transactions` (any event), and legacy `useLayoutPresets` still subscribes to `layout_presets`. `useSeatingChart` is hand-rolled and currently has no realtime subscription. Treat `layout_presets` realtime as legacy drift to remove when that hook migrates; treat seating-chart realtime as target work, not current implementation.
+**Current HEAD drift from target**: `useStudents` subscribes to `students` + `point_transactions` (DELETE), `useTransactions` subscribes to `point_transactions` (any event), and legacy `useLayoutPresets` still subscribes to `layout_presets`. `useSeatingChart` is hand-rolled and currently has no realtime subscription. Cross-device `point_transactions` INSERTs do not immediately refresh `today_total` / `this_week_total`; those time totals refresh through own-device optimism, DELETE realtime undo handling, visibility/refetch paths, or reload. Treat `layout_presets` realtime as legacy drift to remove when that hook migrates; treat seating-chart realtime as target work, not current implementation.
 
 **Cross-cutting realtime DELETE rule**: any table receiving realtime DELETE events MUST have `ALTER TABLE x REPLICA IDENTITY FULL` in its migration. Without it, DELETE payloads arrive empty and `payload.old` is unusable. Currently `point_transactions`, `students`, and `user_sound_settings` have it.
 
@@ -111,8 +111,8 @@ See `docs/state-management.md` for the full pattern catalog. Two-layer model:
 `AppContext` post-Phase-3:
 
 - Holds UI/session state (`activeClassroomId`, modal flags, `batchKindRef`).
-- Holds thin imperative wrappers (`createClassroom`, `awardPoints`, `awardClassPoints`, `awardPointsToStudents`, `addBehavior` family, `clearStudentPoints`, `adjustStudentPoints`, `resetClassroomPoints`) that adapt the new mutation hooks to legacy callers. Each individual wrapper throws on Supabase failure (ADR-005 §2).
-- **Wrapper-throw nuance**: `awardClassPoints` and `awardPointsToStudents` orchestrate per-student `Promise.all` and SILENTLY filter rejected promises to nulls (`AppContext.tsx:419-422`, `:465-468`). The orchestrator returns the "successful" results; per-item failures vanish. Two source comments at `ClassAwardModal.tsx:64` and `MultiAwardModal.tsx:62` claim "wrapper throws on error with automatic rollback" — those comments are LIES, scheduled for deletion when anti-pattern audit cluster #2 is fixed.
+- Holds thin imperative wrappers (`createClassroom`, `awardPoints`, `awardClassPoints`, `awardPointsToStudents`, `addBehavior` family, `clearStudentPoints`, `adjustStudentPoints`, `resetClassroomPoints`) that adapt the new mutation hooks to legacy callers. Most direct mutation wrappers propagate `mutateAsync` errors; legacy student wrappers catch/log and batch award orchestrators handle failures separately.
+- **Wrapper-throw nuance**: `awardClassPoints` and `awardPointsToStudents` orchestrate per-student `Promise.all` and SILENTLY filter rejected promises to nulls (`AppContext.tsx:410-424`, `:455-469`). The orchestrator returns the "successful" results; per-item failures vanish. Both wrappers now delete the local `batchKindRef` entry when every mutation fails, but they still do not surface partial failure counts to the caller.
 
 **New components MUST**:
 
@@ -126,14 +126,14 @@ See `docs/state-management.md` for the full pattern catalog. Two-layer model:
 ADR-005 §4 (a)–(e) compliance, inline in the hook (`src/hooks/useTransactions.ts:86-95` comments). The pattern:
 
 - `onMutate` patches THREE caches: `transactions.list(classroomId)`, `classrooms.all`, `students.byClassroom(classroomId)`.
-- `onMutate` is **pure + idempotent**: deterministic optimistic id (`optimistic-${studentId}-${behaviorId}-${timestamp}`) + a dedup guard (`alreadyPatched`) that skips ALL three patches if the temp row already exists. Without the guard, React 18 StrictMode dev double-invoke would double-bump the classroom aggregate.
+- `onMutate` is **pure + idempotent**: deterministic optimistic id (`optimistic-${studentId}-${behaviorId}-${timestamp}`) + a dedup guard (`alreadyPatched`) that skips ALL three patches if the temp row already exists. The guard protects duplicate mutation invocations such as double submits, effect-driven retries, or explicit replays; React StrictMode does not double-run button event handlers.
 - `onError` null-guards `context.previous*` (undefined post-cancel would overwrite the cache, worse than no rollback) and restores all three caches.
 - `onSettled` invalidates all three keys to reconcile with server truth.
 - **Read previous state from cache via `qc.getQueryData`, never from the component closure** — the closure goes stale across re-renders.
 
 ### Realtime hook pattern (`useRealtimeSubscription`)
 
-- Generic over postgres_changes events. Supports `onChange` (preferred, single payload) plus legacy `onInsert`/`onUpdate`/`onDelete` callbacks (scheduled for removal at end of Phase 3).
+- Generic over postgres_changes events. Supports `onChange` (preferred, single payload) plus legacy `onInsert`/`onUpdate`/`onDelete` callbacks for remaining migration consumers. Do not add new legacy callback callers.
 - Channel names use `crypto.randomUUID()` per mount (commit `e1b3c49`). Prior `Date.now()` collided under React 18 StrictMode because cleanup→remount happens in the same millisecond, and Supabase reuses the existing channel for matching topics — the second `.on('postgres_changes', …)` on a joining channel throws.
 - Callbacks held in refs to avoid re-subscribing on every render.
 - Tracks subscription status transitions; fires `onReconnect` when SUBSCRIBED returns from CHANNEL_ERROR / TIMED_OUT / CLOSED.
@@ -143,8 +143,8 @@ ADR-005 §4 (a)–(e) compliance, inline in the hook (`src/hooks/useTransactions
 `src/contexts/AuthContext.tsx`:
 
 1. On mount, `getSession()` reads the cached session from `localStorage`.
-2. If a cached session exists, validate it against the server with `supabase.auth.getUser()` under a 5s timeout.
-3. If validation fails OR throws OR times out: log warning, `signOut({ scope: 'local' })`, manually `localStorage.removeItem(...)` every `sb-*` key, route to login.
+2. If a cached session exists, validate it against the server with `supabase.auth.getUser()`.
+3. If validation fails OR throws: log warning, `signOut({ scope: 'local' })`, manually `localStorage.removeItem(...)` every `sb-*` key, route to login. The surrounding 5s `AbortController` is scaffolding until its signal is wired into the auth request.
 4. `onAuthStateChange` listener handles user-id transitions. The first event (`prev === undefined`) is INITIAL_SESSION and is NOT treated as a transition (so user A's cache can't flash on user B's first render). On a user-id transition (account-switch), `queryClient.clear()` runs.
 5. `signOut()` also `queryClient.clear()`s — defense-in-depth, doesn't depend on the listener winning the race.
 
@@ -185,9 +185,10 @@ See `docs/development-guide.md`.
 
 ## Testing strategy
 
-- **Unit (Vitest)**: leaderboard math, sound synthesis, rotating-category timer, student parser, realtime subscription wiring, TeacherDashboard rendering. Located under `src/test/`, `src/hooks/__tests__/`, `src/utils/__tests__/`.
-- **E2E (Playwright)**: Chromium-only, storage-state-based auth, fail-closed network allow-list. Currently lightweight (one example spec + auth.setup); the full E2E suite is being rebuilt on this stack — `e2e.legacy/` contains the prior suite for reference.
-- **CI burn-in**: `test.yml` runs the full suite 10 times to flush flaky tests on every push.
+- **Unit (Vitest)**: 9 active unit files under `src/test/`, `src/hooks/__tests__/`, `src/utils/__tests__/`, and `src/contexts/`. Current coverage includes leaderboard math, sound synthesis/settings, rotating-category timer, student parser, realtime subscription wiring, `useStudents` DELETE fallback, `useAwardPoints` ADR-005 guards, TeacherDashboard rendering, and AppProvider disabled-query loading.
+- **Backend integration (Vitest + Node)**: 4 active files under `tests/integration/`. They hit a real local Supabase stack through service-role helpers and cover schema smoke, classroom RLS, point-total triggers, and `point_transactions` realtime DELETE payloads.
+- **E2E (Playwright)**: Chromium-only, storage-state-based auth, fail-closed network allow-list. Active specs cover authenticated shell bootstrap, stale cached-session recovery, and sample user-factory cleanup.
+- **CI burn-in**: `test.yml` runs the active Playwright suite 10 times to flush flake on every push/PR. Unit and integration suites run locally today; `deploy.yml` also runs unit tests before the Pages build.
 
 ## Authoritative sources
 

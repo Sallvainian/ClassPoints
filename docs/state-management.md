@@ -1,6 +1,6 @@
 # State Management
 
-_Generated 2026-04-28 (deep-scan rescan)._
+_Generated 2026-04-29 (exhaustive full rescan)._
 
 ## Summary
 
@@ -129,7 +129,7 @@ Realtime: subscribes to `point_transactions` (any event, classroom-filtered). `o
 
 Mutations:
 
-- **`useAwardPoints`** — THE canonical Phase 2 optimistic mutation. ADR-005 §4 (a)–(e) compliance comments inline at lines 86-95. Patches THREE caches in `onMutate`: `transactions.list`, `classrooms.all`, AND `students.byClassroom` (the 3rd cache patch was added in Phase 3 to absorb student-level optimism that previously lived in `AppContext`). Deterministic optimistic id `optimistic-${studentId}-${behaviorId}-${timestamp}` + `alreadyPatched` dedup guard for StrictMode safety. Null-guarded `onError` rollback. `onSettled` invalidates all three keys.
+- **`useAwardPoints`** — THE canonical Phase 2 optimistic mutation. ADR-005 §4 (a)–(e) compliance comments inline at lines 86-95. Patches THREE caches in `onMutate`: `transactions.list`, `classrooms.all`, AND `students.byClassroom` (the 3rd cache patch was added in Phase 3 to absorb student-level optimism that previously lived in `AppContext`). Deterministic optimistic id `optimistic-${studentId}-${behaviorId}-${timestamp}` + `alreadyPatched` dedup guard for duplicate mutation invocations. Null-guarded `onError` rollback. `onSettled` invalidates all three keys.
 - `useUndoTransaction` — DELETE by transaction id. `onSettled` invalidates `transactions.all`, `classrooms.all`, `students.all`.
 - `useUndoBatchTransaction` — DELETE by `batch_id` for class-wide / multi-select undo. Throws explicitly if batchId is empty (otherwise `.eq('batch_id', '')` would silently no-op or `.eq('batch_id', null)` would mass-delete every single-student transaction).
 - `useClearStudentPoints` — DELETE all transactions for a student (settings flow).
@@ -148,7 +148,7 @@ Wraps `supabase.channel(...).on('postgres_changes', ...).subscribe(...)`. Key be
 
 - **Channel naming**: `${table}-changes-${filter || 'all'}-${crypto.randomUUID()}`. Per-mount UUID was introduced in commit `e1b3c49` to fix React 18 StrictMode dev double-mount: cleanup → remount happens in the same millisecond, so `Date.now()` collided. Supabase reuses the existing channel for matching topics, and the second `.on('postgres_changes', ...)` on a joining channel throws.
 - **Callbacks via refs** — `useEffect` updates `*Ref.current` on every callback prop change so we don't re-subscribe.
-- **`onChange` is preferred** over the legacy `onInsert`/`onUpdate`/`onDelete` triple. When both are passed, `onChange` wins and a DEV-only warning fires.
+- **`onChange` is preferred** over the legacy `onInsert`/`onUpdate`/`onDelete` triple. When both are passed, `onChange` wins and a DEV-only warning fires. Current legacy consumers remain; new callers should use `onChange`.
 - **Status callbacks**: `onStatusChange` fires on every transition (SUBSCRIBED, CHANNEL_ERROR, TIMED_OUT, CLOSED). `onReconnect` fires when SUBSCRIBED returns from one of the failure states — wire to a refetch so events that arrived while offline aren't silently missed.
 
 ## Legacy hand-rolled hooks
@@ -167,23 +167,24 @@ Wraps `supabase.channel(...).on('postgres_changes', ...).subscribe(...)`. Key be
 
 Phase 4 dissolution target. Holds:
 
-- **UI / session state**: `activeClassroomId` (persisted to `localStorage:app:activeClassroomId`), `batchKindRef` (in-memory Map<batchId, 'class' | 'subset'> — local to the originating device, falls back to "Entire Class" for cross-device or post-reload undo).
+- **UI / session state**: `activeClassroomId` (initialized from `localStorage:app:activeClassroomId`; persisted when callers use `setActiveClassroom`, while direct internal setters such as `createClassroom`/`deleteClassroom` only change React state today), `batchKindRef` (in-memory Map<batchId, 'class' | 'subset'> — local to the originating device, falls back to "Entire Class" for cross-device or post-reload undo).
 - **Adapter bridges**: TanStack hooks reshape into the legacy `useApp()` surface — `mappedClassrooms` (camelCase + per-classroom student summaries), `mappedStudents` (camelCase), `activeClassroom` (resolved from `activeClassroomId`).
-- **Imperative wrappers**: `createClassroom`, `addStudent`, `updateStudent`, `removeStudent`, `addBehavior`, `updateBehavior`, `deleteBehavior`, `resetBehaviorsToDefault`, `awardPoints`, `awardClassPoints`, `awardPointsToStudents`, `undoTransaction`, `undoBatchTransaction`, `clearStudentPoints`, `adjustStudentPoints`, `resetClassroomPoints`. Each individual wrapper throws on Supabase failure (ADR-005 §2).
+- **Imperative wrappers**: `createClassroom`, `addStudent`, `updateStudent`, `removeStudent`, `addBehavior`, `updateBehavior`, `deleteBehavior`, `resetBehaviorsToDefault`, `awardPoints`, `awardClassPoints`, `awardPointsToStudents`, `undoTransaction`, `undoBatchTransaction`, `clearStudentPoints`, `adjustStudentPoints`, `resetClassroomPoints`. Most direct mutation wrappers propagate `mutateAsync` errors; some legacy student wrappers catch/log and batch award orchestrators filter per-student failures.
+- **Loading bridge nuance**: `classrooms` and `behaviors` use `isPending` for their always-enabled queries. `studentsQuery.isLoading` and `transactionsQuery.isLoading` are used for classroom-scoped queries so disabled queries (`activeClassroomId === null`) do not block the home dashboard with a full loading state.
 
-**Wrapper-throw nuance** — `awardClassPoints` and `awardPointsToStudents` orchestrate `Promise.all` over per-student awards and SILENTLY filter rejected promises to nulls (lines 419-422 and 465-468). The orchestrator returns the "successful" results; per-item failures vanish. This is anti-pattern audit cluster #2. Two source comments at `ClassAwardModal.tsx:64` and `MultiAwardModal.tsx:62` claim "wrapper throws on error with automatic rollback" — those comments are LIES, scheduled for deletion.
+**Wrapper-throw nuance** — `awardClassPoints` and `awardPointsToStudents` orchestrate `Promise.all` over per-student awards and SILENTLY filter rejected promises to nulls (lines 410-424 and 455-469). The orchestrator returns the "successful" results; per-item failures vanish. This is anti-pattern audit cluster #2. Current code cleans up `batchKindRef` when all per-student mutations fail, but partial failures are still not surfaced to callers.
 
 `getRecentUndoableAction()` returns the most recent transaction within a 10-second window, with batch-aware aggregation when `batch_id` is set. Polled by `DashboardView` on a 1Hz interval.
 
-`getStudentPoints` / `getClassPoints` read from `students.point_total` etc. (stored columns maintained by the DB trigger), NOT computed from `transactions` at call time.
+`getStudentPoints` reads from `students.point_total` etc. (stored columns maintained by the DB trigger), NOT computed from `transactions` at call time. `getClassPoints` sums those stored columns only when the caller passes `studentIds`; without that argument it returns zero totals.
 
 ### `AuthContext` (`src/contexts/AuthContext.tsx`)
 
 Owns the Supabase auth lifecycle. The "stale-JWT graceful degrade" is the load-bearing feature here:
 
 1. On boot, `getSession()` reads from localStorage.
-2. If a cached session exists, validate with `supabase.auth.getUser()` under a 5s `AbortController` timeout.
-3. If validation throws, errors, or times out: `signOut({ scope: 'local' })`, manually purge every `sb-*` key from `localStorage`, route to login.
+2. If a cached session exists, validate with `supabase.auth.getUser()`.
+3. If validation throws or errors: `signOut({ scope: 'local' })`, manually purge every `sb-*` key from `localStorage`, route to login. The code creates a 5s `AbortController`, but the signal is not currently passed to `getUser()`, so it does not enforce a hard timeout yet.
 4. `onAuthStateChange` listener tracks user-id transitions via `prevUserIdRef`. The first event (`prev === undefined`) is INITIAL_SESSION and is NOT treated as a transition. A genuine user-id transition → `queryClient.clear()` so user A's cache can't flash on user B's first render.
 5. `signOut()` also clears the QueryClient — defense-in-depth that doesn't depend on the listener winning the race.
 

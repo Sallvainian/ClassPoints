@@ -1,6 +1,6 @@
 # ClassPoints Documentation
 
-_Last generated: 2026-04-28 via BMad document-project full rescan, deep scan._
+_Last generated: 2026-04-29 via BMad document-project full rescan, exhaustive scan._
 
 ClassPoints is a React classroom-management app for teachers to track behavior points, classroom totals, today/this-week roll-ups, seating charts, and per-user sound feedback. It is a client-only SPA backed by Supabase Auth, Postgres, Realtime, RLS, and RPCs.
 
@@ -10,11 +10,11 @@ ClassPoints is a React classroom-management app for teachers to track behavior p
 | Architecture | React SPA + Supabase BaaS             |
 | Language     | TypeScript ~5.9.3, strict             |
 | Framework    | React 18.3.1                          |
-| Build        | Vite 6.0.5, base `/ClassPoints/`      |
-| Styling      | Tailwind CSS 4.1.17 (v4 syntax)       |
-| Server state | TanStack Query 5.99.2                 |
+| Build        | Vite 6.4.2, base `/ClassPoints/`      |
+| Styling      | Tailwind CSS 4.2.4 (v4 syntax)        |
+| Server state | TanStack Query 5.100.1                |
 | Backend      | Supabase JS 2.104.1                   |
-| Tests        | Vitest 4.1.5 + Playwright 1.59.1      |
+| Tests        | Vitest unit/integration + Playwright  |
 
 ## Start here
 
@@ -38,6 +38,7 @@ npm run check:bundle     # assert no React Query Devtools in prod bundle
 npm run lint
 npm run typecheck
 npm test -- --run
+npm run test:integration # local Supabase backend integration
 npm run test:e2e         # auto-starts/seeds/stops local Supabase
 ```
 
@@ -97,4 +98,4 @@ The remaining `legacy-*.md` files describe patterns being reversed during the Ta
 2. **Set up** per [Development Guide](./development-guide.md) — `npm ci`, `cp .env.test.example .env.test`, install Docker, `npm run dev`.
 3. **Before writing data-layer code**, read [State Management](./state-management.md) and the `useTransactions` / `useStudents` source to understand the canonical Phase 2/3 hook templates.
 4. **Before changing the schema**, follow the checklist in [Data Models](./data-models.md) (migration → `database.ts` → app type → transforms → `.select()` clauses).
-5. **Before opening a PR**, run `npm run lint && npm run typecheck && npm test -- --run` and (if you touched the bundle) `npm run build && npm run check:bundle`.
+5. **Before opening a PR**, run `npm run lint && npm run typecheck && npm test -- --run`; run `npm run test:integration` or `npm run test:e2e` when you touched Supabase, auth, realtime, or browser flows; and run `npm run build && npm run check:bundle` if you touched the bundle.

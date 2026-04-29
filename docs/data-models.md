@@ -1,6 +1,6 @@
 # Data Models
 
-_Generated 2026-04-28 (deep-scan rescan)._
+_Generated 2026-04-29 (exhaustive full rescan)._
 
 ## Overview
 

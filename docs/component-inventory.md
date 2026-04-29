@@ -1,8 +1,8 @@
 # Component Inventory
 
-_Generated 2026-04-28 (deep-scan rescan)._
+_Generated 2026-04-29 (exhaustive full rescan)._
 
-45 React component files under `src/components/`, organized by feature folder. Every folder has a sibling `index.ts` barrel for re-exports. Components MUST use named exports (HMR stability under `react-refresh/only-export-components`). The single exception is `App.tsx` (default export); do NOT add new default exports.
+46 React component files under `src/components/`, organized by feature folder. Twelve component folders have historical sibling `index.ts` barrels (`auth`, `behaviors`, `classes`, `dashboard`, `home`, `layout`, `points`, `profile`, `seating`, `settings`, `students`, `ui`); `common` and `migration` do not. Components MUST use named exports (HMR stability under `react-refresh/only-export-components`). The single exception is `App.tsx` (default export); do NOT add new default exports.
 
 A file exporting a component should export ONLY components — `allowConstantExport: true` permits constants alongside, but no helper functions or types. Move helpers/types to dedicated files: cross-feature → `src/utils/`, feature-scoped → sibling `*.utils.ts`, types → `src/types/` or sibling `*.types.ts`.
 
@@ -145,8 +145,8 @@ A file exporting a component should export ONLY components — `allowConstantExp
 | Component    | Purpose                                                                                                |
 | ------------ | ------------------------------------------------------------------------------------------------------ |
 | `Button`     | Primary / secondary / ghost button variants. Editorial-redesign aware (terracotta accent for primary). |
-| `Dialog`     | Headless dialog primitive.                                                                             |
-| `Modal`      | Modal wrapper around `Dialog` with backdrop / close button.                                            |
+| `Dialog`     | Chrome-only dialog primitive: overlay, ARIA, escape-to-close, scroll lock, body owner controls markup. |
+| `Modal`      | Title-and-body modal primitive with overlay, ARIA, escape-to-close, and scroll lock.                   |
 | `Input`      | Text input with consistent border / focus ring.                                                        |
 | `ErrorToast` | Top-of-screen error toast (auto-dismiss).                                                              |
 

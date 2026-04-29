@@ -1,16 +1,163 @@
 {
   "workflow_version": "1.2.0",
   "timestamps": {
-    "started": "2026-04-28T00:04:32Z",
-    "last_updated": "2026-04-28T00:19:04Z",
-    "completed": "2026-04-28T00:19:04Z"
+    "started": "2026-04-29T07:51:44Z",
+    "last_updated": "2026-04-29T08:03:45Z",
+    "completed": "2026-04-29T08:03:45Z"
   },
   "mode": "full_rescan",
-  "scan_level": "deep",
+  "scan_level": "exhaustive",
   "project_root": "/Users/sallvain/Projects/ClassPoints",
   "project_knowledge": "/Users/sallvain/Projects/ClassPoints/docs",
+  "completed_steps": [
+    {
+      "step": "step_0",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:51:40Z",
+      "outputs": ["docs/.archive/project-scan-report-20260429T075140Z.json"],
+      "summary": "Archived stale scan state last updated 2026-04-28T00:19:04Z before starting the fresh exhaustive rescan."
+    },
+    {
+      "step": "step_1",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:52:05Z",
+      "summary": "Classified repository as a single-part web monolith: React SPA plus Supabase BaaS, Vite build, TypeScript strict, GitHub Pages deployment."
+    },
+    {
+      "step": "step_2",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:52:20Z",
+      "summary": "Inventoried project documentation under docs, _bmad-output, tests, and project root; retained docs/index.md as the primary generated entry point."
+    },
+    {
+      "step": "step_3",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:53:10Z",
+      "summary": "Resolved installed stack from package-lock.json: React 18.3.1, TypeScript 5.9.3, Vite 6.4.2, Tailwind 4.2.4, Supabase JS 2.104.1, TanStack Query 5.100.1, Vitest 4.1.5, Playwright 1.59.1."
+    },
+    {
+      "step": "step_4",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:57:30Z",
+      "summary": "Exhaustively scanned src, supabase, tests, scripts, configs, and workflows; current counts are 108 src source/style files, 97 non-test TS/TSX source files, 46 component files, 12 hook files, 4 contexts, 11 migrations, 9 unit test files, 4 backend-integration files, and 2 active E2E specs."
+    },
+    {
+      "step": "step_5",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:58:00Z",
+      "outputs": ["source-tree-analysis.md"],
+      "summary": "Regenerated source-tree analysis with current source counts, backend-integration tests, and removal of stale e2e.legacy/playwright-legacy references."
+    },
+    {
+      "step": "step_6",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:58:20Z",
+      "outputs": ["development-guide.md"],
+      "summary": "Updated development and operations guidance for test:integration, local-Supabase integration guardrails, and current CI/deploy responsibilities."
+    },
+    {
+      "step": "step_7",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:58:25Z",
+      "summary": "Multi-part integration architecture not applicable; repository remains a single React SPA that integrates directly with Supabase."
+    },
+    {
+      "step": "step_8",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:58:50Z",
+      "outputs": ["architecture.md"],
+      "summary": "Regenerated architecture summary for HEAD 4126a49 plus AppContext disabled-query loading-state changes and the expanded testing surface."
+    },
+    {
+      "step": "step_9",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:59:15Z",
+      "outputs": [
+        "project-overview.md",
+        "data-models.md",
+        "state-management.md",
+        "component-inventory.md",
+        "development-guide.md"
+      ],
+      "summary": "Updated supporting docs for package versions, AppContext loading nuance, component/barrel counts, backend-integration tests, and current data-model metadata."
+    },
+    {
+      "step": "step_10",
+      "status": "completed",
+      "timestamp": "2026-04-29T07:59:25Z",
+      "outputs": ["index.md"],
+      "summary": "Regenerated master index with current scan date, installed versions, backend-integration command, and PR verification guidance."
+    },
+    {
+      "step": "step_11",
+      "status": "completed",
+      "timestamp": "2026-04-29T08:00:30Z",
+      "summary": "Validated generated docs with Prettier check, JSON parse, link resolution, incomplete-marker scan, and git diff whitespace check."
+    },
+    {
+      "step": "step_12",
+      "status": "completed",
+      "timestamp": "2026-04-29T08:03:45Z",
+      "summary": "Workflow complete; state file finalized for the exhaustive full rescan."
+    }
+  ],
   "current_step": "completed",
-  "repository_type": "monolith",
+  "findings": {
+    "project_classification": {
+      "repository_type": "monolith",
+      "parts_count": 1,
+      "primary_language": "TypeScript",
+      "architecture_type": "React SPA plus Supabase BaaS"
+    },
+    "technology_stack": [
+      {
+        "part_id": "classpoints",
+        "tech_summary": "React 18.3.1, TypeScript 5.9.3 strict, Vite 6.4.2, Tailwind CSS 4.2.4, Supabase JS 2.104.1, TanStack Query 5.100.1, Vitest 4.1.5, Playwright 1.59.1."
+      }
+    ],
+    "batches_completed": [
+      {
+        "path": "src/components",
+        "files_scanned": 58,
+        "summary": "Read component inventory and UI surfaces; 46 component TSX files plus 12 historical folder barrels."
+      },
+      {
+        "path": "src/contexts",
+        "files_scanned": 5,
+        "summary": "Read Auth, App, Sound, Theme contexts plus AppContext regression test; AppContext remains the legacy facade and now uses isLoading for disabled classroom-scoped query loading."
+      },
+      {
+        "path": "src/hooks",
+        "files_scanned": 15,
+        "summary": "Read 12 hook files and 3 hook test files; four core domains are TanStack-backed while layout presets and seating chart remain legacy."
+      },
+      {
+        "path": "src/lib, src/types, src/utils, src/services, src/assets",
+        "files_scanned": 33,
+        "summary": "Read query client/key registry, Supabase client, DB/app type boundaries, utility modules, network status, and synthesized sound definitions."
+      },
+      {
+        "path": "supabase/migrations",
+        "files_scanned": 11,
+        "summary": "Read all migrations: 10 public tables, RLS policies, realtime publication changes, replica identity, triggers, and get_student_time_totals RPC."
+      },
+      {
+        "path": "tests",
+        "files_scanned": 18,
+        "summary": "Read active E2E, backend-integration, support fixtures, helpers, and testing README; integration tests now cover RLS, triggers, realtime DELETE payload, and schema smoke."
+      },
+      {
+        "path": "scripts",
+        "files_scanned": 9,
+        "summary": "Read dev lifecycle, Supabase host detection, bundle DCE check, seeding, migration, and verification scripts."
+      },
+      {
+        "path": ".github/workflows",
+        "files_scanned": 4,
+        "summary": "Read test, deploy, Claude Code, and Claude review workflows; test pipeline runs lint/typecheck, bundle check, sharded E2E, burn-in, and summary, while deploy runs unit tests before Pages build."
+      }
+    ]
+  },
   "project_types": [
     {
       "part_id": "classpoints",
@@ -18,76 +165,9 @@
       "display_name": "ClassPoints (React SPA)"
     }
   ],
-  "completed_steps": [
-    {
-      "step": "step_1",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:05:30Z",
-      "summary": "Classified as monolith / single part: web SPA (React 18 + TS strict + Vite + Supabase + TanStack Query). package.json, tsconfig.app.json, vite/vitest/playwright configs all confirm web project type."
-    },
-    {
-      "step": "step_2",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:06:00Z",
-      "summary": "Found 38 markdown docs across docs/, _bmad-output/, tests/, and project root: AGENTS.md, CLAUDE.md, 8 BMad-generated docs/*.md (regenerating), 1 ADR, 8 legacy/*.md, ~15 _bmad-output/*.md (PRD, architecture, project-context, audits, test-artifacts), tests/README.md."
-    },
-    {
-      "step": "step_3",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:06:30Z",
-      "summary": "Tech stack: React 18.3.1, TypeScript 5.9.3 strict, Vite 6.0.5 (base /ClassPoints/), Tailwind 4.1.17, Supabase JS 2.104.1, TanStack Query 5.99.2, @dnd-kit/core 6.3.1, lucide-react 1.9.0, uuid 14 (security override), Vitest 4.1.5, Playwright 1.59.1, ESLint 9 flat config, Prettier 3.8.3."
-    },
-    {
-      "step": "step_4",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:11:00Z",
-      "summary": "Deep-scan conditional analysis: read all 11 supabase migrations (10 tables + 1 RPC + 8 named triggers), all 13 hooks (4 TanStack-migrated + 2 legacy hand-rolled + 7 utility), all 4 contexts (Auth/Theme/Sound/App), all 4 lib files (supabase, queryClient, queryKeys, manualAdjustmentConstants), all 4 type files (database, index, seatingChart, transforms), key dev scripts (dev.mjs, supabase-host.mjs), and editorial-redesign UI surfaces (DashboardView, ClassPointsBox, Sidebar, Layout, index.css @theme block). 97 .ts/.tsx source files, 46 component .tsx files, 11 migrations, 4 CI workflows."
-    },
-    {
-      "step": "step_5",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:13:00Z",
-      "summary": "source-tree-analysis.md regenerated. 274 lines covering top-level layout, src/, supabase/, tests/, scripts/, .github/workflows/, docs/. Annotated with critical entry points + 'where to add new code' decision table."
-    },
-    {
-      "step": "step_6",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:14:00Z",
-      "summary": "development-guide.md regenerated. 166 lines covering prerequisites (mise/fnox/Docker/Supabase CLI), one-time setup, all npm scripts, pre-commit hook, environment files, two-context Supabase lifecycle (dev.mjs vs Playwright globalSetup), Vitest + Playwright + CI test pipeline, deployment, common workflows, gotchas (Vite base path, fnox-encrypted secrets, dev.mjs env strip)."
-    },
-    {
-      "step": "step_8",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:15:30Z",
-      "summary": "architecture.md regenerated. 200 lines covering executive summary, tech stack constraints, architecture pattern table, provider stack, data architecture (10 tables + RPC + realtime scope), state management overview, optimistic-mutation pattern, realtime hook pattern, auth flow (stale-JWT graceful degrade), UI/design system (editorial redesign tokens), authoritative-sources index."
-    },
-    {
-      "step": "step_9",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:18:00Z",
-      "summary": "Supporting docs regenerated: project-overview.md (75 lines), data-models.md (269 lines covering all 10 tables, RLS, triggers, RPC, realtime publication, type-system boundaries, add-column checklist, current realtime subscriptions), state-management.md (220 lines covering 4 migrated hooks, generic realtime hook, 2 legacy hand-rolled hooks, 4 contexts, query keys, optimistic-mutation pattern, what-not-to-do list), component-inventory.md (181 lines covering 45 components across 14 folders, lazy loading, design system patterns)."
-    },
-    {
-      "step": "step_10",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:19:00Z",
-      "summary": "index.md regenerated. 100 lines: snapshot table, start-here navigation table, quick-reference command list, entry points, links to all 7 generated docs + 11 high-signal existing docs + 8 BMAD artifacts + 2 root-rule files (CLAUDE.md / AGENTS.md), getting-started checklist."
-    },
-    {
-      "step": "step_11",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:19:04Z",
-      "summary": "Validation: scanned all generated docs for incomplete markers (_(To be generated)_, _(TBD)_, _(TODO)_, _(Coming soon)_, _(Not yet generated)_, _(Pending)_) — zero matches. Total generated: 8 files, 1485 lines."
-    },
-    {
-      "step": "step_12",
-      "status": "completed",
-      "timestamp": "2026-04-28T00:19:04Z",
-      "summary": "Workflow complete."
-    }
-  ],
   "outputs_generated": [
     "project-scan-report.json",
+    "docs/.archive/project-scan-report-20260429T075140Z.json",
     "index.md",
     "project-overview.md",
     "architecture.md",
@@ -97,38 +177,16 @@
     "source-tree-analysis.md",
     "development-guide.md"
   ],
-  "findings": {
-    "project_classification": {
-      "repository_type": "monolith",
-      "parts_count": 1,
-      "primary_tech": "React 18 + TypeScript + Vite + Supabase + TanStack Query"
-    },
-    "technology_stack": {
-      "language": "TypeScript ~5.9.3 strict",
-      "framework": "React 18.3.1",
-      "build": "Vite 6.0.5",
-      "styling": "Tailwind CSS 4.1.17",
-      "server_state": "TanStack Query 5.99.2",
-      "backend": "Supabase JS 2.104.1",
-      "testing": "Vitest 4.1.5 + Playwright 1.59.1"
-    },
-    "scan_metrics": {
-      "source_files_count": 97,
-      "component_files_count": 46,
-      "hook_files_count": 13,
-      "context_files_count": 4,
-      "migration_files_count": 11,
-      "ci_workflow_files_count": 4,
-      "table_count": 10,
-      "rpc_count": 1,
-      "named_trigger_count": 8,
-      "realtime_domains": 3
-    },
-    "doc_metrics": {
-      "files_generated": 9,
-      "total_lines": 1485,
-      "incomplete_markers": 0
-    }
-  },
-  "resume_instructions": "Workflow complete. To regenerate, run /bmad-document-project and select option 1 (Re-scan)."
+  "resume_instructions": "Workflow completed; start a new full rescan if this state becomes stale.",
+  "validation_status": {
+    "last_validated": "2026-04-29T08:03:45Z",
+    "validation_errors": [],
+    "validation_commands": [
+      "npx prettier --check docs/index.md docs/project-overview.md docs/architecture.md docs/data-models.md docs/state-management.md docs/component-inventory.md docs/source-tree-analysis.md docs/development-guide.md docs/project-scan-report.json",
+      "python3 -m json.tool docs/project-scan-report.json",
+      "custom docs markdown link resolver",
+      "rg incomplete documentation markers under docs excluding docs/.archive",
+      "git diff --check -- docs"
+    ]
+  }
 }

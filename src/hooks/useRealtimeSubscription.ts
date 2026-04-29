@@ -13,9 +13,8 @@ interface UseRealtimeSubscriptionOptions<T extends Record<string, unknown>, D = 
   filter?: string;
   /**
    * Preferred for migrated callers: single callback receiving the full payload. When provided,
-   * legacy `onInsert`/`onUpdate`/`onDelete` are ignored. Added Phase 1 as a transitional bridge;
-   * the three legacy callbacks below are scheduled for removal at end of Phase 3
-   * (per architecture Decision 3).
+   * legacy `onInsert`/`onUpdate`/`onDelete` are ignored. Added Phase 1 as a
+   * transitional bridge; keep legacy callbacks only for existing migration consumers.
    */
   onChange?: (payload: RealtimePostgresChangesPayload<T>) => void;
   // Legacy callbacks: do not use in new code. Prefer `onChange`.

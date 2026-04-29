@@ -1,6 +1,6 @@
 # Project Overview
 
-_Generated 2026-04-28 (deep-scan rescan)._
+_Generated 2026-04-29 (exhaustive full rescan)._
 
 ClassPoints is a classroom-management web app for teachers. It tracks per-student behavior points, classroom totals, today/this-week roll-ups, seating charts, and per-user sound feedback. It is a client-only React SPA — there is no app server. The browser talks directly to Supabase Auth + Postgres + Realtime + RLS + RPCs.
 
@@ -12,13 +12,13 @@ ClassPoints is a classroom-management web app for teachers. It tracks per-studen
 | Architecture       | React SPA + Supabase BaaS                                                          |
 | Language           | TypeScript ~5.9.3, strict mode                                                     |
 | Framework          | React 18.3.1                                                                       |
-| Build              | Vite 6.0.5 (`base: '/ClassPoints/'`)                                               |
-| Styling            | Tailwind CSS 4.1.17 + `@tailwindcss/postcss` 4.2.4 (v4 syntax only)                |
-| Server-state cache | TanStack Query 5.99.2 (devtools 5.100.1)                                           |
+| Build              | Vite 6.4.2 (`base: '/ClassPoints/'`)                                               |
+| Styling            | Tailwind CSS 4.2.4 + `@tailwindcss/postcss` 4.2.4 (v4 syntax only)                 |
+| Server-state cache | TanStack Query 5.100.1 (devtools 5.100.1)                                          |
 | Backend            | `@supabase/supabase-js` 2.104.1                                                    |
 | Drag-and-drop      | `@dnd-kit/core` 6.3.1 + `@dnd-kit/utilities` 3.2.2                                 |
 | Icons              | `lucide-react` 1.9.0 (sole library — no Heroicons / FontAwesome)                   |
-| Tests              | Vitest 4.1.5 + jsdom 27.4.0 + Playwright 1.59.1 (Chromium only)                    |
+| Tests              | Vitest 4.1.5 + jsdom 27.4.0 + Vitest backend integration + Playwright 1.59.1       |
 | Lint / Format      | ESLint 9.39.2 (flat config), Prettier 3.8.3                                        |
 | Hooks              | `simple-git-hooks` + `lint-staged` (pre-commit: eslint-fix + prettier + typecheck) |
 | Secrets            | `fnox` + age-encrypted `fnox.toml`                                                 |
@@ -28,7 +28,7 @@ ClassPoints is a classroom-management web app for teachers. It tracks per-studen
 
 ## Active branch
 
-`redesign/editorial-engineering` — UI redesign track. Includes the editorial / engineering token cascade (commit `ae7a9a8`), Phase-2 inner-screen restructure (`fb3f239`), local-by-default dev script (`b35fa99`, `21c821f`, `136f493`), realtime channel-name UUID fix (`e1b3c49`), stale-JWT graceful degrade (`d652260`), class-total promotion to ClassPointsBox + tightened seating-chart visibility (`350c7c9`), context refresh + UI Design System Rules (`078d9fe`), and reverse-engineered UX design specification (`9004e6d`).
+`redesign/editorial-engineering` included HEAD `4126a49` (`fix: align realtime delete payload contract`) when this scan started. This refresh also incorporates the AppContext disabled-query loading fix: classroom-scoped `useStudents` / `useTransactions` loading now uses `isLoading` so a brand-new browser with no active classroom does not stay on the dashboard loading screen.
 
 ## What's in motion
 
@@ -47,6 +47,7 @@ npm run lint             # ESLint
 npm run typecheck        # tsc -b --noEmit
 npm test                 # Vitest watch
 npm test -- --run        # Vitest single run
+npm run test:integration # Vitest backend integration against LOCAL Supabase
 npm run test:e2e         # Playwright (auto-starts/seeds/stops local Supabase)
 npm run test:e2e:ui      # Playwright UI mode
 npm run supabase:up      # Explicit local-stack lifecycle

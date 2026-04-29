@@ -1,6 +1,6 @@
 # ClassPoints Test Suite
 
-Two layers, two runners. Choose by what you're testing.
+Three layers, three runners. Choose by what you're testing.
 
 | Layer               | Where                            | Runner                | What it touches                                           | Speed                        |
 | ------------------- | -------------------------------- | --------------------- | --------------------------------------------------------- | ---------------------------- |

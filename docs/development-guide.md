@@ -1,6 +1,6 @@
 # Development Guide
 
-_Generated 2026-04-28 (deep-scan rescan)._
+_Generated 2026-04-29 (exhaustive full rescan)._
 
 ## Prerequisites
 
@@ -43,6 +43,7 @@ cp .env.test.example .env.test
 | `npm test`                                      | Vitest watch mode.                                                                                                                                                                                                                                                                                                                                                      |
 | `npm test -- --run`                             | Vitest single run (no watch). Used in CI deploy step.                                                                                                                                                                                                                                                                                                                   |
 | `npm test -- src/test/specificFile.test.ts`     | Run a single test file.                                                                                                                                                                                                                                                                                                                                                 |
+| `npm run test:integration`                      | Vitest backend-integration suite (`vitest run --config vitest.integration.config.ts`). Hits a real LOCAL Supabase stack only; config force-overrides shell env from `.env.test` and rejects hosted/public Supabase URLs.                                                                                                                                                |
 | `npm run test:e2e`                              | Playwright E2E. globalSetup auto-starts local Supabase + seeds the test user; globalTeardown stops it. Chromium only. Storage state from `.auth/user.json`.                                                                                                                                                                                                             |
 | `npm run test:e2e:ui`                           | Playwright UI mode.                                                                                                                                                                                                                                                                                                                                                     |
 | `npm run test:seed`                             | Seed the test user manually (rarely needed — globalSetup does this).                                                                                                                                                                                                                                                                                                    |
@@ -93,9 +94,15 @@ cp .env.test.example .env.test
 ### Unit (Vitest)
 
 - Config: `vitest.config.ts`. jsdom environment, globals on, setup file at `src/test/setup.ts`.
-- Tests live next to source under `src/test/`, `src/hooks/__tests__/`, `src/utils/__tests__/`.
+- Tests live next to source under `src/test/`, `src/hooks/__tests__/`, `src/utils/__tests__/`, and `src/contexts/`.
 - Vitest **4** API — older v1 patterns may not apply; check existing tests under `src/test/**`.
 - `tdd-guard-vitest` is installed as a devDependency but NOT wired into `vitest.config.ts` — latent tooling only.
+
+### Backend integration (Vitest + Node)
+
+- Config: `vitest.integration.config.ts`. Node environment, includes `tests/integration/**/*.{test,spec}.ts`.
+- The config uses `readEnvTest()` from `scripts/lib/supabase-host.mjs` to force `.env.test` over shell vars, then applies the same loopback / RFC1918 / Tailscale CGNAT allow-list as Playwright.
+- Tests use service-role helpers under `tests/support/helpers/` and factories under `tests/support/fixtures/`. They cover schema smoke, classroom RLS, student point-total triggers, and `point_transactions` DELETE realtime payloads.
 
 ### E2E (Playwright)
 
@@ -125,6 +132,8 @@ Jobs:
 ### `deploy.yml` — GitHub Pages deploy
 
 Triggered on push to `main` and `workflow_dispatch`. Runs lint + typecheck + unit tests + build (with `FNOX_AGE_KEY` from secrets), uploads `dist/` as the Pages artifact, deploys.
+
+Unit tests run in `deploy.yml`. Backend integration tests are local-only today and not yet part of the GitHub Actions test matrix.
 
 ### `claude.yml`, `claude-code-review.yml`
 
