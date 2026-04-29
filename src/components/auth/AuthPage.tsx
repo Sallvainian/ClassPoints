@@ -21,7 +21,7 @@ export function AuthPage() {
         <div className="relative p-10 flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-accent-500" aria-hidden="true" />
           <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mid">
-            ClassPoints / v0.1
+            ClassPoints
           </span>
         </div>
 

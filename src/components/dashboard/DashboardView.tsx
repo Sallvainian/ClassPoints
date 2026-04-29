@@ -62,10 +62,16 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     return activeClassroom.students.filter((s) => selectedStudentIds.has(s.id));
   }, [activeClassroom, selectedStudentIds]);
 
-  const handleStudentClick = (student: Student) => {
+  const handleStudentClick = useCallback((student: Student) => {
     setSelectedStudent(student);
     setIsAwardModalOpen(true);
-  };
+  }, []);
+
+  const refreshUndoableSoon = useCallback(() => {
+    setTimeout(() => {
+      setUndoableAction(getRecentUndoableAction());
+    }, 100);
+  }, [getRecentUndoableAction]);
 
   const handleStudentSelect = useCallback((studentId: string) => {
     setSelectedStudentIds((prev) => {
@@ -105,24 +111,18 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const handleCloseModal = () => {
     setIsAwardModalOpen(false);
     setSelectedStudent(null);
-    setTimeout(() => {
-      setUndoableAction(getRecentUndoableAction());
-    }, 100);
+    refreshUndoableSoon();
   };
 
   const handleCloseClassModal = () => {
     setIsClassAwardModalOpen(false);
-    setTimeout(() => {
-      setUndoableAction(getRecentUndoableAction());
-    }, 100);
+    refreshUndoableSoon();
   };
 
   const handleCloseMultiModal = () => {
     setIsMultiAwardModalOpen(false);
     handleExitSelectionMode();
-    setTimeout(() => {
-      setUndoableAction(getRecentUndoableAction());
-    }, 100);
+    refreshUndoableSoon();
   };
 
   const handleUndo = useCallback(
