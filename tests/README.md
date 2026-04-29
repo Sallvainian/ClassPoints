@@ -20,7 +20,7 @@ Three layers, three runners. Choose by what you're testing.
    brew install supabase/tap/supabase    # macOS
    ```
 
-   The `supabase` npm devDep is already in `package.json`; the CLI binary is what `npx supabase start` shells out to.
+   The `supabase` npm devDep is already in `package.json`; the CLI binary is what `supabase start` shells out to.
 
 2. **Copy the local-creds template:**
 
@@ -28,13 +28,13 @@ Three layers, three runners. Choose by what you're testing.
    cp .env.test.example .env.test
    ```
 
-   Then edit `.env.test` and fill in the values from `npx supabase status` (anon key + service-role key + URL). `.env.test` is gitignored.
+   Then edit `.env.test` and fill in the values from `supabase status` (anon key + service-role key + URL). `.env.test` is gitignored.
 
 3. **Verify local stack boots:**
    ```
-   npx supabase start
-   npx supabase status
-   npx supabase stop
+   supabase start
+   supabase status
+   supabase stop
    ```
 
 After that, `npm run test:e2e` and `npm run test:integration` manage the local Supabase lifecycle automatically.
@@ -210,7 +210,7 @@ The integration suite has the same security boundary as E2E (rejects non-private
     SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.LOCAL_SERVICE_ROLE_KEY }}
 ```
 
-(Both keys are non-secret for the pinned local stack — they're deterministic outputs of `npx supabase start`.)
+(Both keys are non-secret for the pinned local stack — they're deterministic outputs of `supabase start`.)
 
 ---
 
@@ -234,7 +234,7 @@ This scaffold was built from `@seontechnologies/playwright-utils` patterns, codi
 | `E2E refuses to run against ...` at startup                                | Shell has leaked `VITE_SUPABASE_URL` from a prior `fnox exec --` session, AND `.env.test` is missing | Open a new shell, OR `unset VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY`, OR ensure `.env.test` exists with local values                              |
 | `Failed to seed test user ...: ... already exists`                         | Stack was started, test user already seeded                                                          | This is idempotent — should pass silently. If it doesn't, ensure `seedTestUser` regex matches your Supabase version's "already registered" message |
 | Browser tests time out at `Welcome Back` heading                           | Vite dev server didn't start (port collision, build error)                                           | Check `playwright-report/index.html` for the page screenshot; check the test stderr for vite errors                                                |
-| `supabaseAdmin() requires VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY` | `.env.test` is missing or doesn't have the service-role key                                          | Re-run `npx supabase status` and copy the keys                                                                                                     |
+| `supabaseAdmin() requires VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY` | `.env.test` is missing or doesn't have the service-role key                                          | Re-run `supabase status` and copy the keys                                                                                                         |
 | `npm test` errors loading `e2e.legacy/*.spec.ts`                           | A leftover legacy directory is being picked up by Vitest                                             | Already excluded in `vitest.config.ts` — if you see this, the exclude isn't matching; check the path matches the glob `**/e2e.legacy/**`           |
 
 ---

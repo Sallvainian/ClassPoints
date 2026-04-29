@@ -130,9 +130,33 @@ export function ensureDockerRunning() {
 }
 
 /**
+ * Run `supabase start`, recovering once from the stale-state condition where
+ * the CLI's internal "is started" state disagrees with the actual container
+ * state — usually because the DB container was killed by Docker/OrbStack
+ * restart or OS sleep. Symptom: `supabase start` exits non-zero with
+ * "supabase start is already running." plus "supabase_db_<project> container
+ * is not running: exited". `supabase stop` clears the state and a retry
+ * succeeds. Without recovery the dev script fails on every wake-from-sleep.
+ */
+export function startSupabaseWithRecovery(label = '[supabase]') {
+  try {
+    execFileSync('supabase', ['start'], { stdio: 'inherit' });
+    return;
+  } catch {
+    console.warn(`${label} supabase start failed — clearing stale state and retrying once`);
+  }
+  try {
+    execFileSync('supabase', ['stop'], { stdio: 'inherit' });
+  } catch {
+    // Best-effort: even if stop reports an error, the retry below is the real signal.
+  }
+  execFileSync('supabase', ['start'], { stdio: 'inherit' });
+}
+
+/**
  * Probe whether the local Supabase stack is actually serving traffic at `url`.
  *
- * Why not `npx supabase status`? It exits 0 even when containers are missing
+ * Why not `supabase status`? It exits 0 even when containers are missing
  * (it logs `failed to inspect container health: No such container ...` to
  * stderr and returns success anyway). That false positive made dev.mjs decide
  * the stack was already up after a previous run had torn it down — leaving

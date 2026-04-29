@@ -19,7 +19,7 @@ function anonClient(): SupabaseClient {
   if (!url || !anonKey) {
     throw new Error(
       'createImpersonationPair() requires VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY. ' +
-        'Set them in .env.test (values come from `npx supabase status`).'
+        'Set them in .env.test (values come from `supabase status`).'
     );
   }
 

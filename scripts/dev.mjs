@@ -5,6 +5,7 @@ import {
   isStackRunning,
   readEnvTest,
   shouldManageLocalStack,
+  startSupabaseWithRecovery,
 } from './lib/supabase-host.mjs';
 
 const env = readEnvTest();
@@ -14,6 +15,7 @@ const manageRequested = shouldManageLocalStack(url);
 let weStartedIt = false;
 let child;
 let cleaned = false;
+let cleanupRunning = false;
 
 const errMessage = (err) => (err instanceof Error ? err.message : String(err));
 
@@ -22,10 +24,13 @@ const cleanup = () => {
   cleaned = true;
   if (weStartedIt) {
     console.log('\n[dev] Stopping local Supabase');
+    cleanupRunning = true;
     try {
-      execFileSync('npx', ['supabase', 'stop'], { stdio: 'inherit' });
+      execFileSync('supabase', ['stop'], { stdio: 'inherit' });
     } catch (err) {
       console.error('[dev] supabase stop failed:', errMessage(err));
+    } finally {
+      cleanupRunning = false;
     }
   }
 };
@@ -35,6 +40,10 @@ const cleanup = () => {
 process.on('exit', cleanup);
 
 const handleSignal = (sig) => () => {
+  // Absorb extra signals while `supabase stop` is already running — interrupting
+  // it mid-execution causes a spurious "Command failed" error and may leave
+  // containers in a bad state. Let the stop finish; the process exits right after.
+  if (cleanupRunning) return;
   if (child && !child.killed) {
     child.kill(sig);
     return;
@@ -68,7 +77,7 @@ if (manageRequested) {
     // Set BEFORE start so partial-failure cleanup will still attempt `supabase stop`.
     weStartedIt = true;
     try {
-      execFileSync('npx', ['supabase', 'start'], { stdio: 'inherit' });
+      startSupabaseWithRecovery('[dev]');
     } catch (err) {
       console.error('[dev] supabase start failed:', errMessage(err));
       cleanup();
