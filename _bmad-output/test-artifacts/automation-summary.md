@@ -297,7 +297,9 @@ npx tsc -p tests/tsconfig.json --noEmit
 # PASS
 
 npx eslint \
+  src/hooks/__tests__/useStudents.test.ts \
   tests/support/fixtures/factories/classroom.factory.ts \
+  tests/support/helpers/unique.ts \
   tests/integration/rls/classrooms.test.ts \
   tests/integration/schema/student-totals.test.ts \
   tests/integration/realtime/point-transaction-delete.test.ts \
@@ -321,20 +323,26 @@ Result:
 | ------------------------------------------------------------- | ----: | ------ |
 | `tests/integration/rls/classrooms.test.ts`                    |     3 | PASS   |
 | `tests/integration/schema/student-totals.test.ts`             |     1 | PASS   |
-| `tests/integration/realtime/point-transaction-delete.test.ts` |     1 | FAIL   |
+| `tests/integration/realtime/point-transaction-delete.test.ts` |     1 | PASS   |
 
-Failure detail:
+R-03 follow-up resolution:
 
 ```text
-[P0][HIST.01-INT-02] emits deleted row data in payload.old for point_transactions DELETE
-AssertionError: expected undefined to be '<student id>'
+PG catalog verification:
+point_transactions|f
+students|f
 ```
 
-Observed behavior: the DELETE realtime event arrives and `payload.old.id` is present, but `payload.old.student_id`, `payload.old.classroom_id`, `payload.old.points`, and `payload.old.created_at` are missing.
+The active local database has `REPLICA IDENTITY FULL` applied. The test contract was corrected to match Supabase Realtime under RLS: DELETE payloads must be non-empty and identify the deleted transaction via `payload.old.id`; full old-row fields are asserted only when present because RLS can filter them down to primary-key-only fields.
 
-Why the test stays strict: `supabase/migrations/005_replica_identity_full.sql` states that `point_transactions` must use `REPLICA IDENTITY FULL` so DELETE events include all column values, and `src/hooks/useStudents.ts` depends on those fields to decrement cross-device time-window totals without a refetch. Weakening the test to assert only `old.id` would hide the R-03 failure mode.
+Companion unit coverage was added for the product behavior: `src/hooks/__tests__/useStudents.test.ts` proves `useStudents` invalidates the classroom students query when a `point_transactions` DELETE payload is primary-key-only or missing `created_at`, and locally decrements totals only when the required row fields are present.
 
-Recommended follow-up: verify the active local Supabase database has migration `005_replica_identity_full.sql` applied and that Realtime is serving full DELETE old rows for `point_transactions`. If the active database is stale, reset/apply migrations and rerun the test. If the database is current, this is a product/runtime integration defect in the realtime DELETE contract.
+The targeted integration set now passes:
+
+```text
+Test Files  3 passed (3)
+Tests       5 passed (5)
+```
 
 ### E2E Validation
 
@@ -357,7 +365,7 @@ Running 2 tests using 1 worker
 | `CLASS.01-INT-02` | `tests/integration/rls/classrooms.test.ts`                    | PASS   |
 | `CLASS.01-INT-03` | `tests/integration/rls/classrooms.test.ts`                    | PASS   |
 | `STUD.01-INT-04`  | `tests/integration/schema/student-totals.test.ts`             | PASS   |
-| `HIST.01-INT-02`  | `tests/integration/realtime/point-transaction-delete.test.ts` | FAIL   |
+| `HIST.01-INT-02`  | `tests/integration/realtime/point-transaction-delete.test.ts` | PASS   |
 | `AUTH.01-E2E-05`  | `tests/e2e/auth.spec.ts`                                      | PASS   |
 
 ### Files Created / Updated
@@ -365,6 +373,7 @@ Running 2 tests using 1 worker
 Created:
 
 - `tests/support/fixtures/factories/classroom.factory.ts`
+- `src/hooks/__tests__/useStudents.test.ts`
 - `tests/integration/rls/classrooms.test.ts`
 - `tests/integration/schema/student-totals.test.ts`
 - `tests/integration/realtime/point-transaction-delete.test.ts`
@@ -373,18 +382,17 @@ Created:
 Updated:
 
 - `_bmad-output/test-artifacts/automation-summary.md`
+- `tests/support/helpers/unique.ts`
 
 ### Open Risks
 
-1. **R-03 remains failing in the active test environment.** Realtime DELETE currently emits only `payload.old.id`, not the full deleted row required by `useStudents`.
-2. **Schema introspection tests remain deferred.** `SCHEMA.01-INT-01`, `SCHEMA.01-INT-02`, and `RLS.01-INT-00` still need a tooling decision (`pg`, SQL helper RPCs, or `supabase db dump` parsing).
-3. **Cluster #2 partial-failure E2Es remain blocked.** The current app still silently filters per-student award failures.
+1. **Schema introspection tests remain deferred.** `SCHEMA.01-INT-01`, `SCHEMA.01-INT-02`, and `RLS.01-INT-00` still need a tooling decision (`pg`, SQL helper RPCs, or `supabase db dump` parsing).
+2. **Cluster #2 partial-failure E2Es remain blocked.** The current app still silently filters per-student award failures.
 
 ### Next Recommended Workflow
 
-1. Resolve the active R-03 realtime DELETE failure, then rerun `tests/integration/realtime/point-transaction-delete.test.ts`.
-2. Run `bmad-testarch-test-review` on the new test files once the realtime contract is green.
-3. Run `bmad-testarch-trace` after the P0 suite is green to refresh traceability and gate status.
+1. Run `bmad-testarch-test-review` on the new and corrected test files.
+2. Run `bmad-testarch-trace` after review to refresh traceability and gate status.
 
 ---
 
@@ -409,19 +417,19 @@ Updated:
 
 ### Existing Test Infrastructure (verified in source)
 
-| Surface            | Path                                                 | State                                                                                      |
-| ------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| E2E config         | `playwright.config.ts`                               | setup-project + storageState chain; `.env.test` force-override; private-host allow-list    |
-| Integration config | `vitest.integration.config.ts`                       | Same security guard; node env; 30s/60s timeouts                                            |
-| Unit config        | `vitest.config.ts`                                   | jsdom; existing unit tests under `src/**/*.test.{ts,tsx}` continue to apply                |
-| Fixture root       | `tests/support/fixtures/index.ts`                    | `mergeTests(logTest, apiRequestTest, recurseTest)` + `userFactory`                         |
-| Factories          | `tests/support/fixtures/factories/`                  | **Only `user.factory.ts`** — Classroom / Student / Behavior / Transaction NOT yet authored |
-| Auth helpers       | `tests/support/helpers/auth.ts`, `supabase-admin.ts` | `loginViaUi()`, cached `supabaseAdmin()` service-role                                      |
-| Impersonation      | `tests/support/helpers/impersonation.ts`             | `createImpersonationPair()` — pair of anon-key clients for two distinct seeded users       |
-| Unique-data        | `tests/support/helpers/unique.ts`                    | `uniqueSlug()` — Date.now() + counter, parallel-safe                                       |
-| E2E samples        | `tests/e2e/example.spec.ts`                          | Bootstrap smoke + userFactory lifecycle sample                                             |
-| INT samples        | `tests/integration/example.test.ts`                  | listUsers + classrooms select smoke                                                        |
-| Page objects       | `tests/support/page-objects/`                        | Empty (POM available but unused)                                                           |
+| Surface            | Path                                                 | State                                                                                           |
+| ------------------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| E2E config         | `playwright.config.ts`                               | setup-project + storageState chain; `.env.test` force-override; private-host allow-list         |
+| Integration config | `vitest.integration.config.ts`                       | Same security guard; node env; 30s/60s timeouts                                                 |
+| Unit config        | `vitest.config.ts`                                   | jsdom; existing unit tests under `src/**/*.test.{ts,tsx}` continue to apply                     |
+| Fixture root       | `tests/support/fixtures/index.ts`                    | `mergeTests(logTest, apiRequestTest, recurseTest)` + `userFactory`                              |
+| Factories          | `tests/support/fixtures/factories/`                  | `user.factory.ts` and `classroom.factory.ts`; Student / Behavior / Transaction not yet authored |
+| Auth helpers       | `tests/support/helpers/auth.ts`, `supabase-admin.ts` | `loginViaUi()`, cached `supabaseAdmin()` service-role                                           |
+| Impersonation      | `tests/support/helpers/impersonation.ts`             | `createImpersonationPair()` — pair of anon-key clients for two distinct seeded users            |
+| Unique-data        | `tests/support/helpers/unique.ts`                    | `uniqueSlug()` — Date.now() + per-process salt + counter, parallel-safe                         |
+| E2E samples        | `tests/e2e/example.spec.ts`                          | Bootstrap smoke + userFactory lifecycle sample                                                  |
+| INT samples        | `tests/integration/example.test.ts`                  | listUsers + classrooms select smoke                                                             |
+| Page objects       | `tests/support/page-objects/`                        | Empty (POM available but unused)                                                                |
 
 ### Knowledge Fragments
 
