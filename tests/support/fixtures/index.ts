@@ -2,10 +2,13 @@ import { mergeTests, expect } from '@playwright/test';
 import { test as logTest } from '@seontechnologies/playwright-utils/log/fixtures';
 import { test as apiRequestTest } from '@seontechnologies/playwright-utils/api-request/fixtures';
 import { test as recurseTest } from '@seontechnologies/playwright-utils/recurse/fixtures';
-// networkErrorMonitor is available but not enabled by default — Supabase
-// realtime + storage responses produce expected 4xx responses that would fail
-// tests. To enable, mergeTests in `createNetworkErrorMonitorFixture({ excludePatterns: [...] })`
-// from '@seontechnologies/playwright-utils/network-error-monitor/fixtures'.
+// networkErrorMonitor is intentionally NOT merged by default — Supabase
+// realtime + storage emit expected 4xx responses (e.g., 406 on
+// `select(...).single()` returning no rows) that would fail every UI test.
+// To enable in a curated way:
+//   import { test as networkErrorMonitorTest } from '@seontechnologies/playwright-utils/network-error-monitor/fixtures';
+//   ...add `networkErrorMonitorTest` to mergeTests below, then per-test:
+//   test.use({ networkErrorMonitorOptions: { excludePatterns: [/\/rest\/v1\/.*single/, ...] } });
 
 import { UserFactory } from './factories/user.factory';
 

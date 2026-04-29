@@ -1,22 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
 import { readEnvTest } from './scripts/lib/supabase-host.mjs';
 
-// E2E force-overrides shell env. Unlike app runtime, tests must be
-// reproducible from .env.test alone — a leaked fnox session in the
-// shell (prod URL/creds) would silently hit real Supabase with real
-// credentials. .env.test wins, always.
-// NOTE: Vite's `loadEnv(..., '')` merges process.env in and lets shell
-// vars shadow the dotenv file, which defeats the override. Parse the
-// file directly with dotenv (handles quoted values, escapes, comments
-// — the bespoke splitter we had before did not).
+// E2E force-overrides shell env. Tests must be reproducible from .env.test
+// alone — a leaked fnox session in the shell (prod URL/creds) would silently
+// hit real Supabase with real credentials. Vite's loadEnv merges process.env
+// in and lets shell vars shadow the dotenv file, so we parse .env.test
+// directly via dotenv (handles quoted values, escapes, comments).
 const testEnv = readEnvTest();
 for (const [key, value] of Object.entries(testEnv)) {
   process.env[key] = value;
 }
 
-// Safety check: allow-list the networks a non-production Supabase stack could
-// live on — loopback, RFC1918 LAN, and Tailscale CGNAT — and refuse everything
-// else. Fail-closed: if we can't prove the host is private, we don't run.
+// Allow-list of networks where a non-production Supabase stack could live —
+// loopback, RFC1918, Tailscale CGNAT. Fail-closed against everything else.
 // Parses hostname so `https://127.0.0.1.evil.com` can't slip through a
 // substring match.
 const supabaseUrl = process.env.VITE_SUPABASE_URL ?? '';
@@ -80,12 +76,12 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // Raw vite — globalSetup owns Supabase lifecycle. Using `npm run dev` here
-    // would race with globalSetup over stack management.
+    // Raw vite — globalSetup owns Supabase lifecycle. `npm run dev` would race
+    // with globalSetup over stack management.
     command: 'npx vite --mode test',
     url: 'http://localhost:5173',
-    // Never reuse an existing dev server for E2E — a manually-started server may be
-    // pointed at production Supabase. Force a fresh spawn with the .env.test values.
+    // Never reuse: a manually-started dev server may be pointed at production
+    // Supabase. Force a fresh spawn with the .env.test values.
     reuseExistingServer: false,
     timeout: 120_000,
     env: {

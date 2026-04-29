@@ -36,7 +36,7 @@ export default async function globalSetup() {
   if (!shouldManageLocalStack(url)) return;
 
   let weStartedIt = false;
-  if (!isStackRunning()) {
+  if (!isStackRunning(url)) {
     console.log(`[playwright] Starting local Supabase (${url})`);
     try {
       execFileSync('npx', ['supabase', 'start'], { stdio: 'inherit' });

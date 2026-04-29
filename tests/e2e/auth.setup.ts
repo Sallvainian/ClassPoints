@@ -19,18 +19,25 @@ setup('authenticate', async ({ page }) => {
 
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Welcome Back' })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('heading', { name: 'Welcome Back' })).toBeVisible({
+    timeout: 30_000,
+  });
 
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign In' }).click();
 
+  // Post-auth markers — sidebar rendered = auth tokens are already in
+  // cookies/localStorage. We don't wait for the main dashboard pane to load
+  // (it lazy-imports TeacherDashboard and stays on "Loading your dashboard..."
+  // for empty-state users until the first query resolves — irrelevant for
+  // storageState capture).
   await expect(page.locator('aside').getByRole('heading', { name: /ClassPoints/ })).toBeVisible({
-    timeout: 30000,
+    timeout: 30_000,
   });
-  await expect(page.getByText('New Classroom')).toBeVisible({ timeout: 15000 });
-
-  await page.waitForTimeout(1000);
+  await expect(page.locator('aside').getByText('Classrooms', { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 
   await page.context().storageState({ path: AUTH_FILE });
 });
