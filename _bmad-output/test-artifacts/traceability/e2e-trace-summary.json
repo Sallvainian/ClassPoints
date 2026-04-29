@@ -1,0 +1,169 @@
+{
+  "schema_version": "0.1.0",
+  "snapshot_at": "2026-04-28T15:30:00Z",
+  "run_id": "2026-04-28-pm-post-test-review",
+  "supersedes": "_bmad-output/test-artifacts/traceability/e2e-trace-summary-2026-04-28-am.json",
+  "repo": "ClassPoints",
+  "collection_mode": "sequential",
+  "collection_status": "COLLECTED",
+  "inventory_basis": "acceptance_criteria",
+  "gate_basis": "priority_thresholds",
+  "source_sha": "cd0ad84",
+  "worktree_dirty": true,
+  "worktree_changes_relevant": [
+    "src/test/setup.ts (CRIT-1: localStorage shim)",
+    "src/hooks/__tests__/useAwardPoints.test.ts (CRIT-2 partial: [P0][AWARD.01-UNIT-NN] prefixes)",
+    "tests/support/fixtures/index.ts (test-review hygiene)",
+    "tests/e2e/auth.setup.ts (test-review hygiene)",
+    "tests/e2e/example.spec.ts (test-review hygiene)"
+  ],
+  "target": {
+    "type": "feature_catalog",
+    "id": "classpoints-post-redesign-test-design-2026-04-28",
+    "label": "ClassPoints Post-Redesign Behavioral Coverage (test-design-qa.md)"
+  },
+  "decision_mode": "deterministic",
+  "evaluator": "Sallvain",
+  "confidence": "high",
+  "oracle": {
+    "resolution_mode": "formal_requirements",
+    "confidence": "high",
+    "sources": [
+      "_bmad-output/test-artifacts/test-design-qa.md",
+      "_bmad-output/test-artifacts/test-design-architecture.md",
+      "_bmad-output/test-artifacts/test-design/classpoints-handoff.md",
+      "_bmad-output/test-artifacts/test-review.md"
+    ],
+    "external_pointer_status": "not_used",
+    "synthetic": false
+  },
+  "coverage": {
+    "inventory": { "covered": 7, "total": 94, "pct": 7 },
+    "priority_breakdown": {
+      "P0": { "total": 47, "covered": 2, "pct": 4 },
+      "P1": { "total": 26, "covered": 2, "pct": 8 },
+      "P2": { "total": 17, "covered": 1, "pct": 6 },
+      "P3": { "total": 4, "covered": 2, "pct": 50 }
+    },
+    "by_level": {
+      "e2e": { "tests": 3, "criteria_covered": 1 },
+      "api": { "tests": 0, "criteria_covered": 0 },
+      "component": { "tests": 13, "criteria_covered": 0 },
+      "unit": { "tests": 95, "criteria_covered": 9 },
+      "other": { "tests": 2, "criteria_covered": 0 }
+    }
+  },
+  "tests": {
+    "files": 10,
+    "cases": 113,
+    "passing": 113,
+    "failing": 0,
+    "skipped_cases": 0,
+    "fixme_cases": 0,
+    "pending_cases": 0
+  },
+  "test_id_convention": {
+    "files_adopted": 1,
+    "files_pending": 8,
+    "adoption_pct": 11,
+    "adopted_files": ["src/hooks/__tests__/useAwardPoints.test.ts"],
+    "pending_files": [
+      "src/hooks/__tests__/useRealtimeSubscription.test.ts",
+      "src/test/leaderboardCalculations.test.ts",
+      "src/test/useRotatingCategory.test.ts",
+      "src/test/sounds.test.ts",
+      "src/test/TeacherDashboard.test.tsx",
+      "src/utils/__tests__/studentParser.test.ts",
+      "tests/integration/example.test.ts",
+      "tests/e2e/example.spec.ts"
+    ]
+  },
+  "risk_summary": {
+    "critical_open": 44,
+    "high_open": 23,
+    "medium_open": 15,
+    "low_open": 2
+  },
+  "heuristics": {
+    "endpoint_gaps": 32,
+    "auth_negative_path_status": "none",
+    "error_path_status": "none",
+    "ui_journey_status": "not_applicable",
+    "ui_state_status": "not_applicable"
+  },
+  "blockers": [
+    {
+      "id": "SEAT.01-E2E-06",
+      "severity": "medium",
+      "reason": "Catalog-marked BLOCKED awaiting useSeatingChart realtime (PRD Phase 5)",
+      "test_file": "(not yet authored)",
+      "test_title": "Two browsers, same user: drag in A → B updates within 2s"
+    },
+    {
+      "id": "pg_catalog-access-tooling-decision",
+      "severity": "high",
+      "reason": "RLS.01-INT-00, SCHEMA.01-INT-01, SCHEMA.01-INT-02 are deferred per Wave 1a advisor checkpoint — PostgREST does not expose pg_catalog. Need npm `pg` package OR SQL helper RPCs OR `db dump` parsing.",
+      "test_file": "(not yet authored)",
+      "test_title": "Schema/policy introspection (3 scenarios)"
+    }
+  ],
+  "resolved_blockers_since_prior_run": [
+    {
+      "id": "TeacherDashboard-component-suite",
+      "resolved_by": "CRIT-1 fix in src/test/setup.ts (in-memory localStorage + sessionStorage shim)",
+      "verified_by": "npx vitest --run → 0 failed (was 13 failed in AM trace)",
+      "note": "Tests now passing but still map to 0 catalog scenarios (catalog supersedes with E2E rows)."
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "URGENT",
+      "action": "Run /bmad:tea:automate Wave 1b to author the 44 P0 scenarios not yet automated. NOT atdd — ClassPoints is brownfield/no-stories.",
+      "requirements_count": 44
+    },
+    {
+      "priority": "URGENT",
+      "action": "Resolve pg_catalog access pattern (npm `pg` vs SQL helper RPCs vs db dump parse) — unblocks RLS.01-INT-00 + SCHEMA.01-INT-01..02"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Author AUTH.01-E2E-05 as the single highest-impact regression guard for fix d652260 (R-08 score 9)"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Add E2E coverage for 44 catalog journeys lacking working E2E"
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Complete CRIT-2 sweep — adopt [Pn][CATALOG-ID] prefix on the 8 remaining test files (Wave 1a complete)"
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Complete the 3 PARTIAL items (AUTH.01-E2E-03 / RT.01-INT-06 / STUD.01-UNIT-01)"
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Add 6 happy-path-only scenarios' error-path counterparts"
+    }
+  ],
+  "links": {
+    "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix.md",
+    "trace_report_url": "",
+    "artifact_url": "",
+    "journey_evidence_url": "",
+    "prior_run_path": "_bmad-output/test-artifacts/traceability/traceability-matrix-2026-04-28-am.md"
+  },
+  "gate_status": "FAIL",
+  "gate_criteria": {
+    "p0_coverage_required": "100%",
+    "p0_coverage_actual": "4%",
+    "p0_status": "NOT_MET",
+    "p1_coverage_target": "90%",
+    "p1_coverage_minimum": "80%",
+    "p1_coverage_actual": "8%",
+    "p1_status": "NOT_MET",
+    "overall_coverage_minimum": "80%",
+    "overall_coverage_actual": "7%",
+    "overall_status": "NOT_MET"
+  }
+}

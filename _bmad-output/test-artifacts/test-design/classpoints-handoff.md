@@ -1,175 +1,205 @@
 ---
-title: 'TEA Test Design → BMAD Handoff — ClassPoints TanStack Modernization'
+title: 'TEA Test Design → BMAD Handoff'
 version: '1.0'
 workflowType: 'testarch-test-design-handoff'
+sourceWorkflow: 'testarch-test-design'
+generatedBy: 'TEA Master Test Architect'
+generatedAt: '2026-04-28'
+projectName: 'ClassPoints'
 inputDocuments:
   - _bmad-output/test-artifacts/test-design-architecture.md
   - _bmad-output/test-artifacts/test-design-qa.md
-  - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/architecture.md
-sourceWorkflow: 'testarch-test-design'
-generatedBy: 'TEA Master Test Architect'
-generatedAt: '2026-04-22'
-projectName: 'ClassPoints'
+  - _bmad-output/test-artifacts/test-design-progress.md
 ---
 
 # TEA → BMAD Integration Handoff — ClassPoints
 
 ## Purpose
 
-This document bridges the TEA system-level test design with BMAD's epic/story decomposition. For ClassPoints, the PRD already decomposes the work into **seven phases (0–6)** that function as epics — each phase has its own PRD acceptance list + greppable architectural acceptance hooks. This handoff therefore maps the test design's _test deltas_ onto those existing phase-epics rather than inventing parallel stories.
-
-**Template-mismatch note:** The generic BMAD handoff template assumes test design hands off to a _subsequent_ `create-epics-and-stories` workflow. For this initiative, the epics already exist (PRD phases); the handoff instead feeds two downstream consumers:
-
-1. **Each phase PR** — test deltas mapped to its acceptance list
-2. **The explicitly-deferred future TEA initiative** (PRD §Testing: "a separate test-hardening effort using BMAD TEA workflow... is planned as its own PRD") — collects deferred items and seed hooks so that future initiative can start with context
-
-## TEA Artifacts Inventory
-
-| Artifact                   | Path                                                      | BMAD / PR Integration Point                                                                                                          |
-| -------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Test Design (Architecture) | `_bmad-output/test-artifacts/test-design-architecture.md` | Per-phase PR reads relevant Risk Mitigation Plan + Testability Gap entries to confirm scope                                          |
-| Test Design (QA)           | `_bmad-output/test-artifacts/test-design-qa.md`           | Per-phase PR copies the phase's row(s) from the Implementation Planning Handoff table into its description as a test-delta checklist |
-| Risk Register              | (embedded in architecture doc §Risk Assessment)           | Phase PR references risk IDs (R-01..R-09) when linking acceptance criteria to risk mitigation                                        |
-| Coverage Plan / Priorities | (embedded in QA doc §Test Coverage Plan)                  | Phase PR verifies P0 + P1 deltas landed; P2 manual smoke documented                                                                  |
-| Future-TEA Seed List       | (this doc §Deferred Items)                                | Input for the future TEA initiative's own PRD + test design when that PRD is authored                                                |
-
-## Epic-Level Integration Guidance
-
-### Phase-epics risk mapping
-
-| Phase-Epic                                  | Primary Risks Addressed                                  | Quality Gate = PRD Acceptance + Architecture Hooks + Test Deltas                                      |
-| ------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Phase 0 — Bootstrap**                     | R-04 (devtools leak)                                     | T-01 (grep) + T-02 (smoke) + Architecture Hooks #1/#2                                                 |
-| **Phase 1 — Pilot `useBehaviors`**          | R-01, R-06, R-07, R-09 (most mitigation work lands here) | T-03 + T-04 template + T-05 + T-06 (infra) + T-07 + T-17 wiring + Architecture Hooks #3/#4/#5/#6/#7   |
-| **Phase 2 — Small/medium hooks**            | R-01, R-06                                               | T-04 (×2) + T-08 + T-09 + Architecture Hooks #3–#7                                                    |
-| **Phase 3 — `useStudents`**                 | R-01 (hot-path), R-06                                    | T-04 + T-11 + T-10 (two-tab) + Architecture Hooks #3–#7 + Decision 3 semantic delta documented        |
-| **Phase 4 — Slim AppContext + cut adapter** | R-06 retires (adapter gone)                              | T-12 (static + `wc`) + T-13 (full-app smoke) + delete T-04 tests + Architecture Hooks #11/#12/#13/#14 |
-| **Phase 5 — Seating split**                 | R-02                                                     | T-14 + T-15 + T-16 + Architecture Hooks #15/#16/#17/#18/#19                                           |
-| **Phase 6 — Docs**                          | R-05 (pattern clarity)                                   | T-18 doc check + legacy retirement verified                                                           |
-
-### Quality Gates (per phase)
-
-Each phase's PR MUST satisfy (details in QA doc §Entry/Exit Criteria):
-
-1. Existing Vitest suite green (`npm test`)
-2. Existing Playwright local-Supabase suite green (`npm run test:e2e:local`)
-3. Phase's P0 test deltas landed + passing
-4. Phase's P1 test deltas landed + passing (or written-rationale skip)
-5. Phase's architecture §Validation hooks returning expected results
-6. Phase's manual smoke executed and documented in PR description
-7. Risk IDs addressed by phase referenced in PR description
-
-**Gate decision thresholds** (per `risk-governance.md` + `probability-impact.md`):
-
-- **PASS**: All 7 criteria met, no unresolved score≥6 risks active for this phase
-- **CONCERNS**: Score≥6 risks active but mitigation landing in same PR (rare; only during phase transitions)
-- **FAIL**: Any score=9 risk active (not expected — no score=9 risks in register) OR existing suite fails without an accepted explanation
-
-## Story-Level Integration Guidance
-
-**Phases ARE the epics — there is no sub-story decomposition in this initiative.** The PRD's per-phase acceptance lists serve the same function as story-level acceptance criteria. Mapping the test deltas to acceptance criteria:
-
-### P0 Test Scenarios → Phase Acceptance Criteria
-
-| Test ID | Phase | PRD Acceptance Criterion Anchored                                                                                                                    |
-| ------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T-01    | 0     | "`@tanstack/react-query-devtools` is a dev-only dependency, confirmed tree-shaken from the production bundle" (PRD §Phase 0)                         |
-| T-03    | 1     | "No realtime subscription outlives the component tree... Verification is a Vitest test — added as part of Phase 1's pilot work" (PRD NFR6)           |
-| T-06    | 1     | Prerequisite for T-03/T-04/T-08/T-11/T-14 — not a PRD acceptance line per se; an architecture-exposed delivery                                       |
-| T-12    | 4     | "`src/contexts/AppContext.tsx` is **under 200 lines**" + "Zero component files import `students`..." (PRD §Phase 4)                                  |
-| T-14    | 5     | FR5 "realtime live-sync on exactly three table sets" at the runtime channel level (Architecture §Multi-binding acceptance hook)                      |
-| T-16    | 5     | "`src/hooks/useSeatingChart.ts` collectively contain zero `useState(loading)`, zero `useState(error)`, zero manual rollback captures" (PRD §Phase 5) |
-
-### P1 Test Scenarios → Phase Acceptance Criteria (architecture-exposed, not PRD-explicit)
-
-| Test ID | Phase | Architectural Invariant Protected                                                                                             |
-| ------- | ----- | ----------------------------------------------------------------------------------------------------------------------------- |
-| T-04    | 1–3   | Architecture §Adapter bridge: adapter output reference-stability during adapter co-existence                                  |
-| T-05    | 1     | Architecture Decision 3: `useRealtimeSubscription` legacy-bridge routing correctness during Phase 1–3 transitional signature  |
-| T-08    | 2     | Architecture §`useMutation` lifecycle: canonical 5-callback template produces correct optimistic-then-rollback cache sequence |
-| T-11    | 3     | Architecture §Query key conventions: shared-prefix hierarchy produces the expected broad-match invalidation behavior          |
-| T-17    | all   | Architecture §Validation 19-hook inventory: continuous enforcement to prevent R-05 legacy-shape drift in new code             |
-
-### Data-TestId / Selector Requirements
-
-**None introduced by this initiative.** PRD zero-UX-change scope means all existing `data-testid` attributes are unchanged; no new ones needed for the test deltas (the deltas are unit-level and build-time, not E2E). The future TEA initiative may add `data-testid` hardening — out of scope here.
-
-## Risk-to-Story (Risk-to-Phase) Mapping
-
-| Risk ID | Category | P×I   | Score | Recommended Phase(s) | Test Level              | Mitigation Test(s)                          |
-| ------- | -------- | ----- | ----- | -------------------- | ----------------------- | ------------------------------------------- |
-| R-01    | TECH     | 2 × 3 | 6     | Phase 1 + Phase 3    | Unit + Manual + CI grep | T-05, T-10, T-17 (Hooks #3/#4)              |
-| R-02    | TECH     | 2 × 3 | 6     | Phase 5              | Unit + Manual + grep    | T-14, T-15, T-16                            |
-| R-03    | TECH     | 2 × 2 | 4     | Phase 1–3 (monitor)  | Unit                    | T-04 (shared w/ R-06)                       |
-| R-04    | SEC      | 1 × 3 | 3     | Phase 0              | Build-time grep         | T-01                                        |
-| R-05    | OPS      | 2 × 2 | 4     | All phases           | CI grep                 | T-17                                        |
-| R-06    | TECH     | 3 × 2 | 6     | Phase 1, 2, 3        | Unit                    | T-04 (per domain)                           |
-| R-07    | TECH     | 3 × 2 | 6     | Phase 1              | Test infra              | T-06 (`createTestQueryClient`)              |
-| R-08    | TECH     | 2 × 1 | 2     | Deferred (G-04)      | —                       | Document; revisit only if needed            |
-| R-09    | TECH     | 3 × 2 | 6     | Phase 1              | Test infra              | T-06 (realtime harness) enables T-03 + T-14 |
-
-## Recommended BMAD → TEA Workflow Sequence (adapted)
-
-The standard sequence (TD → Create Epics → ATDD → Impl → Automate → Trace) assumes a new-feature delivery flow. ClassPoints' adapted sequence:
-
-1. **This test design (TD)** — produces these three artifacts; identifies blockers G-01, G-02; names test deltas T-01..T-18
-2. **Phase-by-phase PR implementation** — each phase PR bundles migration code + test deltas + manual smoke documentation. No ATDD-first; the tests here are mostly _architectural invariant tests_, not acceptance tests for new user stories
-3. **Phase 1 pilot establishes pattern notes** — canonical test shapes documented in-repo; subsequent phases copy-paste
-4. **Continuous CI-grade greps (T-17)** — architectural invariants enforced on every commit post-Phase-1
-5. **Phase 6 doc cleanup** — signals migration complete; `project-context.md` updated to post-migration state
-6. **Future TEA initiative (separate PRD)** — consumes this handoff's §Deferred Items and performs the deeper test-hardening work the PRD explicitly scopes out
-
-## Phase Transition Quality Gates
-
-| From Phase | To Phase | Gate Criteria                                                                                                                                                |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Phase 0    | Phase 1  | T-01 green; T-02 smoke documented; existing suites green. No uncommitted migration code                                                                      |
-| Phase 1    | Phase 2  | All Phase 1 P0 + P1 deltas green; harness helpers (G-01, G-02) exist and are consumed; T-17 CI wiring in place; pattern note committed for Phase 2 reference |
-| Phase 2    | Phase 3  | All Phase 2 P0 + P1 deltas green; two migrated domains' adapter tests (T-04) demonstrate pattern viability                                                   |
-| Phase 3    | Phase 4  | All Phase 3 P0 + P1 deltas green; T-10 two-tab smoke passes with documented Decision 3 semantic delta timing                                                 |
-| Phase 4    | Phase 5  | All Phase 4 static-check acceptance met (NFR8 line count + zero feature-hook imports in `AppContext.tsx`); T-04 tests deleted (adapter gone)                 |
-| Phase 5    | Phase 6  | Runtime channel-count assertion T-14 passing (or documented manual WS-frame fallback); all seating hook greps green                                          |
-| Phase 6    | Complete | Legacy docs retired or marked; `project-context.md` provider tree updated; all architecture §Validation hooks #1–#19 green on `main`                         |
-
-## Deferred Items (Seeds for the Future TEA Initiative)
-
-The PRD explicitly defers broader test hardening to a separate TEA initiative. Seeds collected during this system-level design:
-
-### Coverage-expansion seeds
-
-1. **Per-hook `queryFn` unit coverage with Supabase mocks** (G-04, R-08 deferred) — establish `vi.mock('../lib/supabase')` pattern; add unit tests for each migrated hook's `queryFn` covering: happy path, Supabase error path, empty-response path, type transformation correctness
-2. **Expanded adapter / cache-state E2E coverage** — Playwright scenarios exercising cross-tab cache consistency under packet loss (Supabase realtime reconnect), not just two-tab steady state
-3. **Component-level tests for the 45 Phase-4 migrated components** — currently zero dedicated component tests for most of them; existing regression relies on Playwright E2E coverage
-4. **`useSeatingChart` facade composition tests** — beyond the channel-count assertion, test that mutations on one split hook correctly invalidate cross-hook invariants (e.g., delete group → seats associated with it visually disappear)
-
-### Observability / NFR instrumentation seeds
-
-5. **NFR1 realtime latency instrumentation** — currently manual smoke; future initiative should add either a Playwright-based timed cross-tab measurement or a runtime devtools-instrumented measurement
-6. **Bundle-size trend tracking over time** — `dist/` size regression check (NFR5 extension)
-7. **Subscription lifecycle stress test** — rapidly mount/unmount a hook N times and assert channel-count returns to steady state, not accumulated leaks
-8. **RPC error-path coverage** (`get_student_time_totals`) — currently untested; migration preserves the RPC call but doesn't add failure-path coverage
-
-### Test-infrastructure seeds
-
-9. **Reusable `QueryClientProvider` test wrapper with configured mocks** — consolidate the per-test boilerplate that emerges across T-04 / T-05 / T-08 / T-11
-10. **Realtime harness API hardening** — whatever shape G-02 takes in Phase 1 is a minimal viable harness; future initiative can elevate it to a shared testing utility
-11. **Pre-commit CI pipeline hardening** — T-17's 6 greps could grow to cover all 19 architecture hooks, with readable failure messages
-
-### Process / doc seeds
-
-12. **Architecture Decision Record format for ongoing decisions** — the current `architecture.md` captures the four decisions resolved pre-Phase-1, but future state-management decisions (e.g., if Zustand enters on the deferred `SeatingChartEditor` split) should have an ADR convention established
-13. **`docs/testing.md`** — once the future TEA initiative lands, capture the pattern canon that Phase 1's pattern note starts: how to write a hook test, how to use `createTestQueryClient`, how to emit a synthetic realtime event in a test. Currently lives only in this test design + Phase 1 pattern note
+Bridges the test design outputs (`test-design-architecture.md` + `test-design-qa.md`) with downstream BMad workflows. ClassPoints is a **brownfield, solo-contributor** project with no formal epic/story decomposition — this handoff is structured as guidance for **direct execution** by `bmad-testarch-atdd` and `bmad-testarch-automate`, plus optional integration with future `create-epics-and-stories` runs if a formal sprint structure emerges.
 
 ---
 
-## Closing Note for Future TEA Initiative
+## TEA Artifacts Inventory
 
-The ClassPoints TanStack Query modernization is intentionally a **narrow-scope, invariant-preserving migration**. This test design matches that scope: test deltas address the specific architectural risks the migration introduces, not feature coverage breadth. When the future TEA initiative is authored, its PRD and test design should:
+| Artifact                          | Path                                                                             | Integration Point                                                                  |
+| --------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Architecture-side test design** | `_bmad-output/test-artifacts/test-design-architecture.md`                        | Code-side concerns; risk register; ASRs; cluster #2 + KI-1 + KI-3 acknowledgements |
+| **QA-side test design**           | `_bmad-output/test-artifacts/test-design-qa.md`                                  | Per-feature scenario catalog; fixture spec; execution strategy; effort estimates   |
+| **Workflow progress**             | `_bmad-output/test-artifacts/test-design-progress.md`                            | Source-loading audit trail; step-by-step decision record                           |
+| **Risk Assessment**               | (embedded in `test-design-architecture.md` §Risk Assessment)                     | 20 risks scored, 4 BLOCK + 7 MITIGATE; categories TECH/SEC/PERF/DATA/BUS/OPS       |
+| **Coverage Strategy**             | (embedded in `test-design-qa.md` §Test Coverage Plan)                            | 93 scenarios across UNIT (16) / INT (32) / E2E (45)                                |
+| **INPUT brief**                   | `_bmad-output/test-artifacts/test-design/INPUT-classpoints-test-design-brief.md` | Pre-workflow source; supersedes `*-2026-04-22.md` archived artifacts               |
 
-- Read this handoff's §Deferred Items as a starting-point backlog (not exhaustive — the author may find more)
-- Preserve the 19 greppable acceptance hooks established by `architecture.md` as structural invariants
-- Treat the `createTestQueryClient` + realtime harness helpers from Phase 1 as foundation to build on, not to replace
-- Budget for the realistically-bigger test volume (likely 50–150 new tests rather than ~15 deltas) and consider tiered execution (nightly load test suite, weekly soak, etc.) — none of which this initiative needs
+---
 
-The whole post-this-migration codebase should be demonstrably easier to test than the pre-migration codebase: thin hooks with pure `queryFn` async functions, cache as single source of truth, and greppable structural invariants. That's the baseline the future TEA initiative inherits.
+## Epic-Level Integration Guidance
+
+ClassPoints does not currently have epic-level scaffolding (no `sprint-status.yaml`, no `epics.md`). The 10-feature inventory functions as a de-facto epic decomposition. If a future `bmad-create-epics-and-stories` run produces formal epics, the recommended mapping is:
+
+### Risk References → Epic-Level Quality Gates
+
+| Future Epic Theme                    | Map from features              | Epic-level quality gates                                                                                                     |
+| ------------------------------------ | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| **Auth & Session Resilience**        | Feature 1                      | R-08 (stale-JWT loop) MUST have passing test before any auth-touching PR merges                                              |
+| **Per-Teacher Data Isolation (RLS)** | Cross-cutting (Feature 10)     | R-01 + R-02 (REST + realtime RLS) MUST be in PR pipeline; impersonation-pair fixture is mandatory                            |
+| **Real-time Sync Integrity**         | Feature 7 + parts of 3 + 6 + 8 | R-03 (REPLICA IDENTITY invariant) + R-12 (reconnect) tests run on every realtime change. ADR-005 §6 PR-block on 4th channel. |
+| **Points Economy Correctness**       | Features 5 + 6                 | R-04 (totals integrity) + R-05 (rollback null-guard) + R-06/07 (orchestrator partial-failure UX) — release-gate              |
+| **Editorial UI Stability**           | Cross-cutting (selectors)      | Selector strategy enforced (`getByRole > getByLabel > getByText({exact: true}) > getByTestId > css`)                         |
+
+### Quality Gates per Epic Theme
+
+For each future epic, the following gates apply (extracted from `test-design-progress.md` step 4):
+
+- **P0 pass rate:** 100% (zero failures)
+- **P1 pass rate:** ≥ 95%
+- **High-risk mitigation evidence:** Every score ≥ 6 risk MUST map to ≥ 1 passing scenario in CI
+- **Behavioral coverage floor:** ≥ 80% of feature inventory has ≥ 1 passing E2E or INT
+- **Test execution time:** PR < 15 min; Nightly < 30 min
+- **Test code quality:** No `waitForTimeout`, no try/catch flow control, < 300 LOC per test, < 1.5 min per test
+
+---
+
+## Story-Level Integration Guidance
+
+For future `bmad-create-story` runs, the following P0/P1 test scenarios MUST appear as acceptance criteria. Each is a behavioral assertion the story is not done without.
+
+### Story-Acceptance-Criteria Templates
+
+**Auth & Session stories:**
+
+- AC: User cannot reach the dashboard with an expired or forged JWT — graceful redirect to login, no spinner loop. → AUTH.01-E2E-05
+- AC: Sign-out clears storageState and redirects to login. → AUTH.01-E2E-04
+
+**Classroom CRUD stories:**
+
+- AC: Creating a classroom requires authenticated session and is scoped to the user (RLS). → CLASS.01-E2E-01 + CLASS.01-INT-01..03
+- AC: Empty-state displays the "Create your first" CTA without dashboard rendering hanging. → CLASS.01-E2E-02 (works around KI-1)
+
+**Student CRUD stories:**
+
+- AC: Adding a student emits a realtime `students` channel event visible to the same user's other tabs within 2s. → STUD.01-E2E-06
+- AC: Removing a student cascades to `point_transactions`; trigger maintains aggregate totals. → STUD.01-E2E-04 + STUD.01-INT-04
+
+**Behavior CRUD stories:**
+
+- AC: Custom behaviors are per-user (User A's custom behavior NOT visible to User B); shared defaults visible to both. → BEH.01-INT-01 + BEH.01-INT-02
+
+**Points awarding stories:**
+
+- AC: Optimistic increment within ~100ms; rollback on failure restores pre-award value (no `undefined` flash). → AWARD.01-E2E-01 + AWARD.01-E2E-08
+- AC: Class-award and multi-award orchestrators surface failure count in UI when per-student writes fail (do NOT silently filter to nulls). → AWARD.01-E2E-05 + AWARD.01-E2E-07
+- AC: `useAwardPoints.onMutate` is idempotent (StrictMode safe); rollback null-guards `context?.previousX`. → AWARD.01-UNIT-01 + AWARD.01-UNIT-02
+
+**Transaction history & undo stories:**
+
+- AC: `point_transactions` table has `REPLICA IDENTITY FULL`; DELETE events arrive with non-empty `payload.old`. → SCHEMA.01-INT-01 + HIST.01-INT-02
+- AC: Undo, clear-student, reset-classroom each restore exact pre-mutation totals via trigger. → HIST.01-INT-03 + HIST.01-INT-04
+
+**Realtime sync stories:**
+
+- AC: Adding a 4th realtime channel without updating ADR-005 §6 is a PR-block. → R-09 (code-review enforcement, no test)
+- AC: Subscribing to non-realtime tables (`classrooms`, `behaviors`) emits zero events. → RT.01-INT-02 + RT.01-INT-03
+
+**Seating chart stories:**
+
+- AC: In-device drag-and-drop persists across reload. → SEAT.01-E2E-02
+- AC (BLOCKED on PRD Phase 5): Cross-device drag sync within 2s. → SEAT.01-E2E-06 (`test.skip` + TODO)
+
+### Data-TestId Requirements
+
+The redesigned UI uses ARIA-first selectors (per INPUT brief §"Selector strategy normative"). For volatile elements where `getByRole`/`getByLabel`/`getByText` are unstable, **add `data-testid`** during story implementation. Recommended placements (from coverage plan):
+
+| Component / Surface                         | Suggested `data-testid`                                     | Used by scenarios                |
+| ------------------------------------------- | ----------------------------------------------------------- | -------------------------------- |
+| Sidebar `Create classroom` icon-only button | `data-testid="create-classroom-cta"`                        | CLASS.01-E2E-01                  |
+| Empty-state `Create your first` CTA         | `data-testid="create-first-cta"`                            | CLASS.01-E2E-02                  |
+| AwardPointsModal positive / negative chips  | `data-testid="award-positive-chip"` / `award-negative-chip` | AWARD.01-E2E-01..03              |
+| ClassAwardModal submit button               | `data-testid="class-award-submit"`                          | AWARD.01-E2E-04, AWARD.01-E2E-05 |
+| MultiAwardModal student-select checkboxes   | `data-testid="multi-award-student-{id}"`                    | AWARD.01-E2E-06, AWARD.01-E2E-07 |
+| StudentPointCard total                      | `data-testid="student-point-total-{id}"`                    | AWARD.01-E2E-\* (assertions)     |
+| Undo button on transaction row              | `data-testid="undo-transaction-{id}"`                       | HIST.01-E2E-01..04               |
+| SeatingChartEditor draggable seat           | `data-testid="seat-{id}"`                                   | SEAT.01-E2E-02                   |
+| Sound-effect toggle in settings             | `data-testid="sound-toggle"`                                | SET.01-E2E-01                    |
+
+These additions are non-breaking and improve test stability without affecting accessibility.
+
+---
+
+## Risk-to-Story Mapping
+
+| Risk ID | Category | P×I         | Recommended Story / Epic                               | Test Level    | Test ID(s)                                                          |
+| ------- | -------- | ----------- | ------------------------------------------------------ | ------------- | ------------------------------------------------------------------- |
+| R-01    | SEC      | 9           | Per-Teacher Data Isolation (cross-cutting)             | INT           | RLS.01-INT-00, CLASS/STUD/BEH/AWARD/SEAT/SET INT scenarios          |
+| R-02    | SEC      | 9           | Real-time Sync Integrity                               | INT           | RT.01-INT-05                                                        |
+| R-03    | DATA     | 9           | Real-time Sync Integrity (DELETE invariant)            | INT           | SCHEMA.01-INT-01, HIST.01-INT-01, HIST.01-INT-02                    |
+| R-04    | DATA     | 6           | Points Economy Correctness                             | INT           | STUD.01-INT-04, STUD.01-INT-05, HIST.01-INT-03..04, AWARD.01-INT-02 |
+| R-05    | TECH     | 9           | Points Economy Correctness (rollback regression guard) | UNIT + E2E    | AWARD.01-UNIT-02, AWARD.01-E2E-08                                   |
+| R-06    | BUS      | 6           | Points Economy Correctness (orchestrator UX)           | E2E + INT     | AWARD.01-E2E-05, AWARD.01-INT-01                                    |
+| R-07    | BUS      | 6           | Points Economy Correctness (multi-award UX)            | E2E           | AWARD.01-E2E-07                                                     |
+| R-08    | TECH     | 6           | Auth & Session Resilience                              | E2E           | AUTH.01-E2E-05                                                      |
+| R-09    | TECH     | 3           | Real-time Sync Integrity (4th-channel rule)            | code-review   | (no test)                                                           |
+| R-10    | DATA     | 6 (blocked) | Cross-Device Seating Sync (PRD Phase 5)                | E2E (blocked) | SEAT.01-E2E-06 (`test.skip`)                                        |
+| R-11    | DATA     | 2           | Points Economy Correctness (deterministic temp ID)     | UNIT          | AWARD.01-UNIT-03                                                    |
+| R-12    | TECH     | 4           | Real-time Sync Integrity (reconnect)                   | INT           | HIST.01-INT-05                                                      |
+| R-13    | BUS      | 6           | Empty-State UX (KI-1)                                  | E2E           | CLASS.01-E2E-02 (workaround)                                        |
+| R-14    | DATA     | 3           | Migration Wizard (out of scope)                        | manual        | —                                                                   |
+| R-15    | OPS      | 3           | E2E Local-Only Allow-List                              | UNIT          | AUTH.01-INT-01                                                      |
+| R-16    | PERF     | 4           | Points Economy Correctness (rapid-tap)                 | E2E           | AWARD.01-E2E-09                                                     |
+| R-17    | TECH     | 6           | (Structurally satisfied — no test needed)              | doc-only      | `tests/README.md`                                                   |
+| R-18    | TECH     | 4           | Editorial UI Stability (transform regression)          | UNIT + INT    | CLASS/STUD/BEH UNIT transforms + CLASS.01-INT-04                    |
+| R-19    | DATA     | 2           | Settings & Profile (provider hierarchy)                | UNIT          | SET.01-UNIT-01                                                      |
+| R-20    | BUS      | 6           | Behavior CRUD (per-user RLS regression)                | INT           | BEH.01-INT-01, BEH.01-INT-02                                        |
+
+---
+
+## Recommended BMAD → TEA Workflow Sequence
+
+The following sequence is **what works for ClassPoints' solo + AI-assist context**. Skip steps that don't apply to a one-person codebase.
+
+1. **TEA Test Design** ← **DONE** (this run, 2026-04-28). Produces this handoff document.
+2. **(Optional) BMad Create Epics & Stories** — If a formal sprint structure is desired, run `bmad-create-epics-and-stories` consuming this handoff. Otherwise, treat the 10-feature inventory as the de-facto epic structure.
+3. **TEA ATDD** (`bmad-testarch-atdd`) — Generate **red-phase** acceptance tests for the 4 score-9 BLOCK risks first (R-01/R-02/R-03/R-05) so the gate becomes visible immediately. Then iterate through the score 6-8 mitigations.
+4. **Code Implementation** (Sallvain + AI agents) — Make the failing acceptance tests pass. The **cluster #2 fix** and **KI-1 empty-state fix** are parallel code-side work that drag-along test transitions red → green.
+5. **TEA Automate** (`bmad-testarch-automate`) — Expand to P1, P2, P3 from the QA doc's coverage plan once P0 is green.
+6. **TEA Trace** (`bmad-testarch-trace`) — Generate traceability matrix and gate decision once authoring is complete. Validates all risks have test evidence.
+7. **TEA Test Review** (`bmad-testarch-test-review`) — Quality validation pass before declaring the test suite "done."
+
+---
+
+## Phase Transition Quality Gates
+
+| From Phase             | To Phase             | Gate Criteria                                                                                                                                |
+| ---------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Test Design (this run) | ATDD (next workflow) | All P0 risks have at least an authored scenario stub (even if `test.skip`); impersonation-pair fixture authored                              |
+| ATDD                   | Implementation       | Failing acceptance tests exist in PR pipeline for all P0 + P1 scenarios; test-design-qa.md scenarios are tagged                              |
+| Implementation         | Test Automation      | All P0 acceptance tests pass on local + CI; cluster #2 + KI-1 fixes either landed or scheduled                                               |
+| Test Automation        | Trace / Test Review  | All P0 + P1 scenarios green; ≥ 80% behavioral coverage floor; ≤ 30 min nightly runtime                                                       |
+| Trace / Test Review    | Release              | Trace matrix shows ≥ 80% coverage of P0 + P1 requirements; no score ≥ 6 risks lacking test evidence; quality DoD met for every authored test |
+
+---
+
+## Open Items / Known Constraints
+
+These do not block the handoff but should be visible to the next workflow consumer:
+
+1. **R-10 / SEAT.01-E2E-06 is permanently blocked-on-migration.** Author the scenario today with `test.skip` + TODO. Un-skip when `useSeatingChart` migrates to TanStack with realtime per ADR-005 §6 / PRD Phase 5.
+
+2. **Cluster #2 code fix is a separate track from this test design.** Tests for R-06 + R-07 are authored against expected post-fix UI behavior — they will fail until UI surfacing of partial failures lands. This is intentional drag-along for the cluster #2 fix.
+
+3. **KI-1 empty-state Suspense never resolves** — bug-fix on Sallvain's queue. Test workaround in `auth.setup.ts` (don't wait for dashboard load). Remove workaround when fix lands.
+
+4. **`test-design-architecture.md` is longer than the 150-200 line target** documented in the workflow checklist. The longer length is justified by the depth of code-side concerns (cluster #2 lying comments, KI-1, KI-3, three `as T` casts, hand-rolled hooks dual-baseline). A condensed version can be produced if reviewers prefer brevity.
+
+5. **No formal sprint structure exists** — solo-contributor scope. The story-level guidance above is forward-looking for if/when sprint structure emerges; today, treat it as direct authoring guidance.
+
+---
+
+**End of Handoff**
+
+**Next action recommended for Sallvain:**
+
+1. Author the impersonation-pair fixture (~30-45 min) — it unblocks 16+ RLS scenarios.
+2. Run `bmad-testarch-atdd` against the 4 score-9 BLOCK risks (R-01/R-02/R-03/R-05) for red-phase scenarios.
+3. Schedule the cluster #2 code fix and KI-1 fix in parallel with test authoring.
+4. After P0 + P1 coverage is green, run `bmad-testarch-trace` for the gate decision.

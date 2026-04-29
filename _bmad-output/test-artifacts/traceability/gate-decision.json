@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1.0",
+  "evaluated_at": "2026-04-28T15:30:00Z",
+  "run_id": "2026-04-28-pm-post-test-review",
+  "supersedes": "_bmad-output/test-artifacts/traceability/gate-decision-2026-04-28-am.json",
+  "repo": "ClassPoints",
+  "target": {
+    "type": "feature_catalog",
+    "id": "classpoints-post-redesign-test-design-2026-04-28",
+    "label": "ClassPoints Post-Redesign Behavioral Coverage (test-design-qa.md)"
+  },
+  "collection_status": "COLLECTED",
+  "gate_basis": "priority_thresholds",
+  "gate_status": "FAIL",
+  "gate_decision_type": "automation-gap",
+  "rationale": "P0 coverage is 4% (required: 100%). 44 critical requirements uncovered. Verdict identical to AM trace because test-review's CRIT-1 + CRIT-2 fixes addressed test-suite quality (suite green-rate 89% → 100%; Wave 1a adopted test-ID prefixes), not catalog automation (no new scenarios authored). The catalog-automation gap is unchanged: only Wave 1a (4 of 47 P0 scenarios) is delivered. Distinct from a correctness FAIL (which would imply existing tests are red on intended behavior — they are not, all 113 are green). Next-wave automation is now unblocked: CRIT-1 fix removed the TeacherDashboard test-suite blocker that would have made any new test additions appear red.",
+  "p0_status": "NOT_MET",
+  "p1_status": "NOT_MET",
+  "overall_status": "NOT_MET",
+  "critical_open": 44,
+  "deltas_vs_prior_run": {
+    "prior_run_id": "2026-04-28-am",
+    "suite_green_pct": { "prior": 89, "current": 100 },
+    "suite_failing": { "prior": 13, "current": 0 },
+    "catalog_full_count": { "prior": 7, "current": 7 },
+    "catalog_partial_count": { "prior": 3, "current": 3 },
+    "test_id_convention_files": { "prior": 0, "current": 1 },
+    "verdict": { "prior": "FAIL", "current": "FAIL", "changed": false },
+    "verdict_change_reason": "Test-review fixes addressed infrastructure quality (CRIT-1 localStorage shim, CRIT-2 partial test-ID adoption); no new catalog scenarios were automated, so coverage thresholds are unchanged."
+  },
+  "next_workflow_recommendation": "bmad-testarch-automate (Wave 1b) — NOT bmad-testarch-atdd; ClassPoints is brownfield with no formal story scaffolding, per handoff §'Recommended BMAD → TEA Workflow Sequence'.",
+  "links": {
+    "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix.md",
+    "trace_report_url": "",
+    "artifact_url": "",
+    "journey_evidence_url": "",
+    "prior_run_path": "_bmad-output/test-artifacts/traceability/traceability-matrix-2026-04-28-am.md"
+  }
+}
