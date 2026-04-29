@@ -13,10 +13,7 @@ type DeletedPointTransaction = {
   created_at?: string;
 };
 
-function observeTransactionDelete(
-  channel: RealtimeChannel,
-  transactionId: string
-): {
+function observeTransactionDelete(channel: RealtimeChannel): {
   subscribed: Promise<void>;
   deleted: Promise<DeletedPointTransaction>;
 } {
@@ -50,12 +47,7 @@ function observeTransactionDelete(
   channel
     .on(
       'postgres_changes',
-      {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'point_transactions',
-        filter: `id=eq.${transactionId}`,
-      },
+      { event: 'DELETE', schema: 'public', table: 'point_transactions' },
       (payload) => {
         clearTimeout(timeout);
         resolveDeleted(payload.old as DeletedPointTransaction);
@@ -70,10 +62,9 @@ function observeTransactionDelete(
 }
 
 describe('Point transaction realtime DELETE integration', () => {
-  it('[P0][HIST.01-INT-02] emits a DELETE payload and documents RLS-filtered old-row fields', async () => {
+  it('[P0][HIST.01-INT-02] emits deleted row data in payload.old for point_transactions DELETE', async () => {
     const pair = await createImpersonationPair();
     const classrooms = new ClassroomFactory();
-    const admin = supabaseAdmin();
     let channel: RealtimeChannel | null = null;
 
     try {
@@ -110,14 +101,19 @@ describe('Point transaction realtime DELETE integration', () => {
       expect(transactionError).toBeNull();
       expect(transaction?.id).toMatch(/^[0-9a-f-]{36}$/);
 
-      // Current Supabase Realtime behavior can filter DELETE payload.old down
-      // to primary-key-only fields even with REPLICA IDENTITY FULL. App code
-      // must treat non-key old-row fields as optional and fall back to refetch.
-      channel = admin.channel(`point-transaction-delete-${uniqueSlug()}`);
-      const observed = observeTransactionDelete(channel, transaction!.id);
+      const {
+        data: { session },
+      } = await pair.userA.auth.getSession();
+      if (!session) {
+        throw new Error('Expected userA session before subscribing to realtime');
+      }
+      pair.userA.realtime.setAuth(session.access_token);
+
+      channel = pair.userA.channel(`point-transaction-delete-${uniqueSlug()}`);
+      const observed = observeTransactionDelete(channel);
       await observed.subscribed;
 
-      const { error: deleteError } = await admin
+      const { error: deleteError } = await pair.userA
         .from('point_transactions')
         .delete()
         .eq('id', transaction!.id);
@@ -126,13 +122,13 @@ describe('Point transaction realtime DELETE integration', () => {
 
       const old = await observed.deleted;
       expect(old.id).toBe(transaction!.id);
-      expect(old.student_id).toBeUndefined();
-      expect(old.classroom_id).toBeUndefined();
-      expect(old.points).toBeUndefined();
-      expect(old.created_at).toBeUndefined();
+      expect(old.student_id).toBe(student!.id);
+      expect(old.classroom_id).toBe(classroom.id);
+      expect(old.points).toBe(2);
+      expect(old.created_at).toEqual(expect.any(String));
     } finally {
       if (channel) {
-        await admin.removeChannel(channel);
+        await pair.userA.removeChannel(channel);
       }
       await classrooms.cleanup();
       await pair.cleanup();
