@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
 import { SoundSettings } from './SoundSettings';
-import { useSoundContext } from '../../contexts/SoundContext';
+import { useSoundContext } from '../../contexts/useSoundContext';
 import { Dialog } from '../ui';
 
 export function SoundSettingsModal() {

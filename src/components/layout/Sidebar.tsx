@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Moon, Sun, Plus, LayoutDashboard, LogOut, User } from 'lucide-react';
-import { useApp } from '../../contexts/AppContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useApp } from '../../contexts/useApp';
+import { useAuth } from '../../contexts/useAuth';
+import { useTheme } from '../../contexts/useTheme';
 import { Button, Input, Modal } from '../ui';
 
 interface SidebarProps {

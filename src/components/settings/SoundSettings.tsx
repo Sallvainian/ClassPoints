@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { Play, X } from 'lucide-react';
-import { useSoundContext } from '../../contexts/SoundContext';
+import { useSoundContext } from '../../contexts/useSoundContext';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { type SoundId, POSITIVE_SOUNDS, NEGATIVE_SOUNDS } from '../../assets/sounds';
 import { validateAudioUrl } from '../../utils/validateAudioUrl';

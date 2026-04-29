@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppProvider, useApp } from './AppContext';
+import { AppProvider } from './AppContext';
+import { useApp } from './useApp';
 
 const mocks = vi.hoisted(() => ({
   useClassrooms: vi.fn(),

@@ -5,7 +5,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
-import { SoundProvider, useSoundContext } from '../contexts/SoundContext';
+import { SoundProvider } from '../contexts/SoundContext';
+import { useSoundContext } from '../contexts/useSoundContext';
 import { useSoundEffects } from '../hooks/useSoundEffects';
 import {
   SOUND_DEFINITIONS,
@@ -14,15 +15,14 @@ import {
   synthesizeSound,
 } from '../assets/sounds';
 
-// Mock AuthContext - must be before SoundContext import
-vi.mock('../contexts/AuthContext', () => ({
+// Mock useAuth - must be before SoundContext import
+vi.mock('../contexts/useAuth', () => ({
   useAuth: vi.fn().mockReturnValue({
     user: { id: 'test-user-id' },
     session: { access_token: 'test-token' },
     loading: false,
     error: null,
   }),
-  AuthProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
 // Mock Supabase client
@@ -223,17 +223,13 @@ describe('useSoundEffects', () => {
       result.current.playPositive();
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[SoundEffects:TEST] playPositive called'
-    );
+    expect(consoleSpy).toHaveBeenCalledWith('[SoundEffects:TEST] playPositive called');
 
     act(() => {
       result.current.playNegative();
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[SoundEffects:TEST] playNegative called'
-    );
+    expect(consoleSpy).toHaveBeenCalledWith('[SoundEffects:TEST] playNegative called');
 
     consoleSpy.mockRestore();
   });
@@ -317,8 +313,7 @@ describe('validateAudioUrl', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: {
-        get: (name: string) =>
-          name === 'content-type' ? 'text/plain' : null,
+        get: (name: string) => (name === 'content-type' ? 'text/plain' : null),
       },
     }) as unknown as typeof fetch;
 
@@ -335,8 +330,7 @@ describe('validateAudioUrl', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: {
-        get: (name: string) =>
-          name === 'content-type' ? 'audio/mpeg' : null,
+        get: (name: string) => (name === 'content-type' ? 'audio/mpeg' : null),
       },
     }) as unknown as typeof fetch;
 

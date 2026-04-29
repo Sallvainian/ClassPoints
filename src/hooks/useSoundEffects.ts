@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { useSoundContext } from '../contexts/SoundContext';
+import { useSoundContext } from '../contexts/useSoundContext';
 import type { SoundId } from '../assets/sounds';
 import { loadAudioFromUrl } from '../utils/validateAudioUrl';
 

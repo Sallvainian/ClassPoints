@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Settings as SettingsIcon } from 'lucide-react';
 import type { Student, PointTransaction } from '../../types';
 import type { CardSize } from '../../hooks/useDisplaySettings';
-import { useApp } from '../../contexts/AppContext';
+import { useApp } from '../../contexts/useApp';
 import { useDisplaySettings } from '../../hooks/useDisplaySettings';
 import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { StudentGrid } from '../students/StudentGrid';
@@ -41,7 +41,6 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const [isAwardModalOpen, setIsAwardModalOpen] = useState(false);
   const [isClassAwardModalOpen, setIsClassAwardModalOpen] = useState(false);
   const [isMultiAwardModalOpen, setIsMultiAwardModalOpen] = useState(false);
-  const [undoableAction, setUndoableAction] = useState(getRecentUndoableAction());
   const [showActivity, setShowActivity] = useState(false);
 
   const [selectionMode, setSelectionMode] = useState(false);
@@ -50,12 +49,25 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const [operationError, setOperationError] = useState<string | null>(null);
   const handleDismissError = useCallback(() => setOperationError(null), []);
 
+  // Derived undoable action.
+  // `getRecentUndoableAction` is a useCallback over context state, so it
+  // updates immediately when transactions/students change — no setTimeout
+  // dance needed in close handlers. The 1s tick re-evaluates the wall-clock
+  // UNDO_WINDOW_MS so the toast disappears when the window expires even
+  // without a state change. `dismissedTxnRef` hides the toast for one render
+  // after the user presses undo, in case the cache update lags.
+  const [tick, setTick] = useState(0);
+  const dismissedTxnRef = useRef<string | null>(null);
   useEffect(() => {
-    const interval = setInterval(() => {
-      setUndoableAction(getRecentUndoableAction());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [getRecentUndoableAction]);
+    const id = setInterval(() => setTick((t) => (t + 1) % 1_000_000), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const undoableAction = useMemo(() => {
+    void tick;
+    const action = getRecentUndoableAction();
+    if (action && action.transactionId === dismissedTxnRef.current) return null;
+    return action;
+  }, [getRecentUndoableAction, tick]);
 
   const selectedStudents = useMemo(() => {
     if (!activeClassroom) return [];
@@ -66,12 +78,6 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     setSelectedStudent(student);
     setIsAwardModalOpen(true);
   }, []);
-
-  const refreshUndoableSoon = useCallback(() => {
-    setTimeout(() => {
-      setUndoableAction(getRecentUndoableAction());
-    }, 100);
-  }, [getRecentUndoableAction]);
 
   const handleStudentSelect = useCallback((studentId: string) => {
     setSelectedStudentIds((prev) => {
@@ -111,18 +117,15 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const handleCloseModal = () => {
     setIsAwardModalOpen(false);
     setSelectedStudent(null);
-    refreshUndoableSoon();
   };
 
   const handleCloseClassModal = () => {
     setIsClassAwardModalOpen(false);
-    refreshUndoableSoon();
   };
 
   const handleCloseMultiModal = () => {
     setIsMultiAwardModalOpen(false);
     handleExitSelectionMode();
-    refreshUndoableSoon();
   };
 
   const handleUndo = useCallback(
@@ -136,7 +139,10 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
         } else {
           await undoTransaction(transactionId);
         }
-        setUndoableAction(null);
+        // Hide the toast immediately; the next derivation pass will see
+        // either a different recent action or null once the cache catches up.
+        dismissedTxnRef.current = actionToUndo.transactionId;
+        setTick((t) => (t + 1) % 1_000_000);
       } catch (err) {
         console.error('Failed to undo transaction:', err);
         setOperationError(ERROR_MESSAGES.UNDO);

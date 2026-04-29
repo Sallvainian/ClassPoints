@@ -26,11 +26,11 @@ const render = (ui: ReactElement, options?: RenderOptions) =>
 const mockUseApp = vi.fn();
 const mockUseAuth = vi.fn();
 
-vi.mock('../contexts/AppContext', () => ({
+vi.mock('../contexts/useApp', () => ({
   useApp: () => mockUseApp(),
 }));
 
-vi.mock('../contexts/AuthContext', () => ({
+vi.mock('../contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }));
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useApp } from '../../contexts/AppContext';
+import { useAuth } from '../../contexts/useAuth';
+import { useApp } from '../../contexts/useApp';
 import { supabase } from '../../lib/supabase';
 import { Button, Input } from '../ui';
 import { DeleteClassroomModal } from './DeleteClassroomModal';

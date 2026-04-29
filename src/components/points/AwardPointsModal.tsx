@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import type { Student, Behavior } from '../../types';
-import { useApp } from '../../contexts/AppContext';
+import { useApp } from '../../contexts/useApp';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { useAvatarColor } from '../../hooks';
 import { getAvatarColorForName } from '../../utils';

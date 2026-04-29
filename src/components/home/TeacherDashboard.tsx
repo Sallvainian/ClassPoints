@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
-import { useApp } from '../../contexts/AppContext';
-import { useAuth } from '../../contexts/AuthContext';
+import { useApp } from '../../contexts/useApp';
+import { useAuth } from '../../contexts/useAuth';
 import { ClassroomCard } from './ClassroomCard';
 import { LeaderboardCard } from './LeaderboardCard';
 import { StatsCard } from './StatsCard';

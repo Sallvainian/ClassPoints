@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useApp } from '../../contexts/AppContext';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useApp } from '../../contexts/useApp';
+import { useTheme } from '../../contexts/useTheme';
 import { resolveAvatarDisplay } from '../../hooks';
 import { getAvatarColorForName } from '../../utils';
 import { Button, Input, Modal } from '../ui';
