@@ -20,7 +20,7 @@ Three layers, three runners. Choose by what you're testing.
    brew install supabase/tap/supabase    # macOS
    ```
 
-   The `supabase` npm devDep is already in `package.json`; the CLI binary is what `supabase start` shells out to.
+   The project uses the brew-installed CLI; `supabase start` is called directly (no `npx`).
 
 2. **Copy the local-creds template:**
 
