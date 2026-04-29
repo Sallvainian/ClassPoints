@@ -185,7 +185,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateStudentMutation = useUpdateStudent();
   const removeStudentMutation = useRemoveStudent();
   const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
-  const studentsLoading = studentsQuery.isPending;
+  const studentsLoading = studentsQuery.isLoading;
   const studentsError = studentsQuery.error;
 
   // Phase 1 adapter bridge: useBehaviors is now a TanStack Query wrapper.
@@ -209,7 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const resetClassroomPointsMutation = useResetClassroomPoints();
   const adjustStudentPointsMutation = useAdjustStudentPoints();
   const transactions = useMemo(() => transactionsQuery.data ?? [], [transactionsQuery.data]);
-  const transactionsLoading = transactionsQuery.isPending;
+  const transactionsLoading = transactionsQuery.isLoading;
   const transactionsError = transactionsQuery.error;
 
   // Combined loading/error state
