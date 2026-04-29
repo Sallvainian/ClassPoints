@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../../helpers/supabase-admin';
+import { uniqueSlug } from '../../helpers/unique';
 
 export type SeededUser = {
   id: string;
@@ -8,17 +9,11 @@ export type SeededUser = {
 
 type UserOverrides = Partial<{ email: string; password: string }>;
 
-let counter = 0;
-const nextId = () => {
-  counter += 1;
-  return `${Date.now().toString(36)}-${counter.toString(36)}`;
-};
-
 export class UserFactory {
   private readonly created: string[] = [];
 
   async create(overrides: UserOverrides = {}): Promise<SeededUser> {
-    const slug = nextId();
+    const slug = uniqueSlug();
     const email = overrides.email ?? `e2e-user-${slug}@classpoints.local`;
     const password = overrides.password ?? `pw-${slug}`;
 

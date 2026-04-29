@@ -2,44 +2,62 @@ import type { StudentPoints } from '../../types';
 
 interface ClassPointsBoxProps {
   classPoints: StudentPoints;
-  studentCount: number;
   onClick: () => void;
 }
 
-export function ClassPointsBox({ classPoints, studentCount, onClick }: ClassPointsBoxProps) {
+export function ClassPointsBox({ classPoints, onClick }: ClassPointsBoxProps) {
   const { total, positiveTotal, negativeTotal, today, thisWeek } = classPoints;
+  const isPositive = total >= 0;
 
   return (
     <button
       onClick={onClick}
-      className="w-full bg-linear-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 text-white rounded-xl p-4 shadow-lg dark:shadow-[0_0_0_1px_rgba(167,139,250,0.3)] hover:shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] text-left"
+      className="group w-full text-left bg-surface-2 border border-hairline rounded-2xl p-5 transition-[border-color,transform,box-shadow] duration-200 hover:border-accent-500/40 hover:-translate-y-[1px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="text-4xl">🏫</div>
-          <div>
-            <h3 className="text-lg font-bold">Class Total</h3>
-            <p className="text-white/80 text-sm">
-              {studentCount} student{studentCount !== 1 ? 's' : ''} • Click to award all
-            </p>
-          </div>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-display text-3xl lg:text-4xl tracking-[-0.02em] text-ink-strong leading-[1.05]">
+            Class total
+          </h3>
+          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-muted">
+            Tap to award the whole class →
+          </p>
         </div>
 
-        <div className="text-right">
-          <div className="text-3xl font-bold">
-            {total >= 0 ? '+' : ''}
+        <div className="text-right shrink-0">
+          <div
+            className={`font-mono tabular-nums text-3xl font-medium tracking-[-0.02em] ${
+              isPositive
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-red-600 dark:text-red-400'
+            }`}
+          >
+            {isPositive ? '+' : ''}
             {total}
           </div>
-          <div className="text-sm flex gap-3 justify-end">
-            <span className="text-emerald-300">+{positiveTotal}</span>
-            <span className="text-red-300">{negativeTotal}</span>
-          </div>
-          <div className="text-white/70 text-xs mt-1">
-            Today: {today >= 0 ? '+' : ''}
-            {today} • Week: {thisWeek >= 0 ? '+' : ''}
-            {thisWeek}
+          <div className="mt-1 font-mono text-[11px] tabular-nums text-ink-muted flex gap-1.5 justify-end">
+            <span className="text-emerald-600/80 dark:text-emerald-400/80">+{positiveTotal}</span>
+            <span className="text-ink-muted/40">/</span>
+            <span className="text-red-600/80 dark:text-red-400/80">{negativeTotal}</span>
           </div>
         </div>
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-hairline flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.16em] text-ink-muted">
+        <span>
+          Today{' '}
+          <span className="tabular-nums normal-case text-ink-mid">
+            {today >= 0 ? '+' : ''}
+            {today}
+          </span>
+        </span>
+        <span>
+          This week{' '}
+          <span className="tabular-nums normal-case text-ink-mid">
+            {thisWeek >= 0 ? '+' : ''}
+            {thisWeek}
+          </span>
+        </span>
       </div>
     </button>
   );

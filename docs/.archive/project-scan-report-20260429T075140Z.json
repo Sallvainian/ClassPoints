@@ -1,0 +1,134 @@
+{
+  "workflow_version": "1.2.0",
+  "timestamps": {
+    "started": "2026-04-28T00:04:32Z",
+    "last_updated": "2026-04-28T00:19:04Z",
+    "completed": "2026-04-28T00:19:04Z"
+  },
+  "mode": "full_rescan",
+  "scan_level": "deep",
+  "project_root": "/Users/sallvain/Projects/ClassPoints",
+  "project_knowledge": "/Users/sallvain/Projects/ClassPoints/docs",
+  "current_step": "completed",
+  "repository_type": "monolith",
+  "project_types": [
+    {
+      "part_id": "classpoints",
+      "project_type_id": "web",
+      "display_name": "ClassPoints (React SPA)"
+    }
+  ],
+  "completed_steps": [
+    {
+      "step": "step_1",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:05:30Z",
+      "summary": "Classified as monolith / single part: web SPA (React 18 + TS strict + Vite + Supabase + TanStack Query). package.json, tsconfig.app.json, vite/vitest/playwright configs all confirm web project type."
+    },
+    {
+      "step": "step_2",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:06:00Z",
+      "summary": "Found 38 markdown docs across docs/, _bmad-output/, tests/, and project root: AGENTS.md, CLAUDE.md, 8 BMad-generated docs/*.md (regenerating), 1 ADR, 8 legacy/*.md, ~15 _bmad-output/*.md (PRD, architecture, project-context, audits, test-artifacts), tests/README.md."
+    },
+    {
+      "step": "step_3",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:06:30Z",
+      "summary": "Tech stack: React 18.3.1, TypeScript 5.9.3 strict, Vite 6.0.5 (base /ClassPoints/), Tailwind 4.1.17, Supabase JS 2.104.1, TanStack Query 5.99.2, @dnd-kit/core 6.3.1, lucide-react 1.9.0, uuid 14 (security override), Vitest 4.1.5, Playwright 1.59.1, ESLint 9 flat config, Prettier 3.8.3."
+    },
+    {
+      "step": "step_4",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:11:00Z",
+      "summary": "Deep-scan conditional analysis: read all 11 supabase migrations (10 tables + 1 RPC + 8 named triggers), all 13 hooks (4 TanStack-migrated + 2 legacy hand-rolled + 7 utility), all 4 contexts (Auth/Theme/Sound/App), all 4 lib files (supabase, queryClient, queryKeys, manualAdjustmentConstants), all 4 type files (database, index, seatingChart, transforms), key dev scripts (dev.mjs, supabase-host.mjs), and editorial-redesign UI surfaces (DashboardView, ClassPointsBox, Sidebar, Layout, index.css @theme block). 97 .ts/.tsx source files, 46 component .tsx files, 11 migrations, 4 CI workflows."
+    },
+    {
+      "step": "step_5",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:13:00Z",
+      "summary": "source-tree-analysis.md regenerated. 274 lines covering top-level layout, src/, supabase/, tests/, scripts/, .github/workflows/, docs/. Annotated with critical entry points + 'where to add new code' decision table."
+    },
+    {
+      "step": "step_6",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:14:00Z",
+      "summary": "development-guide.md regenerated. 166 lines covering prerequisites (mise/fnox/Docker/Supabase CLI), one-time setup, all npm scripts, pre-commit hook, environment files, two-context Supabase lifecycle (dev.mjs vs Playwright globalSetup), Vitest + Playwright + CI test pipeline, deployment, common workflows, gotchas (Vite base path, fnox-encrypted secrets, dev.mjs env strip)."
+    },
+    {
+      "step": "step_8",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:15:30Z",
+      "summary": "architecture.md regenerated. 200 lines covering executive summary, tech stack constraints, architecture pattern table, provider stack, data architecture (10 tables + RPC + realtime scope), state management overview, optimistic-mutation pattern, realtime hook pattern, auth flow (stale-JWT graceful degrade), UI/design system (editorial redesign tokens), authoritative-sources index."
+    },
+    {
+      "step": "step_9",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:18:00Z",
+      "summary": "Supporting docs regenerated: project-overview.md (75 lines), data-models.md (269 lines covering all 10 tables, RLS, triggers, RPC, realtime publication, type-system boundaries, add-column checklist, current realtime subscriptions), state-management.md (220 lines covering 4 migrated hooks, generic realtime hook, 2 legacy hand-rolled hooks, 4 contexts, query keys, optimistic-mutation pattern, what-not-to-do list), component-inventory.md (181 lines covering 45 components across 14 folders, lazy loading, design system patterns)."
+    },
+    {
+      "step": "step_10",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:19:00Z",
+      "summary": "index.md regenerated. 100 lines: snapshot table, start-here navigation table, quick-reference command list, entry points, links to all 7 generated docs + 11 high-signal existing docs + 8 BMAD artifacts + 2 root-rule files (CLAUDE.md / AGENTS.md), getting-started checklist."
+    },
+    {
+      "step": "step_11",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:19:04Z",
+      "summary": "Validation: scanned all generated docs for incomplete markers (_(To be generated)_, _(TBD)_, _(TODO)_, _(Coming soon)_, _(Not yet generated)_, _(Pending)_) — zero matches. Total generated: 8 files, 1485 lines."
+    },
+    {
+      "step": "step_12",
+      "status": "completed",
+      "timestamp": "2026-04-28T00:19:04Z",
+      "summary": "Workflow complete."
+    }
+  ],
+  "outputs_generated": [
+    "project-scan-report.json",
+    "index.md",
+    "project-overview.md",
+    "architecture.md",
+    "data-models.md",
+    "state-management.md",
+    "component-inventory.md",
+    "source-tree-analysis.md",
+    "development-guide.md"
+  ],
+  "findings": {
+    "project_classification": {
+      "repository_type": "monolith",
+      "parts_count": 1,
+      "primary_tech": "React 18 + TypeScript + Vite + Supabase + TanStack Query"
+    },
+    "technology_stack": {
+      "language": "TypeScript ~5.9.3 strict",
+      "framework": "React 18.3.1",
+      "build": "Vite 6.0.5",
+      "styling": "Tailwind CSS 4.1.17",
+      "server_state": "TanStack Query 5.99.2",
+      "backend": "Supabase JS 2.104.1",
+      "testing": "Vitest 4.1.5 + Playwright 1.59.1"
+    },
+    "scan_metrics": {
+      "source_files_count": 97,
+      "component_files_count": 46,
+      "hook_files_count": 13,
+      "context_files_count": 4,
+      "migration_files_count": 11,
+      "ci_workflow_files_count": 4,
+      "table_count": 10,
+      "rpc_count": 1,
+      "named_trigger_count": 8,
+      "realtime_domains": 3
+    },
+    "doc_metrics": {
+      "files_generated": 9,
+      "total_lines": 1485,
+      "incomplete_markers": 0
+    }
+  },
+  "resume_instructions": "Workflow complete. To regenerate, run /bmad-document-project and select option 1 (Re-scan)."
+}

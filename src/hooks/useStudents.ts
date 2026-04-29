@@ -120,7 +120,11 @@ export function useStudents(
       if (!classroomId) return;
       const listKey = queryKeys.students.byClassroom(classroomId);
 
-      if (oldTransaction.student_id && oldTransaction.points !== undefined) {
+      if (
+        oldTransaction.student_id &&
+        oldTransaction.points !== undefined &&
+        oldTransaction.created_at
+      ) {
         // REPLICA IDENTITY FULL (migration 005) gives us the row data we need
         // to decrement time-windowed totals locally without a refetch.
         const { startOfToday, startOfWeek } = getDateBoundaries();

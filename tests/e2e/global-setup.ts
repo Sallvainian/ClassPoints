@@ -1,12 +1,16 @@
 import { execFileSync } from 'node:child_process';
-import { isStackRunning, shouldManageLocalStack } from '../../scripts/lib/supabase-host.mjs';
+import {
+  isStackRunning,
+  shouldManageLocalStack,
+  startSupabaseWithRecovery,
+} from '../../scripts/lib/supabase-host.mjs';
 import { seedTestUser } from '../../scripts/lib/seed-test-user.mjs';
 
 const MANAGED = '__CLASSPOINTS_MANAGED_SUPABASE';
 
 const safeStop = () => {
   try {
-    execFileSync('npx', ['supabase', 'stop'], { stdio: 'inherit' });
+    execFileSync('supabase', ['stop'], { stdio: 'inherit' });
   } catch {
     // Best-effort — surface the original failure, not the cleanup failure.
   }
@@ -36,10 +40,10 @@ export default async function globalSetup() {
   if (!shouldManageLocalStack(url)) return;
 
   let weStartedIt = false;
-  if (!isStackRunning()) {
+  if (!isStackRunning(url)) {
     console.log(`[playwright] Starting local Supabase (${url})`);
     try {
-      execFileSync('npx', ['supabase', 'start'], { stdio: 'inherit' });
+      startSupabaseWithRecovery('[playwright]');
       process.env[MANAGED] = '1';
       weStartedIt = true;
     } catch (err) {

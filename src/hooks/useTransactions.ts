@@ -34,9 +34,8 @@ export interface AwardPointsInput {
   // Optional batch correlation id; award-to-students / award-class pass a shared id
   // so batch undo can match a cluster of inserts via the DB `batch_id` column.
   batchId?: string | null;
-  // Caller-provided ms timestamp. Makes the optimistic row's id deterministic
-  // across React StrictMode double-invokes of `onMutate` (ADR-005 §4c) while
-  // staying distinct across separate user taps.
+  // Caller-provided ms timestamp. Keeps the optimistic row id deterministic for
+  // duplicate mutation invocations while staying distinct across separate taps.
   timestamp: number;
 }
 
@@ -87,7 +86,7 @@ export function useTransactions(
  *   (a) null-guards `context.previous*` in `onError` — undefined post-cancel
  *       would overwrite the cache, worse than no rollback.
  *   (b) onMutate is pure + idempotent; deterministic optimistic id + dedup guard
- *       protect against React StrictMode double-invoke in dev.
+ *       protect against duplicate mutation invocations.
  *   (c) temp row id is content-derived (studentId + behaviorId + caller timestamp);
  *       no `crypto.randomUUID()`.
  *   (d) explicit `onError` wired below — error surfaces through AppContext (not silent).
@@ -128,7 +127,7 @@ export function useAwardPoints() {
       const previousClassrooms = qc.getQueryData<ClassroomWithCount[]>(queryKeys.classrooms.all);
       const previousStudents = qc.getQueryData<StudentWithPoints[]>(studentsKey);
 
-      // (c) deterministic temp id — same input → same id across StrictMode double-invoke
+      // (c) deterministic temp id — same input → same id across duplicate invocations
       const optimisticId = `optimistic-${input.studentId}-${input.behavior.id}-${input.timestamp}`;
 
       // (b) idempotency guard: if onMutate double-fires for the same input, the

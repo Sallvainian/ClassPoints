@@ -1,67 +1,43 @@
 /**
- * SoundSettingsModal - Modal wrapper for sound settings
- *
- * Includes a trigger button (🔊 icon) that opens the modal.
+ * SoundSettingsModal — modal wrapper for SoundSettings.
+ * Includes a trigger button rendered in the dashboard header.
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { Volume2, VolumeX } from 'lucide-react';
 import { SoundSettings } from './SoundSettings';
-import { useSoundContext } from '../../contexts/SoundContext';
+import { useSoundContext } from '../../contexts/useSoundContext';
+import { Dialog } from '../ui';
 
 export function SoundSettingsModal() {
   const [isOpen, setIsOpen] = useState(false);
   const { settings } = useSoundContext();
 
-  // Handle escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen]);
-
   return (
     <>
-      {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors text-gray-600 dark:text-zinc-400 hover:text-gray-900"
+        className="inline-flex items-center justify-center w-9 h-9 rounded-[10px] text-ink-mid hover:bg-surface-3 hover:text-ink-strong transition-colors"
         title={settings.enabled ? 'Sound settings (on)' : 'Sound settings (muted)'}
         aria-label="Sound settings"
       >
-        {settings.enabled ? '🔊' : '🔇'}
+        {settings.enabled ? (
+          <Volume2 className="w-4 h-4" strokeWidth={1.75} />
+        ) : (
+          <VolumeX className="w-4 h-4" strokeWidth={1.75} />
+        )}
       </button>
 
-      {/* Modal */}
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setIsOpen(false)}
-            aria-hidden="true"
-          />
-
-          {/* Modal Content */}
-          <div
-            className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="sound-settings-title"
-          >
-            <SoundSettings onClose={() => setIsOpen(false)} />
-          </div>
+      <Dialog
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        ariaLabel="Sound settings"
+        maxWidth="max-w-md"
+      >
+        <div className="p-6 max-h-[80vh] overflow-y-auto">
+          <SoundSettings onClose={() => setIsOpen(false)} />
         </div>
-      )}
+      </Dialog>
     </>
   );
 }

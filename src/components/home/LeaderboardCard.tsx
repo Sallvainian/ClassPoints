@@ -60,7 +60,6 @@ function LeaderboardCardComponent({ students, classrooms }: LeaderboardCardProps
     intervalMs: 7000,
   });
 
-  // Calculate leaderboard entries based on active category
   const entries = useMemo((): LeaderboardEntry[] => {
     switch (activeCategory) {
       case 'overall':
@@ -82,40 +81,49 @@ function LeaderboardCardComponent({ students, classrooms }: LeaderboardCardProps
   const hasEntries = entries.length > 0;
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-md p-4 h-full flex flex-col">
+    <div className="bg-surface-2 border border-hairline rounded-2xl p-5 h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-2xl">{config.icon}</span>
-        <h2 className="text-lg font-bold text-gray-800 dark:text-zinc-100">{config.title}</h2>
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">
+          Leaderboard
+        </p>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="text-xl leading-none" aria-hidden="true">
+            {config.icon}
+          </span>
+          <h2 className="font-display text-xl tracking-[-0.01em] text-ink-strong">
+            {config.title}
+          </h2>
+        </div>
       </div>
 
-      {/* Leaderboard entries */}
-      <div className="flex-1 space-y-2">
+      {/* Entries */}
+      <div className="flex-1 mt-4 space-y-1">
         {hasEntries ? (
           entries.map((entry, index) => (
             <LeaderboardRow key={entry.student.id} rank={index + 1} entry={entry} />
           ))
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-400 dark:text-zinc-600 text-sm">
+          <div className="flex items-center justify-center h-full text-xs text-ink-muted">
             {getEmptyMessage(activeCategory)}
           </div>
         )}
       </div>
 
       {/* Category indicator dots */}
-      <div className="flex justify-center gap-1.5 mt-4 pt-3 border-t border-gray-100 dark:border-zinc-800">
+      <div className="flex justify-center gap-1 mt-4 pt-4 border-t border-hairline">
         {CATEGORY_ORDER.map((category) => (
           <button
             key={category}
             onClick={() => selectCategory(category)}
             aria-label={CATEGORY_CONFIG[category].title}
-            className="p-2 flex items-center justify-center rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:ring-offset-2"
+            className="p-2 flex items-center justify-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40 focus-visible:ring-offset-1 focus-visible:ring-offset-surface-2"
           >
             <span
-              className={`w-2 h-2 rounded-full transition-all ${
+              className={`h-[3px] rounded-full transition-all ${
                 category === activeCategory
-                  ? 'bg-blue-500 scale-125'
-                  : 'bg-gray-300 dark:bg-zinc-700 hover:bg-gray-400'
+                  ? 'w-5 bg-accent-500'
+                  : 'w-2 bg-hairline-strong hover:bg-ink-muted/50'
               }`}
             />
           </button>
@@ -138,19 +146,19 @@ const LeaderboardRow = memo(function LeaderboardRow({ rank, entry }: Leaderboard
   const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
 
   return (
-    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+    <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-surface-3 transition-colors">
       {/* Rank */}
       <div className="w-6 text-center">
         {rankEmoji ? (
-          <span className="text-lg">{rankEmoji}</span>
+          <span className="text-base">{rankEmoji}</span>
         ) : (
-          <span className="text-sm text-gray-500 dark:text-zinc-500 font-medium">{rank}</span>
+          <span className="font-mono text-xs text-ink-muted tabular-nums">{rank}</span>
         )}
       </div>
 
       {/* Avatar */}
       <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center ${textColor} font-bold text-sm shadow-inner`}
+        className={`w-7 h-7 rounded-full flex items-center justify-center ${textColor} font-semibold text-xs shadow-inner`}
         style={{ backgroundColor: bgColor }}
       >
         {student.name.charAt(0).toUpperCase()}
@@ -158,19 +166,21 @@ const LeaderboardRow = memo(function LeaderboardRow({ rank, entry }: Leaderboard
 
       {/* Name */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-800 dark:text-zinc-100 truncate">
-          {student.name}
-        </p>
-        {subtitle && <p className="text-xs text-gray-500 dark:text-zinc-500">{subtitle}</p>}
+        <p className="text-sm font-medium text-ink-strong truncate leading-tight">{student.name}</p>
+        {subtitle && (
+          <p className="font-mono text-[10px] tracking-[0.04em] text-ink-muted truncate leading-tight mt-0.5">
+            {subtitle}
+          </p>
+        )}
       </div>
 
       {/* Value */}
       <div className="text-right">
         <span
-          className={`font-bold ${
+          className={`font-mono tabular-nums text-sm font-semibold ${
             typeof value === 'number' && value >= 0
               ? 'text-emerald-600 dark:text-emerald-400'
-              : 'text-gray-700 dark:text-zinc-200'
+              : 'text-ink-strong'
           }`}
         >
           {typeof value === 'number' ? (value >= 0 ? '+' : '') : ''}

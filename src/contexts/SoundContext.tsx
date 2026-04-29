@@ -12,17 +12,9 @@ declare global {
   }
 }
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  type ReactNode,
-} from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from './AuthContext';
+import { useAuth } from './useAuth';
 import type { UserSoundSettings, UpdateUserSoundSettings } from '../types/database';
 import {
   type SoundId,
@@ -32,15 +24,7 @@ import {
   ALL_SOUND_IDS,
   synthesizeSound,
 } from '../assets/sounds';
-
-export interface SoundSettings {
-  enabled: boolean;
-  volume: number; // 0.0 to 1.0
-  positiveSound: SoundId;
-  negativeSound: SoundId;
-  customPositiveUrl: string | null;
-  customNegativeUrl: string | null;
-}
+import { SoundContext, type SoundSettings, type SoundContextValue } from './useSoundContext';
 
 const DEFAULT_SETTINGS: SoundSettings = {
   enabled: true,
@@ -50,18 +34,6 @@ const DEFAULT_SETTINGS: SoundSettings = {
   customPositiveUrl: null,
   customNegativeUrl: null,
 };
-
-interface SoundContextValue {
-  settings: SoundSettings;
-  isLoading: boolean;
-  error: string | null;
-  updateSettings: (updates: Partial<SoundSettings>) => Promise<void>;
-  audioContext: AudioContext | null;
-  soundBuffers: Map<SoundId, AudioBuffer>;
-  isAudioReady: boolean;
-}
-
-const SoundContext = createContext<SoundContextValue | null>(null);
 
 export function SoundProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -205,14 +177,6 @@ export function SoundProvider({ children }: { children: ReactNode }) {
   };
 
   return <SoundContext.Provider value={value}>{children}</SoundContext.Provider>;
-}
-
-export function useSoundContext() {
-  const context = useContext(SoundContext);
-  if (!context) {
-    throw new Error('useSoundContext must be used within SoundProvider');
-  }
-  return context;
 }
 
 // Type guard for validating SoundId from database

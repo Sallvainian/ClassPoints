@@ -1,9 +1,11 @@
 import { useEffect, useCallback, useState } from 'react';
+import { X } from 'lucide-react';
 import type { Behavior, StudentPoints } from '../../types';
-import { useApp } from '../../contexts/AppContext';
+import { useApp } from '../../contexts/useApp';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
+import { Dialog } from '../ui';
 
 interface ClassAwardModalProps {
   isOpen: boolean;
@@ -27,25 +29,6 @@ export function ClassAwardModal({
   const [isAwarding, setIsAwarding] = useState(false);
   const [awardError, setAwardError] = useState<string | null>(null);
 
-  // Handle escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, onClose]);
-
-  // Reset error and loading state when modal closes
-  // Ensures a clean slate if user reopens after a failed attempt
   useEffect(() => {
     if (!isOpen) {
       setAwardError(null);
@@ -61,10 +44,7 @@ export function ClassAwardModal({
       setAwardError(null);
 
       try {
-        // awardClassPoints throws on error with automatic rollback
         await awardClassPoints(classroomId, behavior.id);
-
-        // Only play sound on success
         if (behavior.category === 'positive') {
           playPositive();
         } else {
@@ -82,84 +62,87 @@ export function ClassAwardModal({
 
   if (!isOpen) return null;
 
+  const isPositive = classPoints.total >= 0;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      ariaLabel={`Award points to entire class: ${classroomName}`}
+      maxWidth="max-w-lg"
+    >
+      {/* Header */}
+      <div className="relative px-6 pt-6 pb-5 border-b border-hairline">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 inline-flex items-center justify-center w-8 h-8 rounded-md text-ink-mid hover:bg-surface-3 hover:text-ink-strong transition-colors"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" strokeWidth={1.75} />
+        </button>
 
-      {/* Modal */}
-      <div
-        className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="class-award-modal-title"
-      >
-        {/* Header */}
-        <div className="bg-linear-to-r from-indigo-500 to-purple-600 text-white p-6">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-white/80 hover:text-white text-2xl"
-            aria-label="Close"
-          >
-            ×
-          </button>
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-3">
+          Award entire class
+        </p>
 
-          <div className="flex items-center gap-4">
-            {/* Class Icon */}
-            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center text-3xl shadow-lg">
-              🏫
-            </div>
-
-            <div>
-              <h2 id="class-award-modal-title" className="text-xl font-bold">
-                Award Entire Class
-              </h2>
-              <p className="text-white/80 text-sm">
-                {classroomName} • {studentCount} student{studentCount !== 1 ? 's' : ''}
-              </p>
-              <p className="text-white/80 text-sm">
-                Class Total:{' '}
-                <span className="font-semibold">
-                  {classPoints.total >= 0 ? '+' : ''}
-                  {classPoints.total}
-                </span>{' '}
-                points
-              </p>
-            </div>
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-accent-500/10 text-accent-700 dark:text-accent-400 flex items-center justify-center text-2xl">
+            ◎
           </div>
-        </div>
-
-        {/* Info Banner */}
-        <div className="bg-indigo-50 dark:bg-indigo-950/40 border-b border-indigo-100 dark:border-indigo-900/50 px-6 py-3">
-          <p className="text-sm text-indigo-700 dark:text-indigo-300 text-center">
-            Points will be awarded to all {studentCount} students at once
-          </p>
-        </div>
-
-        {/* Error Display */}
-        {awardError && (
-          <div className="bg-red-50 dark:bg-red-950/40 border-b border-red-100 dark:border-red-900/50 px-6 py-3">
-            <p className="text-sm text-red-700 dark:text-red-300 text-center">{awardError}</p>
+          <div>
+            <h2 className="font-display text-2xl tracking-[-0.01em] text-ink-strong leading-tight">
+              {classroomName}
+            </h2>
+            <p className="mt-1 font-mono text-xs text-ink-muted">
+              {studentCount} student{studentCount !== 1 ? 's' : ''} ·{' '}
+              <span
+                className={`tabular-nums font-semibold ${
+                  isPositive
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-red-600 dark:text-red-400'
+                }`}
+              >
+                {isPositive ? '+' : ''}
+                {classPoints.total}
+              </span>{' '}
+              total
+            </p>
           </div>
-        )}
-
-        {/* Behavior Picker */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
-          {isAwarding ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mb-3" />
-              <p className="text-gray-500 dark:text-zinc-500">Awarding points...</p>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-gray-600 dark:text-zinc-400 mb-4 text-center">
-                Select a behavior to award to the whole class
-              </p>
-              <BehaviorPicker behaviors={behaviors} onSelect={handleBehaviorSelect} />
-            </>
-          )}
         </div>
       </div>
-    </div>
+
+      {/* Info banner */}
+      <div className="bg-accent-500/5 border-b border-hairline px-6 py-3">
+        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent-700 dark:text-accent-400 text-center">
+          Points awarded to all {studentCount} students at once
+        </p>
+      </div>
+
+      {/* Error */}
+      {awardError && (
+        <div className="bg-red-50 dark:bg-red-950/30 border-b border-red-200/40 dark:border-red-900/40 px-6 py-3">
+          <p className="text-xs text-red-700 dark:text-red-300 text-center">{awardError}</p>
+        </div>
+      )}
+
+      {/* Body */}
+      <div className="p-6 overflow-y-auto max-h-[60vh]">
+        {isAwarding ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-hairline border-t-accent-500 mb-3" />
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-muted">
+              Awarding points...
+            </p>
+          </div>
+        ) : (
+          <>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-4 text-center">
+              Select a behavior for the whole class
+            </p>
+            <BehaviorPicker behaviors={behaviors} onSelect={handleBehaviorSelect} />
+          </>
+        )}
+      </div>
+    </Dialog>
   );
 }

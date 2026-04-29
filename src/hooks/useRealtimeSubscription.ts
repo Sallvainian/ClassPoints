@@ -13,9 +13,8 @@ interface UseRealtimeSubscriptionOptions<T extends Record<string, unknown>, D = 
   filter?: string;
   /**
    * Preferred for migrated callers: single callback receiving the full payload. When provided,
-   * legacy `onInsert`/`onUpdate`/`onDelete` are ignored. Added Phase 1 as a transitional bridge;
-   * the three legacy callbacks below are scheduled for removal at end of Phase 3
-   * (per architecture Decision 3).
+   * legacy `onInsert`/`onUpdate`/`onDelete` are ignored. Added Phase 1 as a
+   * transitional bridge; keep legacy callbacks only for existing migration consumers.
    */
   onChange?: (payload: RealtimePostgresChangesPayload<T>) => void;
   // Legacy callbacks: do not use in new code. Prefer `onChange`.
@@ -99,7 +98,12 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
       channelRef.current = null;
     }
 
-    const channelName = `${table}-changes-${filter || 'all'}-${Date.now()}`;
+    // Use a UUID, not Date.now(): under React 18 StrictMode dev double-mount,
+    // cleanup → remount runs in the same microtask (and same millisecond), so
+    // Date.now() collides. supabase.channel(topic) returns the EXISTING channel
+    // for a matching topic, and the second .on('postgres_changes', …) on a
+    // joining channel throws. Per-mount UUID guarantees a fresh channel.
+    const channelName = `${table}-changes-${filter || 'all'}-${crypto.randomUUID()}`;
     const channel = supabase.channel(channelName);
     channelRef.current = channel;
 

@@ -20,13 +20,13 @@ export function AdjustPointsModal({ student, isOpen, onClose, onConfirm }: Adjus
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset form when modal opens or student changes
   useEffect(() => {
     if (isOpen && student) {
       setTargetPoints(String(student.pointTotal));
       setNote('');
       setError(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, student?.id]);
 
   if (!student) return null;
@@ -42,6 +42,7 @@ export function AdjustPointsModal({ student, isOpen, onClose, onConfirm }: Adjus
     parsedTarget <= MAX_POINTS;
   const delta = isValidNumber ? parsedTarget - currentPoints : 0;
   const hasChange = isValidNumber && delta !== 0;
+  const currentIsPositive = currentPoints >= 0;
 
   const handleConfirm = async () => {
     if (!hasChange) {
@@ -69,73 +70,66 @@ export function AdjustPointsModal({ student, isOpen, onClose, onConfirm }: Adjus
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Set Points for ${student.name}`}>
-      <div className="space-y-4">
-        {/* Current Points Display */}
-        <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg p-3">
-          <p className="text-sm text-gray-600 dark:text-zinc-400">Current Points</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-zinc-50">{currentPoints}</p>
-        </div>
-
-        {/* Target Points Input */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-zinc-200 mb-1">
-            New Points
-          </label>
-          <Input
-            type="number"
-            value={targetPoints}
-            onChange={(e) => setTargetPoints(e.target.value)}
-            onKeyDown={handleKeyDown}
-            autoFocus
-            className="text-lg"
-          />
-        </div>
-
-        {/* Delta Preview */}
-        {isValidNumber && (
-          <div
-            className={`text-sm font-medium ${
-              delta > 0
-                ? 'text-green-600 dark:text-green-400'
-                : delta < 0
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-gray-500 dark:text-zinc-500'
+    <Modal isOpen={isOpen} onClose={onClose} title={`Set points · ${student.name}`}>
+      <div className="space-y-5">
+        {/* Current */}
+        <div className="rounded-[10px] border border-hairline bg-surface-1 p-3.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-1">
+            Current
+          </p>
+          <p
+            className={`font-mono tabular-nums text-2xl font-medium tracking-[-0.02em] ${
+              currentIsPositive
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-red-600 dark:text-red-400'
             }`}
           >
-            {delta === 0 ? (
-              'No change'
-            ) : (
-              <>
-                Change: {delta > 0 ? '+' : ''}
-                {delta} points
-              </>
-            )}
+            {currentIsPositive ? '+' : ''}
+            {currentPoints}
+          </p>
+        </div>
+
+        {/* Target */}
+        <Input
+          label="New points"
+          type="number"
+          value={targetPoints}
+          onChange={(e) => setTargetPoints(e.target.value)}
+          onKeyDown={handleKeyDown}
+          autoFocus
+        />
+
+        {/* Delta preview */}
+        {isValidNumber && (
+          <div
+            className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 font-mono tabular-nums text-xs font-semibold ${
+              delta > 0
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                : delta < 0
+                  ? 'bg-red-500/10 text-red-700 dark:text-red-400'
+                  : 'bg-surface-3 text-ink-muted'
+            }`}
+          >
+            <span className="font-mono uppercase tracking-[0.14em] text-[10px] not-italic">Δ</span>
+            {delta === 0 ? 'no change' : `${delta > 0 ? '+' : ''}${delta}`}
           </div>
         )}
 
-        {/* Optional Note */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-zinc-200 mb-1">
-            Reason (optional)
-          </label>
-          <Input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="e.g., Correction for missed points"
-          />
-        </div>
+        <Input
+          label="Reason (optional)"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="e.g. Correction for missed points"
+        />
 
-        {/* Error Display */}
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 
-        {/* Actions */}
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 pt-1">
           <Button variant="secondary" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
           <Button onClick={handleConfirm} disabled={!hasChange || saving}>
-            {saving ? 'Saving...' : 'Apply'}
+            {saving ? 'Saving…' : 'Apply'}
           </Button>
         </div>
       </div>

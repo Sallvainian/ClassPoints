@@ -1,34 +1,8 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  type ReactNode,
-} from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { queryClient } from '../lib/queryClient';
 import type { User, Session, AuthError } from '@supabase/supabase-js';
-
-interface AuthContextValue {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  error: AuthError | null;
-  signUp: (
-    email: string,
-    password: string,
-    name?: string
-  ) => Promise<{ success: boolean; error?: AuthError }>;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: AuthError }>;
-  signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<{ success: boolean; error?: AuthError }>;
-  updatePassword: (password: string) => Promise<{ success: boolean; error?: AuthError }>;
-  clearError: () => void;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+import { AuthContext, type AuthContextValue } from './useAuth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -44,12 +18,113 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Initialize auth state
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    let cancelled = false;
+
+    /**
+     * Manually purge any cached Supabase auth keys from localStorage.
+     * Last-resort fallback when supabase.auth.signOut itself fails (which can
+     * happen if the auth endpoint is unreachable). Without this, a stale JWT
+     * stays in storage and the GoTrueClient's auto-refresh loops forever.
+     */
+    const purgeAuthStorage = () => {
+      try {
+        for (const k of Object.keys(localStorage)) {
+          if (k.startsWith('sb-')) localStorage.removeItem(k);
+        }
+      } catch {
+        // localStorage unavailable (private browsing edge case) — nothing to purge
+      }
+    };
+
+    /**
+     * On boot, the GoTrueClient hydrates from localStorage and immediately
+     * starts auto-refreshing the access token. If the cached session was
+     * issued by a different Supabase instance (project switched, local stack
+     * recreated, JWT secret rotated) OR the auth endpoint is unreachable,
+     * the refresh fails and the client retries forever — bricking the page.
+     *
+     * Mitigation: validate the cached session against the server with a
+     * bounded timeout. If it doesn't validate, clear local state so the app
+     * routes to the login screen instead of spinning.
+     */
+    const init = async () => {
+      try {
+        const {
+          data: { session: cached },
+        } = await supabase.auth.getSession();
+
+        if (!cached) {
+          if (!cancelled) {
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Validate against the server with a wall-clock bound — we can't
+        // trust the cached session alone. supabase.auth.getUser() accepts no
+        // AbortSignal in @supabase/auth-js, and the underlying fetch has no
+        // default timeout, so a dead /auth/v1/user endpoint would hang boot
+        // indefinitely without this race.
+        const userPromise = supabase.auth.getUser();
+        // Detach: if the timeout wins the race, this promise stays pending
+        // and may later reject (e.g. when GoTrue's internal lock timeout
+        // fires). Without a no-op handler that surfaces as an unhandled
+        // rejection.
+        userPromise.catch(() => {});
+
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('auth validation timeout')), 5000);
+        });
+
+        let validateError: unknown = null;
+        try {
+          const { error } = await Promise.race([userPromise, timeoutPromise]);
+          validateError = error;
+        } catch (e) {
+          validateError = e;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        if (validateError) {
+          console.warn(
+            '[auth] cached session is stale (refresh/validate failed); clearing local state',
+            validateError
+          );
+          try {
+            await supabase.auth.signOut({ scope: 'local' });
+          } catch {
+            // signOut itself can hit the network — purge directly
+          }
+          purgeAuthStorage();
+          if (!cancelled) {
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setSession(cached);
+          setUser(cached.user);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn('[auth] init failed:', err);
+        purgeAuthStorage();
+        if (!cancelled) {
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+        }
+      }
+    };
+
+    void init();
 
     // Listen for auth changes
     const {
@@ -68,7 +143,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = useCallback(
@@ -193,12 +271,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 }

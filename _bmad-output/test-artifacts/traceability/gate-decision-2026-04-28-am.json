@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "evaluated_at": "2026-04-28T14:00:33Z",
+  "repo": "ClassPoints",
+  "target": {
+    "type": "feature_catalog",
+    "id": "classpoints-post-redesign-test-design-2026-04-28",
+    "label": "ClassPoints Post-Redesign Behavioral Coverage (test-design-qa.md)"
+  },
+  "collection_status": "COLLECTED",
+  "gate_basis": "priority_thresholds",
+  "gate_status": "FAIL",
+  "gate_decision_type": "automation-gap",
+  "rationale": "P0 coverage is 4% (required: 100%). 44 critical requirements uncovered. This is an automation-gap FAIL — the test design catalog is comprehensive and high-confidence; the gap is that downstream automation (atdd → automate) has only delivered Wave 1a (4 of 47 P0 scenarios). Distinct from a correctness FAIL (which would imply existing tests are red on intended behavior).",
+  "p0_status": "NOT_MET",
+  "p1_status": "NOT_MET",
+  "overall_status": "NOT_MET",
+  "critical_open": 44,
+  "links": {
+    "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix.md",
+    "trace_report_url": "",
+    "artifact_url": "",
+    "journey_evidence_url": ""
+  }
+}

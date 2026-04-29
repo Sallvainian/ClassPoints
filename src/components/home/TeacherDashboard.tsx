@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
-import { useApp } from '../../contexts/AppContext';
-import { useAuth } from '../../contexts/AuthContext';
+import { useApp } from '../../contexts/useApp';
+import { useAuth } from '../../contexts/useAuth';
 import { ClassroomCard } from './ClassroomCard';
 import { LeaderboardCard } from './LeaderboardCard';
 import { StatsCard } from './StatsCard';
@@ -17,12 +17,10 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
 
   const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Teacher';
 
-  // Aggregate all students across all classrooms
   const allStudents = useMemo(() => {
     return classrooms.flatMap((c) => c.students);
   }, [classrooms]);
 
-  // Calculate aggregate statistics
   const stats = useMemo(() => {
     const totalPoints = classrooms.reduce((sum, c) => sum + (c.pointTotal ?? 0), 0);
     const totalStudents = allStudents.length;
@@ -49,28 +47,30 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
     }
   }, [createClassroom]);
 
-  // Loading state - show spinner while data loads
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-zinc-900">
-        <div className="text-center">
-          <div className="text-4xl mb-2 animate-pulse">⏳</div>
-          <p className="text-gray-600 dark:text-zinc-400">Loading your dashboard...</p>
+      <div className="h-full flex items-center justify-center bg-surface-1">
+        <div className="text-center animate-fade-up">
+          <div className="mx-auto w-10 h-10 border-2 border-hairline border-t-accent-500 rounded-full animate-spin" />
+          <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-muted">
+            Loading your dashboard...
+          </p>
         </div>
       </div>
     );
   }
 
-  // Error state - failed to load data
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-zinc-900 p-8">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-zinc-100 mb-2">
+      <div className="h-full flex items-center justify-center bg-surface-1 p-8">
+        <div className="text-center max-w-md animate-fade-up">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-red-600 mb-3">
+            ! Error
+          </p>
+          <h2 className="font-display text-4xl tracking-[-0.01em] text-ink-strong mb-3">
             Unable to load dashboard
           </h2>
-          <p className="text-gray-600 dark:text-zinc-400 mb-6">
+          <p className="text-sm text-ink-mid mb-8">
             {error.message || 'Something went wrong. Please try again.'}
           </p>
           <Button onClick={() => window.location.reload()}>Retry</Button>
@@ -79,82 +79,97 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
     );
   }
 
-  // Empty state - no classrooms
   if (classrooms.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-zinc-900 p-8">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">🎯</div>
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-zinc-100 mb-2">
+      <div className="h-full flex items-center justify-center bg-surface-1 p-8 relative overflow-hidden">
+        <div className="absolute inset-0 dot-grid opacity-40" aria-hidden="true" />
+        <div className="relative text-center max-w-lg animate-fade-up">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent-600 mb-4">
+            00 / Begin
+          </p>
+          <h2 className="font-display text-5xl leading-[1.05] tracking-[-0.02em] text-ink-strong mb-4">
             Welcome to ClassPoints!
           </h2>
-          <p className="text-gray-600 dark:text-zinc-400 mb-6">
+          <p className="text-base text-ink-mid mb-8 max-w-md mx-auto leading-relaxed">
             Track student behavior and points with ease. Create your first classroom to get started.
           </p>
           <Button onClick={handleCreateClassroom} size="lg">
             + Create Your First Classroom
           </Button>
-          {createError && <p className="text-red-500 text-sm mt-4">{createError}</p>}
+          {createError && <p className="font-mono text-xs text-red-600 mt-4">{createError}</p>}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-50 dark:bg-zinc-900 p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-zinc-100">
-          Welcome back, {displayName}!
-        </h1>
-        <p className="text-gray-600 dark:text-zinc-400">
-          Here&apos;s how your classes are doing today.
-        </p>
-      </div>
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <StatsCard
-          icon="🎯"
-          label="Total Points"
-          value={stats.totalPoints >= 0 ? `+${stats.totalPoints}` : stats.totalPoints}
-          gradient="from-emerald-500 to-teal-600"
-        />
-        <StatsCard
-          icon="👥"
-          label="Total Students"
-          value={stats.totalStudents}
-          subValue={`across ${classrooms.length} class${classrooms.length !== 1 ? 'es' : ''}`}
-          gradient="from-blue-500 to-indigo-600"
-        />
-        <StatsCard
-          icon="📅"
-          label="Points Today"
-          value={stats.todayPoints >= 0 ? `+${stats.todayPoints}` : stats.todayPoints}
-          gradient="from-purple-500 to-pink-600"
-        />
-      </div>
-
-      {/* Two-column layout: Leaderboard + Classrooms */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Leaderboard - takes 1 column */}
-        <div className="lg:col-span-1">
-          <LeaderboardCard students={allStudents} classrooms={classrooms} />
+    <div className="h-full overflow-y-auto bg-surface-1">
+      <div className="max-w-7xl mx-auto p-6 lg:p-10">
+        {/* Header */}
+        <div className="mb-10 animate-fade-up">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-muted mb-3">
+            Today /{' '}
+            {new Date().toLocaleDateString(undefined, {
+              weekday: 'long',
+              month: 'short',
+              day: 'numeric',
+            })}
+          </p>
+          <h1 className="font-display text-4xl lg:text-5xl leading-[1.05] tracking-[-0.02em] text-ink-strong">
+            Welcome back, {displayName}!
+          </h1>
+          <p className="mt-3 text-base text-ink-mid">
+            Here&apos;s how your classes are doing today.
+          </p>
         </div>
 
-        {/* Classrooms Grid - takes 2 columns */}
-        <div className="lg:col-span-2">
-          <h2 className="text-lg font-bold text-gray-800 dark:text-zinc-100 mb-4">
-            Your Classrooms
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {classrooms.map((classroom) => (
-              <ClassroomCard
-                key={classroom.id}
-                classroom={classroom}
-                onClick={handleClassroomClick}
-              />
-            ))}
+        {/* Stats row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8 animate-fade-up [animation-delay:80ms]">
+          <StatsCard
+            icon="✦"
+            label="Total Points"
+            value={stats.totalPoints >= 0 ? `+${stats.totalPoints}` : stats.totalPoints}
+            tone="positive"
+          />
+          <StatsCard
+            icon="◐"
+            label="Total Students"
+            value={stats.totalStudents}
+            subValue={`across ${classrooms.length} class${classrooms.length !== 1 ? 'es' : ''}`}
+            tone="neutral"
+          />
+          <StatsCard
+            icon="↑"
+            label="Points Today"
+            value={stats.todayPoints >= 0 ? `+${stats.todayPoints}` : stats.todayPoints}
+            tone="accent"
+          />
+        </div>
+
+        {/* Two-column: Leaderboard + Classrooms */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-up [animation-delay:160ms]">
+          <div className="lg:col-span-1">
+            <LeaderboardCard students={allStudents} classrooms={classrooms} />
+          </div>
+
+          <div className="lg:col-span-2">
+            <div className="flex items-baseline justify-between mb-4">
+              <h2 className="font-display text-2xl tracking-[-0.01em] text-ink-strong">
+                Your Classrooms
+              </h2>
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-muted">
+                {classrooms.length} active
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {classrooms.map((classroom) => (
+                <ClassroomCard
+                  key={classroom.id}
+                  classroom={classroom}
+                  onClick={handleClassroomClick}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>

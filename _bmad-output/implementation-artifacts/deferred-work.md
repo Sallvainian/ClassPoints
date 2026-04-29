@@ -78,3 +78,71 @@ Surfaced but deliberately deferred from its originating spec. Each entry records
 ---
 
 Append-only. Do not edit entries; add new ones below.
+
+## From project-context refresh / quick-dev backlog (2026-04-29)
+
+These are spec seeds for future `bmad-quick-dev` or story/spec generation. They came from the repo-grounded project-context refresh and the voice-mode discussion that the current architecture is transitional, not a target end state.
+
+### 10. Finish AppContext adapter dissolution for migrated server data
+
+- **Source:** Project-context refresh, transitional architecture review.
+- **Scenario:** `AppContext` still exposes migrated server data and mutation wrappers for legacy consumers. This keeps the app working during the TanStack migration, but it makes the architecture look messier than the intended end state and invites agents to add new wrappers.
+- **Why deferred:** Requires component-by-component consumption cleanup, not a docs-only refresh.
+- **Quick-dev spec seed:** Inventory `useApp()` consumers of `classrooms`, `students`, `transactions`, `behaviors`, and mutation wrappers. Convert one coherent feature slice at a time to direct hooks (`useStudents`, `useAwardPoints`, etc.), then shrink `AppContextValue`.
+- **Acceptance:** No new server-data fields in `AppContext`; converted components call direct hooks; existing behavior covered by focused unit/E2E smoke checks; `npm run typecheck` passes.
+
+### 11. Migrate `useLayoutPresets` to TanStack Query and remove legacy realtime
+
+- **Source:** Project-context refresh; `useLayoutPresets` remains hand-rolled.
+- **Scenario:** `useLayoutPresets` still uses `useState`/`useEffect`, a legacy `presets/loading/error/refetch` return shape, and a realtime subscription even though layout presets are a non-realtime domain.
+- **Why deferred:** Needs hook implementation, consumer adaptation, and regression tests.
+- **Quick-dev spec seed:** Replace the hook with `useQuery` + split mutations keyed by `queryKeys.layoutPresets.all`; invalidate on mutation settle; remove layout-presets realtime.
+- **Acceptance:** No realtime subscription for `layout_presets`; no `useState` loading/error/data state in the hook; consumers compile; tests cover list/load and mutation invalidation.
+
+### 12. Reshape `useSeatingChart` into TanStack-backed server-state hooks
+
+- **Source:** Project-context refresh; existing Phase 5 target.
+- **Scenario:** `useSeatingChart` is still a large hand-rolled hook with a 23-value return shape. Seating chart is an approved realtime domain, but the current hook shape is not the target pattern.
+- **Why deferred:** Broad feature-slice refactor with realtime and DnD risk.
+- **Quick-dev spec seed:** Split server-state concerns into query/mutation hooks for chart meta, groups, seats, room elements, and layout presets while keeping drag/UI state in components or a later seating-scoped store.
+- **Acceptance:** Components do not manipulate query cache directly; realtime routes through `useRealtimeSubscription`; hook API is grouped by concern; existing seating-chart flows still pass smoke tests.
+
+### 13. Collapse `useRealtimeSubscription` legacy callback API
+
+- **Source:** Project-context refresh; legacy callbacks still supported.
+- **Scenario:** `useRealtimeSubscription` supports both preferred `onChange` and legacy `onInsert`/`onUpdate`/`onDelete` callbacks. This keeps old callers working but leaves two mental models.
+- **Why deferred:** Must wait until legacy callers are migrated.
+- **Quick-dev spec seed:** Convert remaining legacy callback callers to `onChange`, then remove the legacy props and dev warning.
+- **Acceptance:** `rg "onInsert|onUpdate|onDelete" src/hooks src/components` has no production callers; realtime tests cover INSERT/UPDATE/DELETE routing through `onChange`; type signature no longer exposes legacy props.
+
+### 14. Normalize Supabase error handling behind an `unwrap` helper
+
+- **Source:** Project-context refresh; inconsistent `throw error` vs `new Error(error.message)`.
+- **Scenario:** Some hooks preserve Supabase/PostgREST metadata by throwing the original error, while many existing sites lose `code`, `details`, and `hint` by throwing `new Error(error.message)`.
+- **Why deferred:** Mechanical but broad; needs careful tests around code-discrimination call sites.
+- **Quick-dev spec seed:** Add `unwrap<T>()` in `src/lib/supabase.ts`, migrate hooks incrementally, and preserve original error metadata.
+- **Acceptance:** New helper is covered by unit tests; migrated hooks no longer hand-roll `if (error)` branches; `SoundContext`-style code discrimination still works.
+
+### 15. Add runtime validation for JSONB and realtime payload boundaries
+
+- **Source:** Project-context refresh; current casts at trust boundaries.
+- **Scenario:** Realtime payloads and seating/layout JSONB data still rely on casts such as `as T` or `as LayoutPresetData`. The TypeScript type is not a runtime guarantee for Supabase payloads or JSONB.
+- **Why deferred:** Requires schema choice and careful boundary placement.
+- **Quick-dev spec seed:** Add lightweight runtime guards or a schema library for `layout_data` and realtime payload validation at query/subscription boundaries.
+- **Acceptance:** Unguarded casts at identified trust boundaries are removed or isolated behind validators; invalid payloads fail safely with test coverage.
+
+### 16. Convert `SoundSettingsModal` to shared `Dialog`
+
+- **Source:** Project-context refresh; modal chrome holdout.
+- **Scenario:** Most redesigned modal surfaces use `Modal` or `Dialog`, but `SoundSettingsModal` still re-implements chrome.
+- **Why deferred:** UI refactor outside docs refresh.
+- **Quick-dev spec seed:** Replace hand-rolled overlay/chrome with `Dialog`, preserving current sound settings behavior and accessibility semantics.
+- **Acceptance:** Escape/scroll-lock/ARIA behavior comes from `Dialog`; visual layout remains equivalent; relevant component smoke test or manual Playwright check passes.
+
+### 17. Decide and wire `tdd-guard-vitest`, or remove it from project context as latent tooling
+
+- **Source:** Project-context refresh; package installed but inactive.
+- **Scenario:** `tdd-guard-vitest` is installed but not configured in `vitest.config.ts`, so agents should not assume it is enforcing anything.
+- **Why deferred:** Tooling policy decision, not a docs-only fact.
+- **Quick-dev spec seed:** Decide whether this should be a local-only workflow guard, pre-commit gate, or CI gate; then wire reporters according to the package README, or remove the dependency if not wanted.
+- **Acceptance:** Config and docs agree; `npm test -- --run` still works; CI/pre-commit behavior is explicit.

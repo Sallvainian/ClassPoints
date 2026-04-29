@@ -3,7 +3,7 @@ import type { Student } from '../../types';
 import type { SeatingChart } from '../../types/seatingChart';
 import { TableGroup } from './TableGroup';
 import { RoomElementDisplay } from './RoomElementDisplay';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useTheme } from '../../contexts/useTheme';
 import { resolveAvatarDisplay } from '../../hooks';
 import { getAvatarColorForName } from '../../utils';
 

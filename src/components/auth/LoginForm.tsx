@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/useAuth';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 
@@ -39,67 +39,68 @@ export function LoginForm({ onSwitchToSignup, onForgotPassword }: LoginFormProps
   const displayError = formError || error?.message;
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-50">Welcome Back</h1>
-          <p className="text-gray-600 dark:text-zinc-400 mt-2">
-            Sign in to your ClassPoints account
-          </p>
-        </div>
+    <div className="bg-surface-2 border border-hairline rounded-2xl p-8 shadow-[0_1px_0_rgba(255,255,255,0.4)_inset,0_20px_50px_-30px_rgba(0,0,0,0.2)]">
+      <div className="mb-8">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-3">
+          01 / Sign in
+        </p>
+        <h1 className="font-display text-4xl leading-tight tracking-[-0.01em] text-ink-strong">
+          Welcome back.
+        </h1>
+        <p className="text-sm text-ink-mid mt-2">Continue where you left off with your classes.</p>
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            autoComplete="email"
-            disabled={loading}
-          />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          autoComplete="email"
+          disabled={loading}
+        />
 
-          <Input
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
-            autoComplete="current-password"
-            disabled={loading}
-          />
+        <Input
+          label="Password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          autoComplete="current-password"
+          disabled={loading}
+        />
 
-          {displayError && (
-            <div className="p-3 rounded-md bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50">
-              <p className="text-sm text-red-600 dark:text-red-400">{displayError}</p>
-            </div>
-          )}
+        {displayError && (
+          <div className="px-3 py-2.5 rounded-[10px] bg-red-50 dark:bg-red-950/30 border border-red-200/60 dark:border-red-900/40">
+            <p className="text-xs text-red-700 dark:text-red-300">{displayError}</p>
+          </div>
+        )}
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
-          </Button>
-        </form>
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? 'Signing in...' : 'Sign in →'}
+        </Button>
+      </form>
 
-        <div className="mt-6 text-center space-y-2">
+      <div className="mt-6 pt-6 border-t border-hairline space-y-3 text-sm">
+        <button
+          type="button"
+          onClick={onForgotPassword}
+          className="block w-full text-left text-ink-mid hover:text-accent-600 transition-colors"
+        >
+          Forgot your password?
+        </button>
+
+        <p className="text-ink-mid">
+          New to ClassPoints?{' '}
           <button
             type="button"
-            onClick={onForgotPassword}
-            className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
+            onClick={onSwitchToSignup}
+            className="text-accent-600 hover:text-accent-700 font-medium underline-offset-4 hover:underline"
           >
-            Forgot your password?
+            Create an account
           </button>
-
-          <p className="text-sm text-gray-600 dark:text-zinc-400">
-            Don't have an account?{' '}
-            <button
-              type="button"
-              onClick={onSwitchToSignup}
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium"
-            >
-              Sign up
-            </button>
-          </p>
-        </div>
+        </p>
       </div>
     </div>
   );

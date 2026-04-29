@@ -1,4 +1,6 @@
 ---
+workflowStatus: 'completed'
+totalSteps: 5
 stepsCompleted:
   [
     'step-01-detect-mode',
@@ -8,462 +10,634 @@ stepsCompleted:
     'step-05-generate-output',
   ]
 lastStep: 'step-05-generate-output'
-lastSaved: '2026-04-22'
+nextStep: ''
+lastSaved: '2026-04-28'
 workflowType: 'testarch-test-design'
-mode: 'system-level'
-audience: 'qa'
 inputDocuments:
-  - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/architecture.md
+  - _bmad-output/test-artifacts/test-design-progress.md
   - _bmad-output/test-artifacts/test-design-architecture.md
-  - _bmad/tea/config.yaml
-  - _bmad/tea/testarch/knowledge/risk-governance.md
-  - _bmad/tea/testarch/knowledge/test-levels-framework.md
-  - _bmad/tea/testarch/knowledge/test-quality.md
-  - _bmad/tea/testarch/knowledge/probability-impact.md
 ---
 
-# Test Design for QA: ClassPoints TanStack Query Modernization
+# Test Design for QA: ClassPoints Post-Redesign Behavioral Coverage
 
-**Purpose:** Test execution recipe for the phased state-management modernization. Defines what to test at each phase boundary, how to test it, and what the phase PR must deliver so testing can proceed.
+**Purpose:** Test execution recipe. Defines which scenarios to author, how to author them (test level, fixtures, selectors, network strategy), and what blockers exist before authoring can start.
 
-**Date:** 2026-04-22
-**Author:** Sallvain (solo contributor; QA hat)
+**Date:** 2026-04-28
+**Author:** Master Test Architect (TEA)
 **Status:** Draft
 **Project:** ClassPoints
 
-**Related:** Architecture doc `test-design-architecture.md` (testability concerns, architectural blockers G-01/G-02/G-04, full risk register).
-
-**Solo-contributor adaptation:** This doc uses template language ("QA team", "backend team", etc.) but in practice all roles are Sallvain. What the template frames as _hand-offs_ are better read as _self-contract discipline_: when wearing the Dev hat, land the blockers listed under Dependencies; when wearing the QA hat, the Entry Criteria below are what signals "OK to verify this phase."
+**Related:** See `test-design-architecture.md` for testability concerns, ASRs, and architectural blockers. This doc references its risk IDs (R-01..R-20).
 
 ---
 
 ## Executive Summary
 
-**Scope:** Verify that the 7-phase TanStack Query migration (Phase 0 through Phase 6) preserves behavior, catches the named architectural risks, and leaves the codebase in a state where the future TEA test-hardening initiative can proceed cleanly. Zero UX changes, zero schema changes, zero transport changes — invariant preservation with targeted new tests for the new invariants the architecture introduces.
+**Scope:** End-to-end behavioral coverage of the post-editorial-redesign app — 10 features + cross-cutting RLS + schema invariants. ~93 net-new scenarios.
 
-**Risk Summary** (detail in Architecture doc):
+**Risk Summary:**
 
-- Total Risks: 9 (4 high-priority score ≥6, 2 medium, 3 low). Zero BLOCK-tier.
-- Critical Categories: **TECH** — realtime invalidation correctness (R-01), seating split regression (R-02), adapter reference instability (R-06), test-infra gaps (R-07, R-09)
+- 20 risks total (4 critical score-9, 7 high score 6-8, 3 medium 4-5, 5 low 1-3, 1 blocked-on-migration)
+- Critical categories: SEC (RLS x2), DATA (REPLICA IDENTITY + total integrity), TECH (rollback null-guard + stale-JWT)
 
 **Coverage Summary:**
 
-- **P0 tests (blocks migration phase):** 6 items — T-01, T-03, T-06, T-12, T-14, T-16
-- **P1 tests (high value, arch-exposed guardrails):** 5 items — T-04, T-05, T-08, T-11, T-17
-- **P2 tests (regression confirmation / manual smokes):** 7 items — T-02, T-07, T-09, T-10, T-13, T-15, T-18
-- **P3 tests:** 0 — all "nice-to-have" coverage defer to the future TEA initiative by PRD design
-- **Total:** ~18 test-delta items across 6 phases. Small per phase (1–3 new tests + 1 manual smoke). No E2E additions beyond PRD-named manual smokes.
+- **P0:** 39 scenarios — RLS per table + 4 score-9 BLOCK mitigations + trigger correctness + auth resilience
+- **P1:** 24 scenarios — happy-path E2E + transform/mutation unit tests
+- **P2:** 21 scenarios — edit/delete flows, settings, JSONB drift guard, rapid-tap stress
+- **P3:** 4 scenarios — UI polish, theme, lock-tables
+- **Blocked:** 1 (R-10 / SEAT.01-E2E-06 — `useSeatingChart` migration-pending)
+- **Background-existing (do not duplicate):** 4 (sounds.test.ts, leaderboardCalculations.test.ts, useRotatingCategory.test.ts, useRealtimeSubscription.test.ts — already 109 tests passing)
 
-**Priority-to-risk mapping (explicit):** P0/P1/P2 below = priority over _migration risks R-01..R-09_ + PRD-named NFRs, **NOT** comprehensive feature coverage across all 25 FRs. Scope discipline is deliberate and aligned with PRD §Testing.
+**Total authoring effort:** ~60-95 hours, ~3-4 sprints solo + AI-assist.
 
 ---
 
 ## Not in Scope
 
-**Components or systems explicitly excluded from this test plan:**
+| Item                                            | Reasoning                                                                    | Mitigation                                                              |
+| ----------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Edge functions (`supabase/functions/`)          | Directory does not exist — no edge functions deployed                        | N/A                                                                     |
+| Visual regression (Percy / Chromatic)           | Out of scope per INPUT brief                                                 | Visual bugs accepted; behavioral tests cover semantics                  |
+| Performance / load testing                      | Solo-contributor scale; no SLA contracts                                     | Manual smoke; no synthetic load                                         |
+| Accessibility full audit (axe / pa11y)          | Solo-contributor scope; no compliance gate                                   | Basic ARIA assertions inside E2E (`getByRole`) cover the common surface |
+| Security audit beyond RLS                       | Out of scope; OWASP / pen test / JWT crypto inspection deferred              | RLS scenarios cover the data-isolation layer                            |
+| i18n / l10n                                     | Single-language app (English)                                                | N/A                                                                     |
+| Mobile / native                                 | No mobile build; teacher workstation + smartboard are desktop Chromium       | N/A                                                                     |
+| Browser matrix beyond Chromium                  | `playwright.config.ts` has 1 entry; Chromebooks at school are Chromium-based | N/A                                                                     |
+| Component-level visual storybook                | Component tests at unit level via Testing Library + jsdom                    | Storybook adoption deferred                                             |
+| Synthetic monitoring / production observability | No production deployment beyond Vercel preview; no Datadog / Grafana         | N/A                                                                     |
+| Devtools DCE coverage                           | Owned by `npm run check:bundle` (NFR4 / ASR-7) — already CI-required         | Don't duplicate                                                         |
+| Migration wizard happy path                     | One-time localStorage → Supabase flow; low ROI                               | Manual smoke on regression incident                                     |
 
-| Item                                                 | Reasoning                                                                                                                    | Mitigation                                                                                                                       |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **Database layer (RLS, triggers, RPCs, migrations)** | PRD §Non-Goals: "No schema changes... No `supabase/migrations/*.sql` file is added or altered."                              | Existing DB tests (if any) remain in place; validated through the migrated hooks' integration with the real local Supabase stack |
-| **Auth flow / AuthContext internals**                | PRD non-goal. Only adjacency: one call to `queryClient.clear()` on logout (Phase 1 or 4 per architecture cross-cutting note) | Existing auth E2E (`tests/e2e/auth.setup.ts`) covers the login path; post-logout cache-clear verified by manual smoke T-13       |
-| **Comprehensive E2E coverage of all feature flows**  | PRD §Testing: "Existing unit and E2E test suites pass at every phase boundary. No test is rewritten..."                      | Existing Playwright suite acts as regression signal; this plan adds zero E2E specs, only per-phase manual smokes                 |
-| **Performance benchmarks of realtime propagation**   | PRD has NFR1 (~1s perceivable equivalence) but no measurement mechanism; accepted as manual smoke                            | Two-tab manual smoke T-10 at Phase 3; future TEA initiative may add instrumentation                                              |
-| **Contract / API-schema tests**                      | No microservice seams — single Supabase backend                                                                              | N/A                                                                                                                              |
-| **Visual regression / component snapshots**          | PRD zero-UX-change scope means existing visual equivalence is structurally guaranteed                                        | Manual smoke per-phase is adequate                                                                                               |
-| **Broader hook unit-test coverage (beyond deltas)**  | PRD explicitly defers: "a separate test-hardening effort using BMAD TEA workflow... planned as its own PRD"                  | Future TEA initiative — captured in companion handoff doc                                                                        |
-| **Load / stress / k6 / chaos / DR tests**            | PRD non-goals (single-tenant, no deployment changes, no new scale concerns)                                                  | N/A                                                                                                                              |
-
-**Note:** Items listed here are explicitly accepted as out-of-scope. Anyone reopening them mid-migration should first justify the scope change.
+**Note:** All exclusions reviewed by Sallvain via INPUT brief; no stakeholder negotiation needed.
 
 ---
 
 ## Dependencies & Test Blockers
 
-**CRITICAL:** Per-phase testing cannot proceed without these items (detail in Architecture doc §Quick Guide).
+**CRITICAL:** Authoring **can** start now for everything except R-10 (blocked-on-migration). The four score-9 BLOCK mitigations are unblocked and should be authored first.
 
-### Architecture Dependencies (Pre-Implementation of Phase 1)
+### Backend / Architecture Dependencies (none currently blocking)
 
-**Source:** See Architecture doc "Quick Guide" BLOCKERS section for detailed mitigation plans.
+See `test-design-architecture.md` "Quick Guide" for the full code-side picture. Summary:
 
-1. **G-01: `createTestQueryClient()` helper** — Phase 1 pilot PR
-   - **What QA needs:** `src/test/createTestQueryClient.ts` exporting a fresh-per-test QueryClient factory with production defaults + `retry: false`
-   - **Why it blocks:** Every subsequent Vitest test that mounts a migrated hook depends on per-test isolation; without it, tests leak cache state and become order-dependent (fails `test-quality.md` DoD: "Parallel-Safe").
+- ✅ RLS policies in `supabase/migrations/002_*.sql` — already in place; tests verify, don't author.
+- ✅ `REPLICA IDENTITY FULL` on `point_transactions` — already in migration `005`; schema invariant test verifies.
+- ✅ Trigger-maintained student totals — already in place; tests assert trigger correctness via SUM equality.
+- ✅ `useAwardPoints` ADR-005 §4 (a)-(e) compliance — already in place at `useTransactions.ts:97-235` with inline comments. Tests regression-prevent.
+- ✅ Stale-JWT graceful degrade — landed in commit `d652260`. Tests regression-prevent.
+- ⚠ **Cluster #2 fix** (orchestrator partial-failure surfacing) — **out of test scope, but tests are authored against expected post-fix UI**. Tests fail today (UI doesn't surface failures), pass once UI is fixed. Acts as drag-along signal.
+- ⚠ **KI-1 empty-state infinite loading** — bug-fix on Sallvain's queue. Tests work around via `auth.setup.ts` (don't wait for dashboard) until fix lands.
 
-2. **G-02: Realtime subscription test harness** — Phase 1 pilot PR
-   - **What QA needs:** `src/test/realtimeHarness.ts` exporting: mocked `supabase.channel(...)` returning a controllable stub, synthetic-payload emitter (`emitPostgresChange(table, payload)`), and a `removeChannel` spy
-   - **Why it blocks:** PRD-named NFR6 test (T-03) and the architecture's runtime channel-count assertion (T-14) both require it. Without harness, T-03 falls back to manual verification only.
+### Code Migration Dependencies (block specific scenarios, not the run)
 
-3. **G-04 (accepted deferral — DO NOT unblock unless scope changes): Supabase `queryFn` mocking pattern** — If any unit test needs to isolate a `queryFn` from the database, establish `vi.mock('../lib/supabase')` pattern. Default: **skip**. Integration-test against local Supabase instead.
+| Scenario           | Blocked on                                                              | Unblock action                                                                             |
+| ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **SEAT.01-E2E-06** | `useSeatingChart` migration to TanStack + adding seating-chart realtime | PRD Phase 5 lands. Author scenario today with `test.skip` + TODO comment.                  |
+| **RT.01-INT-04**   | `useLayoutPresets` migration removing legacy realtime drift             | When migration lands, flip `expect-fail` annotation to assert no `layout_presets` realtime |
 
-### QA Infrastructure Setup (Pre-Implementation)
+### QA Infrastructure Setup — Already in Place
 
-Current infra is already sufficient for this migration's test deltas — no greenfield setup required. Inventory:
+Per `framework-setup-progress.md` (2026-04-28 live run):
 
-- **Vitest 4** + jsdom + `@testing-library/react` + `tdd-guard-vitest` (`vitest.config.ts`, `src/test/setup.ts`). Runs via `npm test`.
-- **Playwright Chromium** with `storageState` auth + fail-closed private-network allow-list for Supabase (`playwright.config.ts`). Runs via `npm run test:e2e` / `npm run test:e2e:local`.
-- **Local Supabase stack**: `npx supabase start` + `.env.test` + `npm run test:seed`. PRD security boundary — do not alter.
-- **`ripgrep` (`rg`)** available for static grep hooks (already assumed by architecture's 19 validation hooks).
+1. **Playwright fixtures** — `tests/support/fixtures/index.ts` composes `mergeTests` over base, factories, and helpers.
+2. **User factory** — `tests/support/fixtures/factories/user.factory.ts` produces unique faker-based users.
+3. **Auth helpers** — `tests/support/helpers/auth.ts` for storageState management.
+4. **Supabase admin client** — `tests/support/helpers/supabase-admin.ts` (cached service-role client; same allow-list as `playwright.config.ts`).
+5. **Local Supabase lifecycle** — `tests/e2e/global-setup.ts` boots stack, seeds test user; `global-teardown.ts` stops it.
 
-**New additions under this initiative** (both in Phase 1):
+### New Infrastructure Required
 
-1. `src/test/createTestQueryClient.ts`
-2. `src/test/realtimeHarness.ts`
+**One impersonation-pair fixture** (estimated ~30-45 min) — for RLS scenarios. Pattern:
+
+```typescript
+// tests/support/fixtures/impersonation.ts
+import { test as base } from '@playwright/test';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+type Impersonation = {
+  userA: SupabaseClient;
+  userB: SupabaseClient;
+  cleanup: () => Promise<void>;
+};
+
+export const test = base.extend<{ impersonation: Impersonation }>({
+  impersonation: async ({}, use, testInfo) => {
+    // Uses VITE_SUPABASE_URL + service-role key from .env.test (gitignored)
+    const admin = createClient(
+      process.env.VITE_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const aEmail = `userA-${testInfo.testId}@e2e.local`;
+    const bEmail = `userB-${testInfo.testId}@e2e.local`;
+    const password = 'test-password-change-me';
+
+    const { data: aData } = await admin.auth.admin.createUser({
+      email: aEmail,
+      password,
+      email_confirm: true,
+    });
+    const { data: bData } = await admin.auth.admin.createUser({
+      email: bEmail,
+      password,
+      email_confirm: true,
+    });
+
+    const userA = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_ANON_KEY!);
+    const userB = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_ANON_KEY!);
+
+    await userA.auth.signInWithPassword({ email: aEmail, password });
+    await userB.auth.signInWithPassword({ email: bEmail, password });
+
+    await use({
+      userA,
+      userB,
+      cleanup: async () => {
+        if (aData.user) await admin.auth.admin.deleteUser(aData.user.id);
+        if (bData.user) await admin.auth.admin.deleteUser(bData.user.id);
+      },
+    });
+  },
+});
+```
+
+**Why this fixture** — every RLS scenario uses it. Build once, reuse across CLASS.01-INT-01..03, STUD.01-INT-01..03, BEH.01-INT-01..02, AWARD.01-INT-03, RT.01-INT-05, SEAT.01-INT-01, SET.01-INT-01..02, RLS.01-INT-00.
 
 ---
 
 ## Risk Assessment
 
-**Note:** Full risk register and mitigation plans in Architecture doc §Risk Assessment. Below: QA-planning-relevant summary — each risk has an identified test-delta that verifies its mitigation.
+Full details in `test-design-architecture.md`. This section maps each risk to the QA test that validates it.
 
-### High-Priority Risks (Score ≥6)
+### High-Priority Risks (Score ≥ 6)
 
-| Risk ID  | Category | Description                                         | Score | QA Test Coverage                                                                                               |
-| -------- | -------- | --------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------- |
-| **R-01** | TECH     | Realtime invalidation correctness (wrong query key) | **6** | T-05 Vitest (`onChange` routing); T-10 two-tab manual smoke; T-17 CI grep Hooks #3/#4 for query-key centrality |
-| **R-02** | TECH     | `useSeatingChart` drag-state split regression       | **6** | T-14 runtime `supabase.getChannels().length === 3`; T-15 manual smoke (mid-drag + realtime); T-16 grep         |
-| **R-06** | TECH     | Adapter reference-instability silent regression     | **6** | T-04 Vitest reference-stability test per migrated domain (Phases 1–3)                                          |
-| **R-07** | TECH     | No QueryClient test-isolation pattern               | **6** | T-06 — `createTestQueryClient()` helper in Phase 1 pilot PR; reuse in every subsequent hook test               |
-| **R-09** | TECH     | Realtime subscription test-harness undefined        | **6** | T-06 — `src/test/realtimeHarness.ts` in Phase 1 pilot PR; T-03 NFR6 + T-14 channel count both consume it       |
+| Risk ID  | Category | Description                                      | Score | QA Test Coverage                                                                                |
+| -------- | -------- | ------------------------------------------------ | ----- | ----------------------------------------------------------------------------------------------- |
+| **R-01** | SEC      | RLS breach via PostgREST                         | **9** | RLS.01-INT-00 (roll-up); per-table CLASS/STUD/BEH/AWARD/SEAT/SET INT scenarios (16 tests total) |
+| **R-02** | SEC      | RLS breach via realtime channel                  | **9** | RT.01-INT-05                                                                                    |
+| **R-03** | DATA     | Realtime DELETE without `REPLICA IDENTITY FULL`  | **9** | SCHEMA.01-INT-01, HIST.01-INT-01, HIST.01-INT-02                                                |
+| **R-05** | TECH     | Optimistic rollback writes `undefined`           | **9** | AWARD.01-UNIT-02, AWARD.01-E2E-08                                                               |
+| **R-04** | DATA     | Trigger totals diverge from log                  | 6     | STUD.01-INT-04, STUD.01-INT-05, HIST.01-INT-03, HIST.01-INT-04, AWARD.01-INT-02                 |
+| **R-06** | BUS      | Class-award orchestrator silent partial failures | 6     | AWARD.01-E2E-05, AWARD.01-INT-01                                                                |
+| **R-07** | BUS      | Multi-award orchestrator silent partial failures | 6     | AWARD.01-E2E-07                                                                                 |
+| **R-08** | TECH     | Stale-JWT loop on refresh                        | 6     | AUTH.01-E2E-05                                                                                  |
+| **R-13** | BUS      | Empty-state infinite loading (KI-1)              | 6     | CLASS.01-E2E-02 (asserts CTA renders, **does NOT** wait for dashboard)                          |
+| **R-17** | TECH     | Mocked-DB integration false positives            | 6     | Structurally satisfied; documented in `tests/README.md`                                         |
+| **R-20** | BUS      | Behavior per-user RLS regression                 | 6     | BEH.01-INT-01, BEH.01-INT-02                                                                    |
 
-### Medium/Low-Priority Risks
+### Medium / Low / Blocked Risks
 
-| Risk ID | Category | Description                                                   | Score | QA Test Coverage                                                                                                                        |
-| ------- | -------- | ------------------------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| R-03    | TECH     | Adapter reference instability (Phases 1–3 co-existence risk)  | 4     | Same as R-06 — T-04 is the _catch_ that converts passive monitoring into active verification                                            |
-| R-05    | OPS      | Pattern drift — new features in legacy shape during migration | 4     | T-17 CI-grade static greps (Hooks #3/#4/#5/#6/#7/#10); continuous enforcement from Phase 0 onward                                       |
-| R-04    | SEC      | Devtools leak into production bundle                          | 3     | T-01 build-time grep (Hooks #1/#2): `rg 'tanstack/react-query-devtools\|ReactQueryDevtools' dist/` → 0 matches, Phase 0 acceptance gate |
-| R-08    | TECH     | No `queryFn` Supabase mocking pattern                         | 2     | DOCUMENT only — accepted trade-off; revisit if unit-level `queryFn` coverage proves valuable mid-migration                              |
+| Risk ID  | Category | Description                                                      | Score           | QA Test Coverage                                                   |
+| -------- | -------- | ---------------------------------------------------------------- | --------------- | ------------------------------------------------------------------ |
+| R-12     | TECH     | Realtime channel reconnect loses event                           | 4               | HIST.01-INT-05                                                     |
+| R-16     | PERF     | Per-student rapid-tap → optimistic write race                    | 4               | AWARD.01-E2E-09                                                    |
+| R-18     | TECH     | Snake_case → camelCase transform regression                      | 4               | CLASS.01-UNIT-03, STUD.01-UNIT-02, BEH.01-UNIT-02, CLASS.01-INT-04 |
+| R-09     | TECH     | New realtime channel without ADR-005 §6 update                   | 3               | Code-review gate; no test                                          |
+| R-11     | DATA     | Optimistic temp ID collision                                     | 2               | AWARD.01-UNIT-03                                                   |
+| R-14     | DATA     | Migration wizard data loss                                       | 3               | Out of scope                                                       |
+| R-15     | OPS      | Allow-list bypass                                                | 3               | AUTH.01-INT-01                                                     |
+| R-19     | DATA     | Sound-settings query lookup race                                 | 2               | SET.01-UNIT-01                                                     |
+| **R-10** | DATA     | Cross-device seating-chart drift — `useSeatingChart` no realtime | **6 (blocked)** | SEAT.01-E2E-06 (`test.skip` + TODO until Phase 5)                  |
 
 ---
 
 ## Entry Criteria
 
-**Per-phase testing cannot begin until ALL of the following are met for that phase:**
+QA testing **can** begin when ALL are met:
 
-- [ ] Phase's source changes complete on branch
-- [ ] Existing Vitest suite passes (`npm test`) against the branch's source
-- [ ] Existing Playwright suite passes (`npm run test:e2e:local`) against the branch's source — **this is the regression baseline for every phase**
-- [ ] Phase 1+: `createTestQueryClient()` (G-01) and realtime harness (G-02) land in `src/test/` — only required before Phase 1's own P0 tests
-- [ ] Architecture's phase-N greppable acceptance hooks from `architecture.md` §Validation all green for the phase
-- [ ] Phase PR description lists the specific test deltas landed in this PR (see "Test Coverage Plan" below for the phase)
+- [x] Test framework scaffold complete (`framework-setup-progress.md` 2026-04-28 confirms 109 tests passing across 3 layers)
+- [x] Local Supabase stack auto-managed by `tests/e2e/global-setup.ts` (verified working)
+- [x] `.env.test` (gitignored) populated with local non-secret credentials
+- [x] User factory + auth helpers in place
+- [ ] Impersonation-pair fixture authored (one-time, ~30-45 min — first task)
+- [x] All required artifacts read (PRD, ADR-005, anti-pattern audit, project-context, INPUT brief)
 
 ## Exit Criteria
 
-**A phase is considered verified and ready to merge when ALL of the following are met:**
+Testing phase complete when ALL are met:
 
-- [ ] All Entry Criteria met
-- [ ] All phase-specific P0 test deltas from this doc passing
-- [ ] All phase-specific P1 test deltas from this doc passing (or a skip with written rationale in PR)
-- [ ] All phase-specific architecture greppable hooks from `architecture.md` §Validation returning expected results
-- [ ] The phase's manual smoke test (from PRD acceptance criteria) executed and documented in PR description
-- [ ] No P0 regressions in the existing Vitest + Playwright suites
-- [ ] `git revert` path is clean — single PR (or tight group) with well-labeled commits
+- [ ] **All P0 scenarios passing in PR pipeline** (39 tests)
+- [ ] **All P1 scenarios passing or explicitly triaged** (24 tests; ≥ 95% pass rate allowed)
+- [ ] No open critical bugs (any score ≥ 6 risk lacking passing test coverage)
+- [ ] PR pipeline runtime under 15 min on chromium
+- [ ] Nightly pipeline runtime under 30 min
+- [ ] Every test passes the **Test Quality DoD** (no `waitForTimeout`, no try/catch flow control, < 300 LOC, < 1.5 min per test, self-cleaning, parallel-safe, unique data via `faker`, explicit assertions in test bodies)
+- [ ] Selector strategy followed: `getByRole > getByLabel > getByText({exact: true}) > getByTestId > locator(css)`
+- [ ] R-10 (SEAT.01-E2E-06) authored with `test.skip` + TODO; un-skip when `useSeatingChart` migrates
 
 ---
 
 ## Test Coverage Plan
 
-**IMPORTANT:** P0/P1/P2 = **priority within this migration's test deltas** (what to focus on if time-constrained), **NOT** comprehensive feature coverage. Priorities are risk-based over R-01..R-09 and PRD-named NFRs.
+> **IMPORTANT:** P0/P1/P2/P3 = **priority and risk level** (what to focus on if time-constrained), NOT execution timing. See "Execution Strategy" for when tests run.
 
-### P0 (Critical — blocks the associated phase)
+### P0 (Critical — Blocks Release)
 
-**Criteria:** Blocks phase PR merge + addresses MITIGATE-scored risk (≥6) OR verifies a PRD-explicit NFR gate.
+**Criteria:** Blocks core functionality + score-9 risk OR blocks release per project priority anchors (RLS / auth / data corruption / realtime DELETE invariant).
 
-| Test ID  | Phase | Requirement                                                                                                                                                                                  | Test Level         | Risk Link              | Notes                                                                                                                                   |
-| -------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **T-01** | 0     | NFR4 devtools not in prod bundle: `npm run build && rg 'tanstack/react-query-devtools\|ReactQueryDevtools' dist/` returns 0 matches                                                          | Build-time grep    | R-04 / NFR4            | Architecture Hooks #1/#2. Run in Phase 0 acceptance + as CI hook on every future production build                                       |
-| **T-03** | 1     | NFR6 subscription-cleanup: mount a `useRealtimeSubscription` consumer → unmount → assert `supabase.removeChannel` called with the channel returned from `supabase.channel`                   | Unit (Vitest)      | R-09 / NFR6            | PRD-named. Consumes realtime harness (G-02). Add to existing `src/hooks/__tests__/useRealtimeSubscription.test.ts` as a new `it()` case |
-| **T-06** | 1     | Test infrastructure: `createTestQueryClient` + realtime harness land, usable by all subsequent hook tests                                                                                    | Test infra         | R-07, R-09             | G-01 + G-02. Not a "test" proper — it's the delivery that unblocks T-03, T-04, T-05, T-08, T-11, T-14                                   |
-| **T-12** | 4     | Phase 4 acceptance: `AppContext.tsx < 200 lines`; zero feature-hook imports; zero `useApp().students\|classrooms\|behaviors\|transactions\|seatingChart\|layoutPresets` in `src/components/` | Static grep + `wc` | NFR8 / FR4 / FR13–FR15 | Architecture Hooks #11/#12/#13/#14. Run at Phase 4 acceptance — these are _the_ Phase-4 PRD acceptance criteria                         |
-| **T-14** | 5     | Runtime `supabase.getChannels().length === 3` with topics `['students', 'point_transactions', 'seating-chart']`                                                                              | Vitest (or manual) | R-02 / FR5 / NFR6      | Architecture Hook #18. Consumes realtime harness. Fallback is manual DevTools WS-frame smoke if harness can't produce reliably          |
-| **T-16** | 5     | Seating hooks greps: zero `useState(loading\|error)`, zero `const previous =`, `useSeatingChart.ts < 200 lines` (facade), exactly 1 `supabase.channel(` in `src/hooks/`                      | Static grep + `wc` | R-02                   | Architecture Hooks #15/#16/#17/#19                                                                                                      |
+| Test ID              | Requirement                                                                                                    | Test Level | Risk Link       | Notes                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------- | ---------- | --------------- | ------------------------------------------------------------------------ |
+| **AUTH.01-E2E-02**   | Invalid credentials shows error and stays on login                                                             | E2E        | R-08            | Sad-path                                                                 |
+| **AUTH.01-E2E-03**   | Valid credentials → dashboard with `Welcome Back` heading                                                      | E2E        | —               | Happy-path; gates all other features                                     |
+| **AUTH.01-E2E-04**   | `Sign out` button → redirect to login + storageState cleared                                                   | E2E        | —               | Verify lowercase post-redesign                                           |
+| **AUTH.01-E2E-05**   | Stale JWT (forged): refresh fails → graceful redirect, no loop                                                 | E2E        | R-08, ASR-8     | Direct guard for fix `d652260`. Forge `sb-` localStorage entry           |
+| **AUTH.01-E2E-06**   | AuthGuard short-circuits unauthenticated access                                                                | E2E        | —               |                                                                          |
+| **CLASS.01-E2E-01**  | Create classroom from sidebar `+` icon                                                                         | E2E        | —               | Selector update from INPUT brief                                         |
+| **CLASS.01-INT-01**  | RLS — User A cannot SELECT User B's classrooms via PostgREST                                                   | INT        | R-01, ASR-1     | Uses impersonation-pair fixture                                          |
+| **CLASS.01-INT-02**  | RLS — User A cannot UPDATE/DELETE User B's classroom (0 rows affected, not error)                              | INT        | R-01, ASR-1     |                                                                          |
+| **CLASS.01-INT-03**  | RLS — anonymous client cannot SELECT any classroom                                                             | INT        | R-01, ASR-1     |                                                                          |
+| **STUD.01-E2E-01**   | Add student → appears in grid with `pointTotal === 0`                                                          | E2E        | —               |                                                                          |
+| **STUD.01-E2E-06**   | Realtime: award in tab A → tab B shows updated total within 2s (students channel)                              | E2E        | ASR-2 strength  | Multi-page Playwright; `recurse` polling                                 |
+| **STUD.01-INT-01**   | RLS — User A cannot SELECT students in User B's classroom                                                      | INT        | R-01, ASR-1     |                                                                          |
+| **STUD.01-INT-02**   | RLS — User A cannot INSERT student into User B's classroom                                                     | INT        | R-01, ASR-1     |                                                                          |
+| **STUD.01-INT-03**   | RLS — User A cannot UPDATE/DELETE student in User B's classroom                                                | INT        | R-01, ASR-1     |                                                                          |
+| **STUD.01-INT-04**   | `students.point_total === SUM(point_transactions.points)` after award/undo/clear/reset                         | INT        | R-04, ASR-4     | Trigger correctness                                                      |
+| **BEH.01-INT-01**    | RLS — User A's behaviors not visible to User B; defaults visible to both                                       | INT        | R-20, ASR-1     | Per-user vs shared-defaults model                                        |
+| **BEH.01-INT-02**    | RLS — User A cannot UPDATE/DELETE User B's custom behaviors                                                    | INT        | R-20, ASR-1     |                                                                          |
+| **AWARD.01-E2E-01**  | Award positive points → optimistic increment within ~100ms                                                     | E2E        | ASR-5           | Assert before network settles                                            |
+| **AWARD.01-E2E-02**  | Award negative points → total decrements; positive/negative time-totals correct                                | E2E        | ASR-4           |                                                                          |
+| **AWARD.01-E2E-03**  | Multiple awards accumulate (3 +1 = +3; 2 +1 then 1 -1 = +1)                                                    | E2E        | ASR-4           |                                                                          |
+| **AWARD.01-E2E-04**  | Class-award → all students in classroom increment                                                              | E2E        | ASR-4           |                                                                          |
+| **AWARD.01-E2E-05**  | Class-award **with simulated per-student failure** → UI surfaces failure count (drag-along for cluster #2 fix) | E2E        | R-06, KI-2      | Use Playwright `route` interception to force 4xx for one student         |
+| **AWARD.01-E2E-06**  | Multi-award (subset) → only selected students update                                                           | E2E        | ASR-4           |                                                                          |
+| **AWARD.01-E2E-07**  | Multi-award **with simulated per-student failure** → UI surfaces failure count                                 | E2E        | R-07, KI-2      |                                                                          |
+| **AWARD.01-E2E-08**  | Award fails (4xx) → optimistic rollback to pre-award value (no `undefined` flash)                              | E2E        | R-05, ASR-5     | Forge 4xx via Playwright `route`                                         |
+| **AWARD.01-INT-01**  | `point_transactions` row count after class-award equals student count at click time                            | INT        | ASR-4           |                                                                          |
+| **AWARD.01-INT-02**  | `students.point_total` updates exactly once per award (trigger idempotency)                                    | INT        | R-04, ASR-4     |                                                                          |
+| **AWARD.01-INT-03**  | RLS — User A cannot INSERT into `point_transactions` referencing User B's student                              | INT        | R-01, ASR-1     |                                                                          |
+| **AWARD.01-UNIT-01** | `useAwardPoints.onMutate` is idempotent (StrictMode double-invoke produces ONE patch)                          | UNIT       | ASR-5 (b)       | ADR-005 §4 (b)                                                           |
+| **AWARD.01-UNIT-02** | `useAwardPoints.onError` rollback null-guards `context?.previousX !== undefined`                               | UNIT       | R-05, ASR-5 (a) | ADR-005 §4 (a). **Critical regression guard.**                           |
+| **HIST.01-E2E-01**   | Award then undo → student total returns to pre-award; transaction removed                                      | E2E        | ASR-4           |                                                                          |
+| **HIST.01-E2E-02**   | Undo batch (class-award) → all per-student transactions removed atomically; totals revert                      | E2E        | ASR-4           |                                                                          |
+| **HIST.01-E2E-03**   | Clear student points → all student transactions removed; total = 0                                             | E2E        | ASR-4           |                                                                          |
+| **HIST.01-E2E-04**   | Reset classroom points → all transactions across classroom removed; all totals = 0                             | E2E        | ASR-4           |                                                                          |
+| **HIST.01-INT-01**   | `point_transactions` table has `REPLICA IDENTITY FULL`                                                         | INT        | R-03, ASR-3     | `SELECT relreplident FROM pg_class WHERE relname = 'point_transactions'` |
+| **HIST.01-INT-02**   | DELETE on `point_transactions` arrives at realtime subscriber with non-empty `payload.old`                     | INT        | R-03, ASR-3     | End-to-end validation of REPLICA IDENTITY FULL                           |
+| **HIST.01-INT-03**   | After undo, `students.point_total` decrements by exact undone delta                                            | INT        | R-04            |                                                                          |
+| **RT.01-E2E-01**     | Two browsers, same user: award in A → B's total updates within 2s                                              | E2E        | —               | Multi-page Playwright                                                    |
+| **RT.01-E2E-02**     | Two browsers, same user: undo in A → B's transaction list updates                                              | E2E        | R-12            |                                                                          |
+| **RT.01-INT-01**     | INSERT into `students` → event arrives on `students` realtime channel                                          | INT        | —               | Sanity check on transport                                                |
+| **RT.01-INT-05**     | RLS over realtime: User A subscribes to `students` channel → does NOT receive User B's events                  | INT        | R-02, ASR-1     | The RLS-realtime intersection                                            |
+| **RLS.01-INT-00**    | Roll-up: every user-scoped table has expected RLS policy                                                       | INT        | R-01, ASR-1     | `pg_policies` introspection                                              |
+| **SCHEMA.01-INT-01** | Every realtime DELETE-watching table has `REPLICA IDENTITY FULL`                                               | INT        | R-03, ASR-3     | Schema invariant test                                                    |
+| **SCHEMA.01-INT-02** | `tg_update_student_totals` (or current name) fires on `point_transactions` INSERT/UPDATE/DELETE                | INT        | R-04, ASR-4     | `pg_trigger` introspection                                               |
+| **SEAT.01-INT-01**   | RLS — User A cannot SELECT seating data for User B's classroom                                                 | INT        | R-01, ASR-1     |                                                                          |
+| **SET.01-INT-01**    | RLS — User A cannot SELECT User B's `sound_settings`                                                           | INT        | R-01, ASR-1     |                                                                          |
+| **SET.01-INT-02**    | RLS — User A cannot SELECT User B's `layout_presets`                                                           | INT        | R-01, ASR-1     |                                                                          |
 
-**Total P0:** 6 items
+**Total P0:** 39 scenarios.
 
----
+### P1 (High — Must Fix Before Next Sprint)
 
-### P1 (High — arch-exposed guardrails; strongly recommended per phase)
+**Criteria:** Important features + score 6-8 risk + common workflows + workaround difficult.
 
-**Criteria:** Catches MITIGATE-scored risk via a test the PRD doesn't explicitly name but the architecture implicitly requires.
+| Test ID              | Requirement                                                                          | Test Level | Risk Link   | Notes                                                  |
+| -------------------- | ------------------------------------------------------------------------------------ | ---------- | ----------- | ------------------------------------------------------ |
+| **AUTH.01-E2E-01**   | Login form renders (email + password + Sign In button)                               | E2E        | —           | Selector floor; from legacy `auth.spec.ts`             |
+| **AUTH.01-INT-01**   | `playwright.config.ts` parser refuses non-private host                               | UNIT       | R-15, TS-1  | Pure config-parser test; no real network               |
+| **CLASS.01-E2E-02**  | Empty-state CTA (`Create your first`) appears when `classrooms.length === 0`         | E2E        | R-13        | Asserts CTA only, **does NOT** wait for dashboard load |
+| **CLASS.01-E2E-03**  | Switch active classroom → `activeClassroomId` updates; main pane re-renders          | E2E        | —           |                                                        |
+| **CLASS.01-E2E-04**  | Edit classroom name → propagates to sidebar + heading                                | E2E        | —           |                                                        |
+| **CLASS.01-E2E-05**  | Delete classroom with confirmation → removed from sidebar; fallback or empty-state   | E2E        | —           |                                                        |
+| **CLASS.01-UNIT-01** | `useCreateClassroom` invalidates `queryKeys.classrooms.all` on success               | UNIT       | —           | TanStack mutation test                                 |
+| **STUD.01-E2E-02**   | Add student with empty name → validation error                                       | E2E        | —           |                                                        |
+| **STUD.01-E2E-03**   | Edit student name → propagates                                                       | E2E        | —           |                                                        |
+| **STUD.01-E2E-04**   | Remove student → card removed; FK cascade deletes their transactions                 | E2E        | R-04        |                                                        |
+| **STUD.01-INT-05**   | `students.today_total` resets at server day boundary                                 | INT        | R-04, ASR-4 | Trigger time-window logic                              |
+| **BEH.01-E2E-01**    | Add custom behavior → appears in grid                                                | E2E        | —           |                                                        |
+| **BEH.01-E2E-02**    | Edit behavior label/value → reflected in award modal                                 | E2E        | —           |                                                        |
+| **BEH.01-UNIT-01**   | `useAddBehavior` plain mutation: `onSettled` invalidates `queryKeys.behaviors.all`   | UNIT       | —           | Canonical "plain mutation" reference                   |
+| **AWARD.01-UNIT-03** | Optimistic temp ID format `optimistic-{studentId}-{behaviorId}-{timestamp}`          | UNIT       | R-11, ASR-6 | ADR-005 §4 (c)                                         |
+| **AWARD.01-UNIT-04** | `useAwardPoints.onMutate` reads via `qc.getQueryData(...)`, not closure              | UNIT       | ASR-5 (e)   | ADR-005 §4 (e)                                         |
+| **HIST.01-E2E-05**   | Adjust student points (manual delta) → transaction logged with adjustment marker     | E2E        | ASR-4       |                                                        |
+| **HIST.01-INT-04**   | After clearStudentPoints, `today_total` / `this_week_total` also reset               | INT        | R-04        |                                                        |
+| **RT.01-INT-02**     | Subscribe to `classrooms` → no events fire                                           | INT        | ASR-2       | Negative-realtime-scope                                |
+| **RT.01-INT-03**     | Subscribe to `behaviors` → no events                                                 | INT        | ASR-2       |                                                        |
+| **RT.01-INT-06**     | Subscription cleanup: unmount + remount → no duplicate subscriptions (NFR6)          | UNIT       | —           | Pre-existing test; ensure stays green                  |
+| **SEAT.01-E2E-01**   | Open seating chart → grid renders with all students placed or unassigned bucket      | E2E        | —           |                                                        |
+| **SEAT.01-E2E-02**   | Drag student seat → on drop, position persists; reload preserves                     | E2E        | —           | In-device persistence                                  |
+| **SEAT.01-E2E-03**   | Drag a group → group + member seats move together                                    | E2E        | —           |                                                        |
+| **SEAT.01-INT-02**   | `seating_seats` UPDATE persists; FK constraints hold                                 | INT        | —           |                                                        |
+| **SET.01-UNIT-01**   | `SoundContext` does NOT issue query before `useAuth()` resolves (provider hierarchy) | UNIT       | R-19        | TS-3                                                   |
 
-| Test ID  | Phase | Requirement                                                                                                                                               | Test Level    | Risk Link  | Notes                                                                                                                                                                                                                        |
-| -------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **T-04** | 1–3   | Adapter reference-stability: mount consumer of adapter, capture returned array identity, trigger deep-equal refetch, assert identity unchanged            | Unit (Vitest) | R-03, R-06 | One instance per migrated domain in that phase. Phase 1 lands pilot test + template; Phases 2 + 3 copy-paste. Deleted at Phase 4 (adapter gone)                                                                              |
-| **T-05** | 1     | `useRealtimeSubscription` legacy-bridge routing: `onChange` only → used exclusively; legacy `onInsert/Update/Delete` only → preserved; both → dev warning | Unit (Vitest) | R-01       | Add to `src/hooks/__tests__/useRealtimeSubscription.test.ts`. Exercises the Phase-1 transitional signature documented in architecture Decision 3                                                                             |
-| **T-08** | 2     | `useTransactions` optimistic award with forced mutationFn error: `onMutate` patches cache → `onError` rolls back → final cache === pre-patch snapshot     | Unit (Vitest) | R-01       | Validates the canonical `useMutation` template. Template for future mutation tests                                                                                                                                           |
-| **T-11** | 3     | Time-totals split: `queryKeys.students.timeTotalsByClassroom(id)` is a distinct cache entry; broad `invalidateQueries(byClassroom(id))` invalidates both  | Unit (Vitest) | R-01       | Validates the query-key hierarchy convention documented in architecture §Query key conventions                                                                                                                               |
-| **T-17** | all   | CI static-grep guardrails: architecture Hooks #3/#4/#5/#6/#7/#10 returning expected results continuously (pre-commit or CI step)                          | CI grep       | R-05       | Prefer extending existing `.github/workflows/test.yml` with a grep step (repo already runs CI there). Pre-commit (`lint-staged` is configured) is acceptable fallback. Cheap to add; prevents legacy-shape-in-new-code drift |
+**Total P1:** 24 scenarios. (Note: AUTH.01-INT-01 is conceptually a unit test on the config parser, classified P1 for execution priority.)
 
-**Total P1:** 5 items
+### P2 (Medium — Fix This Sprint)
 
----
+**Criteria:** Secondary features + low/medium risk + edge cases + regression prevention.
 
-### P2 (Medium — regression confirmation; PRD-named manual smokes)
+| Test ID          | Requirement                                                                                         | Test Level | Risk Link |
+| ---------------- | --------------------------------------------------------------------------------------------------- | ---------- | --------- |
+| AUTH.01-UNIT-01  | `useAuth` provider initialization with no session → `user === null`, no redirect side effect        | UNIT       | —         |
+| CLASS.01-INT-04  | New DB column picked up by `useClassrooms` queryFn select                                           | INT        | R-18      |
+| CLASS.01-UNIT-02 | `useUpdateClassroom` rejects payload with extra fields (supabase-js 2.104 `RejectExcessProperties`) | UNIT       | R-18      |
+| CLASS.01-UNIT-03 | `dbToClassroom` transform: snake_case → camelCase                                                   | UNIT       | R-18      |
+| STUD.01-E2E-05   | Import students from CSV/paste → all parsed students appear; count matches                          | E2E        | —         |
+| STUD.01-UNIT-01  | `studentParser` handles CSV with quoted commas, BOM, trailing newlines                              | UNIT       | —         |
+| STUD.01-UNIT-02  | `dbToStudent` transform: snake_case → camelCase including time-totals                               | UNIT       | R-18      |
+| BEH.01-E2E-03    | Delete custom behavior → removed; existing transactions remain (FK behavior)                        | E2E        | R-04      |
+| BEH.01-UNIT-02   | `dbToBehavior` transform: snake_case → camelCase                                                    | UNIT       | R-18      |
+| AWARD.01-E2E-09  | Rapid-tap 10 awards → final total matches expected; no duplicate transactions                       | E2E        | R-16      |
+| HIST.01-INT-05   | Realtime channel reconnect after blip → invalidate-on-reconnect refetches; no event lost            | INT        | R-12      |
+| RT.01-INT-04     | Subscribe to `layout_presets` → currently emits (legacy drift); marked `expect-fail`                | INT        | ASR-2     |
+| SEAT.01-E2E-04   | Save layout as preset → preset selectable; load → seats rearrange                                   | E2E        | —         |
+| SEAT.01-INT-03   | `layout_data` JSONB round-trips through `dbToLayoutPreset` with all documented fields non-null      | INT        | TC-8      |
+| SET.01-E2E-01    | Toggle sound effect setting → persists across reload                                                | E2E        | —         |
+| SET.01-E2E-02    | Update profile display name → reflected in header / profile pane                                    | E2E        | —         |
+| SET.01-UNIT-02   | Sound effects pre-existing 18 tests stay green                                                      | UNIT       | —         |
 
-**Criteria:** PRD-named manual smoke tests from the Phase acceptance lists. These are the primary regression signal for "behavior unchanged" per PRD §Success Criteria.
+**Total P2:** 17 scenarios. (4 additional are tagged in the coverage matrix but rolled up here.)
 
-| Test ID  | Phase | Requirement                                                                                                                                                                        | Test Level   | Risk Link | Notes                                                                                                |
-| -------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------- |
-| **T-02** | 0     | Phase 0 smoke: teacher login → award point on smartboard → two-tab verify live update; open seating chart → drag a seat → verify persistence                                       | Manual       | baseline  | PRD §Phase 0 acceptance                                                                              |
-| **T-07** | 1     | Phase 1 smoke: create / edit / delete a behavior; refresh window; no visible regression                                                                                            | Manual       | baseline  | PRD §Phase 1 acceptance                                                                              |
-| **T-09** | 2     | Phase 2 smoke: create / delete classrooms; save / load layout preset; award and undo a point on live smartboard tab while watching teacher tab                                     | Manual       | baseline  | PRD §Phase 2 acceptance; exercises the first realtime + optimistic-mutation pairing in new shape     |
-| **T-10** | 3     | Phase 3 two-tab smoke: teacher awards in tab A → smartboard tab B reflects within ~1s; undo in tab A → tab B reverts within ~1s                                                    | Manual       | R-01/NFR1 | PRD §Phase 3 acceptance. Validates the Decision-3 §Phase 3 semantic delta (refetch-roundtrip timing) |
-| **T-13** | 4     | Phase 4 full-app walkthrough: login → classroom → award → undo → seating chart → layout preset → sound toggle → logout — every flow behaves identically to pre-phase               | Manual       | baseline  | PRD §Phase 4 acceptance — exercises the 45-file component migration                                  |
-| **T-15** | 5     | Phase 5 seating smokes: drag a seat; drag during realtime event mid-drag; cancel an in-flight drag; save layout preset mid-rearrangement                                           | Manual       | R-02/FR18 | PRD §Phase 5 acceptance                                                                              |
-| **T-18** | 6     | Phase 6 doc acceptance: `docs/architecture.md` rewritten; `docs/legacy/` retired-or-marked; `project-context.md` provider-tree updated; `CLAUDE.md` state-management lines current | Static check | baseline  | PRD §Phase 6 acceptance                                                                              |
+### P3 (Low — Backlog)
 
-**Total P2:** 7 items
+| Test ID        | Requirement                                                                         | Test Level | Notes                   |
+| -------------- | ----------------------------------------------------------------------------------- | ---------- | ----------------------- |
+| SEAT.01-E2E-05 | Lock-tables toggle prevents table-element drag                                      | E2E        | UI polish               |
+| SET.01-E2E-03  | Theme toggle (light/dark) → applies + persists                                      | E2E        | UI polish               |
+| (existing-1)   | `leaderboardCalculations.test.ts` stays green                                       | UNIT       | Background              |
+| (existing-2)   | `useRotatingCategory.test.ts` stays green (debt: missing `useRealTimers()` cleanup) | UNIT       | KI-5; pre-existing debt |
 
----
+**Total P3:** 4 scenarios (mostly background-existing).
 
-### P3 (Low — Exploratory / Benchmarks)
+### Blocked
 
-**Explicitly zero.** The PRD defers broader test expansion to a future TEA initiative. Adding P3 items here would violate scope discipline. Any P3 candidate (bundle-size trend over time, realtime latency instrumentation, deeper `queryFn` unit coverage) is a seed for the handoff doc, not a deliverable for this migration.
+| Test ID        | Requirement                                              | Risk Link | Notes                                                                             |
+| -------------- | -------------------------------------------------------- | --------- | --------------------------------------------------------------------------------- |
+| SEAT.01-E2E-06 | Two browsers, same user: drag in A → B updates within 2s | R-10      | `test.skip("BLOCKED: useSeatingChart has no realtime — unblocks at PRD Phase 5")` |
 
-**Total P3:** 0 items
+**Total blocked:** 1 scenario.
 
 ---
 
 ## Execution Strategy
 
-**Philosophy:** Solo-contributor, phase-scoped, fast-feedback. Every test delta runs in the phase PR that introduces it.
+**Philosophy:** Run everything in PRs unless infrastructure overhead makes it slow. Playwright with parallelization + Vitest 4 are fast enough that a 93-scenario suite should fit under 15 min.
 
-**Organized by PHASE, not by tool type** (because the scope is tight enough that per-phase is the natural boundary):
+### Every PR (~10-15 min target)
 
-### Every Phase PR: Vitest + Playwright baseline (~2–5 min)
+**All UNIT tests** (16 net-new + 86 existing = ~102 total):
 
-- Full existing Vitest suite — MUST be green (regression baseline; T-17 CI grep is effectively part of this)
-- Full existing Playwright local-Supabase suite — MUST be green (regression baseline)
-- Phase's new P0 + P1 test deltas
-- Static greps for phase's architecture acceptance hooks
+- Vitest 4 + jsdom; expected runtime ~25-40 seconds.
 
-### Per-Phase: Manual smoke (~5–15 min)
+**All INT tests** (32 scenarios) **except** `RT.01-INT-05`:
 
-- One manual smoke run per PRD phase acceptance (T-02, T-07, T-09, T-10, T-13, T-15, T-18 mapped to phases 0–6)
-- Document in PR description with screenshots / short note
+- Vitest 4 + node + real local Postgres (via `tests/e2e/global-setup.ts` lifecycle).
+- Expected runtime ~3-5 min.
+- `RT.01-INT-05` (RLS-over-realtime) defers to nightly because of channel-establish race — flaky on every-PR cadence.
 
-### Continuous (not per-phase): CI-grade static greps (T-17)
+**All P0 E2E scenarios** (~28 of 45 E2E scenarios):
 
-- Wire to pre-commit or lightweight CI workflow
-- Enforces architecture Hooks #3/#4/#5/#6/#7/#10 on every commit post-Phase-1
+- Playwright + chromium + storageState.
+- Expected runtime ~6-10 min.
 
-### Explicitly NO nightly / weekly / chaos tiers
+**Total PR pipeline:** ~10-15 min.
 
-No k6, no soak tests, no fault-injection. PRD scope doesn't support that investment. Any future expansion belongs in the separate future TEA initiative.
+### Nightly (~25-30 min target)
+
+- Everything in PR pipeline +
+- All remaining P1/P2/P3 E2E scenarios (~17 additional E2E)
+- `RT.01-INT-05` (RLS-over-realtime, slow due to channel timing)
+- Burn-in mode for `AWARD.01-E2E-09` (rapid-tap stress) — 10 iterations on touched files
+
+### Weekly / On-demand
+
+- **R-10 / SEAT.01-E2E-06** when `useSeatingChart` migration lands (tagged `@migration-pending`)
+- **RT.01-INT-04** legacy-drift expected-fail flag (tagged `@drift-expected`)
+- Manual smoke for migration-wizard, browser-matrix exploration
+
+### Tagging Convention
+
+```
+@p0  @p1  @p2  @p3                                           priority
+@auth @classroom @student @behavior @award @history          feature
+@realtime @seating @settings                                  feature (cont.)
+@rls  @schema  @realtime                                      cross-cutting
+@migration-pending                                            blocked scenarios
+@drift-expected                                                legacy-drift scenarios
+@stress                                                        burn-in candidates
+```
+
+Run examples (mapping to existing `package.json` scripts in this repo):
+
+```bash
+npm run test:e2e -- --grep "@p0"                       # PR-equivalent E2E gate
+npm run test:e2e -- --grep "(@p0|@p1)"                 # P0+P1 release-floor
+npm run test:e2e -- --grep "@migration-pending" --grep-invert  # skip blocked
+npm test -- src/test/                                  # all unit tests
+npm test -- tests/integration/                         # all integration
+```
 
 ---
 
 ## QA Effort Estimate
 
-**Solo-contributor adaptation:** Rather than QA-hours, the frame below is _per-phase test-delta work_ bundled into each phase's PR. No calendar estimate (PRD §Non-Goals: "No time estimates. AI-assisted refactoring velocity is not meaningfully predictable").
+QA test development effort. Solo contributor + AI-assist via `bmad-testarch-atdd` and `bmad-testarch-automate`.
 
-| Phase | Test deltas in that PR                        | Effort rough-order          | Notes                                                                                           |
-| ----- | --------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------- |
-| 0     | T-01 (build grep), T-02 (manual smoke)        | ~30 min                     | Grep is trivial; smoke is ~10 min                                                               |
-| 1     | T-03, T-04 template, T-05, T-06 (infra), T-07 | ~1–2 days                   | **Infrastructure-heavy phase**: G-01 + G-02 helpers + pattern note consume the bulk of the time |
-| 2     | T-04 (×2 domains), T-08, T-09                 | ~half-day                   | T-04 is copy-paste of the Phase 1 template                                                      |
-| 3     | T-04 (students), T-11, T-10                   | ~half-day                   | Semantic delta documentation is the subtle part                                                 |
-| 4     | T-12 (static checks), T-13 (full-app smoke)   | ~1 hour grep + 20 min smoke | Delete T-04 adapter tests here as adapter code disappears                                       |
-| 5     | T-14, T-15, T-16                              | ~half-day                   | T-14 harness integration is the tricky bit; T-15 is manual                                      |
-| 6     | T-18 (doc check)                              | ~15 min                     | Review-only                                                                                     |
+| Priority        | Count                                  | Effort Range     | Notes                                                                                                                                       |
+| --------------- | -------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0              | 39                                     | **~30-45 hours** | 16 RLS scenarios (heavy initial fixture build, then ~15-20 min each) + 9 award optimistic + 7 schema invariants + 7 auth/feature happy-path |
+| P1              | 24                                     | **~18-28 hours** | Mostly E2E happy-path + UNIT mutation/transform tests. Lighter fixtures.                                                                    |
+| P2              | 17                                     | **~10-18 hours** | Edit/delete + settings + JSONB drift guard + transforms.                                                                                    |
+| P3              | 4                                      | **~2-4 hours**   | UI polish + background-existing.                                                                                                            |
+| Blocked / Drift | 2                                      | **~1 hour**      | Author `test.skip` + TODO; trivial.                                                                                                         |
+| **Total**       | **86 net-new** + 4 existing-stay-green | **~60-95 hours** | Spread across 3-4 sprints if interleaved with feature work; less if focused sprint.                                                         |
 
-**Total:** ~4–6 days of dedicated test-delta work, spread across 6 phase PRs. Dominated by Phase 1 infrastructure.
+**Calibration anchors:**
+
+- Existing 109-test scaffold took ~2 days active framework setup (per `framework-setup-progress.md`)
+- Per-RLS scenario: ~30-45 min for the first (impersonation fixture build), then ~15-20 min per additional table
+- Per-E2E scenario with new selectors: ~30-60 min including selector validation against live UI
+- Per-UNIT for migrated TanStack hook: ~10-25 min once `vi.mock('../lib/supabase', ...)` pattern is established
 
 **Assumptions:**
 
-- Includes test delta authoring + local verification
-- Excludes migration-code authoring (that's "dev" work in the same PRs)
-- Excludes ongoing test maintenance post-migration (expected: ~0 — deltas are small and anchored in stable architecture contracts)
+- Includes test design, implementation, debugging, CI integration
+- Excludes ongoing maintenance (~10% of authoring effort)
+- Test infrastructure (factories, fixtures, environments) ready except impersonation-pair fixture
 
 ---
 
 ## Implementation Planning Handoff
 
-**Use this table as a per-phase checklist inside the phase's PR description.**
+Suggested sprint sequencing for solo + AI-assist execution:
 
-| Work Item                                                                                           | Owner    | Target Phase | Dependencies / Notes                                                                                                    |
-| --------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| T-01: Production build + `rg 'tanstack/react-query-devtools\|ReactQueryDevtools' dist/` → 0 matches | Sallvain | Phase 0      | Architecture Hooks #1/#2                                                                                                |
-| T-02: Phase 0 manual smoke (login, award, seating drag)                                             | Sallvain | Phase 0      | PRD §Phase 0                                                                                                            |
-| T-06: Create `src/test/createTestQueryClient.ts` (G-01)                                             | Sallvain | Phase 1      | Blocks T-04 / T-05 / T-08 / T-11                                                                                        |
-| T-06: Create `src/test/realtimeHarness.ts` (G-02)                                                   | Sallvain | Phase 1      | Blocks T-03 / T-14                                                                                                      |
-| T-03: Add NFR6 subscription-cleanup test to `useRealtimeSubscription.test.ts`                       | Sallvain | Phase 1      | PRD NFR6 + Architecture §useRealtimeSubscription                                                                        |
-| T-04 template: Adapter reference-stability test for `useBehaviors` pilot                            | Sallvain | Phase 1      | Template for Phases 2 + 3                                                                                               |
-| T-05: `onChange` legacy-bridge routing test                                                         | Sallvain | Phase 1      | R-01 mitigation                                                                                                         |
-| T-07: Phase 1 manual smoke                                                                          | Sallvain | Phase 1      | PRD §Phase 1                                                                                                            |
-| T-17: Wire CI-grade static grep for architecture Hooks #3/#4/#5/#6/#7/#10                           | Sallvain | Phase 1      | Pre-commit or lightweight CI. Can slip to Phase 2 if Phase 1 gets too heavy                                             |
-| T-04 (×2): Reference-stability tests for `useClassrooms`, `useTransactions`                         | Sallvain | Phase 2      | Copy from Phase 1 template                                                                                              |
-| T-08: Forced-error optimistic rollback test on `useTransactions`                                    | Sallvain | Phase 2      | `useMutation` lifecycle canonical verification                                                                          |
-| T-09: Phase 2 manual smoke                                                                          | Sallvain | Phase 2      | PRD §Phase 2                                                                                                            |
-| T-04: Reference-stability test for `useStudents` adapter                                            | Sallvain | Phase 3      | Copy from Phase 1 template                                                                                              |
-| T-11: Time-totals split test                                                                        | Sallvain | Phase 3      | Validates query-key hierarchy convention                                                                                |
-| T-10: Phase 3 two-tab smoke with documented semantic delta                                          | Sallvain | Phase 3      | Decision 3 semantic delta applies here                                                                                  |
-| T-12: Phase 4 static greps (Hooks #11/#12/#13/#14) + `wc -l src/contexts/AppContext.tsx`            | Sallvain | Phase 4      | Architecture acceptance + NFR8                                                                                          |
-| T-04 cleanup: delete adapter reference-stability tests                                              | Sallvain | Phase 4      | Positive-reduction signal — the tests lived only to catch a transient risk that no longer applies after adapter removal |
-| T-13: Phase 4 full-app manual smoke                                                                 | Sallvain | Phase 4      | PRD §Phase 4                                                                                                            |
-| T-14: Runtime channel-count Vitest test (or manual WS-frame fallback)                               | Sallvain | Phase 5      | Architecture Hook #18                                                                                                   |
-| T-15: Phase 5 seating-chart smokes (including mid-drag realtime)                                    | Sallvain | Phase 5      | PRD §Phase 5                                                                                                            |
-| T-16: Phase 5 static greps (Hooks #15/#16/#17/#19) + `wc -l src/hooks/useSeatingChart.ts`           | Sallvain | Phase 5      | Architecture acceptance                                                                                                 |
-| T-18: Phase 6 doc-update check                                                                      | Sallvain | Phase 6      | PRD §Phase 6                                                                                                            |
+| Work Item                                                                          | Owner               | Target                           | Dependencies / Notes                                                            |
+| ---------------------------------------------------------------------------------- | ------------------- | -------------------------------- | ------------------------------------------------------------------------------- |
+| Author impersonation-pair fixture                                                  | Sallvain            | Sprint 1, day 1                  | Blocks all RLS scenarios                                                        |
+| Score-9 BLOCK mitigations (RLS x2, REPLICA IDENTITY x1, rollback x1)               | Sallvain + atdd     | Sprint 1                         | R-01, R-02, R-03, R-05 — release gate                                           |
+| Score 6-8 high-priority mitigations (R-04, R-06..R-08, R-13, R-17, R-20)           | Sallvain + atdd     | Sprint 1-2                       | Cluster #2 fix is parallel code-side track                                      |
+| P1 happy-path E2E + UNIT (auth, classroom, student CRUD)                           | Sallvain + automate | Sprint 2                         | After P0 done                                                                   |
+| P2 secondary features                                                              | Sallvain + automate | Sprint 3                         | Edit/delete + settings + JSONB drift guard                                      |
+| P3 polish                                                                          | Sallvain + automate | Sprint 4 or skip if time-pressed | Lock-tables + theme                                                             |
+| Cluster #2 code fix (out of test scope but unblocks R-06/R-07 tests to fully pass) | Sallvain (code)     | Sprint 2                         | When done, delete lying comments at `ClassAwardModal:64` + `MultiAwardModal:62` |
+| KI-1 empty-state Suspense fix                                                      | Sallvain (code)     | Sprint 1-2                       | Removes auth.setup workaround                                                   |
+| `useSeatingChart` migration (PRD Phase 5) → unblocks SEAT.01-E2E-06                | Sallvain (code)     | Future PRD work                  | Architecture doc has Phase 5 file plan ready                                    |
 
 ---
 
 ## Tooling & Access
 
-All required tooling is already in place. No new access / external tool requests for this initiative.
+| Tool / Service                                     | Purpose                                            | Access | Status                                    |
+| -------------------------------------------------- | -------------------------------------------------- | ------ | ----------------------------------------- |
+| Local Supabase CLI                                 | INT + E2E local stack                              | local  | ✅ Ready                                  |
+| `.env.test`                                        | Local non-secret credentials (anon + service-role) | local  | ✅ Ready (gitignored)                     |
+| Playwright + chromium                              | E2E execution                                      | local  | ✅ Ready                                  |
+| Vitest 4 + jsdom                                   | Unit tests                                         | local  | ✅ Ready                                  |
+| Vitest 4 + node                                    | Integration tests against real Postgres            | local  | ✅ Ready (`vitest.integration.config.ts`) |
+| `tests/support/helpers/supabase-admin.ts`          | Service-role admin client with allow-list          | local  | ✅ Ready                                  |
+| `tests/support/fixtures/factories/user.factory.ts` | Faker-based user factory                           | local  | ✅ Ready                                  |
+| `bmad-testarch-atdd` skill                         | Generate red-phase acceptance tests                | local  | ✅ Ready                                  |
+| `bmad-testarch-automate` skill                     | Expand test coverage                               | local  | ✅ Ready                                  |
+| `fnox exec`                                        | Hosted Supabase access (NOT used for tests)        | local  | N/A — tests are local-only                |
 
-| Tool or Service                  | Purpose                                                                 | Access Required      | Status    |
-| -------------------------------- | ----------------------------------------------------------------------- | -------------------- | --------- |
-| Vitest 4 + jsdom                 | Unit + component tests                                                  | N/A (local)          | **Ready** |
-| `@testing-library/react`         | Component render + query                                                | N/A (local)          | **Ready** |
-| `tdd-guard-vitest`               | TDD enforcement                                                         | N/A (local)          | **Ready** |
-| Playwright Chromium              | E2E                                                                     | Local                | **Ready** |
-| Local Supabase stack             | E2E backend                                                             | `npx supabase start` | **Ready** |
-| `fnox`/age                       | Secret decryption for local dev                                         | Local (private key)  | **Ready** |
-| `ripgrep`                        | Static greps (architecture Hooks + T-17)                                | Local / CI           | **Ready** |
-| `@tanstack/react-query-devtools` | Dev-only query-key inspection (NOT a test tool — runtime observability) | Installs at Phase 0  | Phase 0   |
-
-**New additions (both Phase 1):**
-
-- [ ] `src/test/createTestQueryClient.ts`
-- [ ] `src/test/realtimeHarness.ts`
+No external access requests needed. No third-party tools.
 
 ---
 
 ## Interworking & Regression
 
-**Services and components impacted by this feature** — since the PRD's whole thesis is "no behavior change," the interworking surface IS the regression surface. Below lists what must stay green at each phase boundary.
+Services / components impacted by this catalog (regression scope when each is modified):
 
-| Service / Component          | Impact                                                            | Regression Scope                                     | Validation Steps                                                        |
-| ---------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
-| **Teacher Dashboard UI**     | Component migration to direct hook calls (Phase 4)                | Existing TeacherDashboard.test.tsx must pass         | Vitest + T-13 manual smoke at Phase 4                                   |
-| **Smartboard live display**  | Realtime subscription rewrite (Phases 1–3)                        | Two-tab propagation within ~1s (NFR1)                | T-10 manual two-tab smoke at Phase 3; T-05 `onChange` routing test      |
-| **Seating chart editor**     | Hook split (Phase 5)                                              | Drag latency + realtime interleaving (FR18)          | T-14 channel count + T-15 manual drag+realtime smoke                    |
-| **Leaderboard calculations** | Transforms move to `dbToX` location                               | Existing `leaderboardCalculations.test.ts` must pass | Vitest at every phase boundary                                          |
-| **Student parser**           | Unchanged by PRD                                                  | `studentParser.test.ts` passes unchanged             | Vitest at every phase boundary                                          |
-| **Sounds**                   | Unchanged (UI state already in AppContext)                        | `sounds.test.ts` passes unchanged                    | Vitest at every phase boundary                                          |
-| **Rotating category hook**   | Unchanged by PRD                                                  | `useRotatingCategory.test.ts` passes unchanged       | Vitest at every phase boundary                                          |
-| **Auth flow**                | Only `queryClient.clear()` on logout                              | Existing `tests/e2e/auth.setup.ts` passes            | Playwright at every phase boundary; manual verify cache clear T-13      |
-| **Data hooks** (all domains) | Internal rewrite, external shape preserved via adapter Phases 1–3 | All component-level tests pass unchanged             | Vitest at every phase boundary; T-04 reference-stability adds guardrail |
+| Component / Service                     | Impact                                                            | Regression Scope                             | Validation                                                      |
+| --------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------- |
+| `AppContext.tsx`                        | UI/session state; legacy wrappers (Phase 4 dissolve target)       | All P0 + P1 award/orchestrator E2E scenarios | Re-run AWARD.01-E2E-_ + HIST.01-E2E-_ on any AppContext PR      |
+| `useAwardPoints` (`useTransactions.ts`) | Canonical optimistic-mutation site; ADR-005 §4 (a)-(e) compliance | AWARD.01-UNIT-01..04 + AWARD.01-E2E-08       | Mandatory pre-merge for any change to lines 86-235              |
+| `useRealtimeSubscription`               | All 3 official channels                                           | RT.01-INT-\* + STUD.01-E2E-06                | Re-run on any signature change; NFR6 unit test guards lifecycle |
+| `playwright.config.ts` allow-list       | Security boundary                                                 | AUTH.01-INT-01                               | Mandatory pre-merge for any config change                       |
+| `supabase/migrations/*.sql`             | RLS, REPLICA IDENTITY, triggers                                   | All P0 INT scenarios + SCHEMA.01-INT-\*      | Mandatory full INT run on any new migration                     |
+| `ClassAwardModal` / `MultiAwardModal`   | Cluster #2 silent-failure orchestrators                           | AWARD.01-E2E-05, AWARD.01-E2E-07             | Tests transition red → green when cluster #2 fix lands          |
 
 **Regression test strategy:**
 
-- `npm test` + `npm run test:e2e:local` MUST exit 0 at every phase boundary — this is the PRD's load-bearing regression signal
-- Any test failure at a phase boundary is a phase-PR blocker; do not paper over by updating assertions unless the assertion was genuinely wrong upstream
-- No new cross-team coordination needed (solo contributor)
+- PR pipeline (P0 + UNIT + INT) runs on every PR. Mandatory pre-merge.
+- Any change touching `AppContext.tsx`, `useTransactions.ts`, `useStudents.ts`, `useRealtimeSubscription.ts`, or `supabase/migrations/*` triggers extended nightly run before merge.
+- Schema changes (`supabase/migrations/*`) MUST run the full INT suite locally before pushing.
 
 ---
 
-## Appendix A: Code Examples
+## Appendix A: Code Examples & Tagging
 
-**Example — T-06: `createTestQueryClient()` helper (illustrative shape):**
+### Tagged tests for selective execution
 
-```ts
-// src/test/createTestQueryClient.ts
-import { QueryClient } from '@tanstack/react-query';
+```typescript
+// tests/e2e/award.spec.ts
+import { test, expect } from '../support/fixtures';
 
-export function createTestQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false, // Surface errors deterministically per test-quality.md
-        gcTime: Infinity, // Prevent async GC from interfering with test timing
-        staleTime: 0,
-        refetchOnWindowFocus: false,
-      },
-      mutations: {
-        retry: false,
-      },
-    },
-    // No logger override — default console errors are fine for tests
-  });
-}
-```
-
-**Example — T-04: Adapter reference-stability test (illustrative shape):**
-
-```ts
-// src/contexts/__tests__/AppContext.behaviors-adapter.test.tsx (Phase 1 pilot)
-import { renderHook, act } from '@testing-library/react';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { createTestQueryClient } from '../../test/createTestQueryClient';
-// ... set up AppProvider wrapper + mock useBehaviors to return refetch-able data ...
-
-test('useApp().behaviors retains reference when refetched data is deep-equal', async () => {
-  const qc = createTestQueryClient();
-  // Seed cache with a behavior list
-  qc.setQueryData(queryKeys.behaviors.all, [{ id: '1', name: 'Helpful', points: 1 }]);
-  // Render AppProvider-wrapped consumer
-  const { result } = renderHook(() => useApp().behaviors, { wrapper: makeWrapper(qc) });
-  const firstRef = result.current;
-
-  // Trigger a refetch that returns the same data shape (structural sharing guarantee)
-  await act(async () => {
-    await qc.invalidateQueries({ queryKey: queryKeys.behaviors.all });
-    // ...mock responder returns deep-equal array...
+test.describe('Award Points', () => {
+  test('award positive → optimistic increment within ~100ms @p0 @award @realtime', async ({
+    authenticatedPage,
+  }) => {
+    // P0: optimistic visibility regression guard for ADR-005 §4
+    await authenticatedPage.goto('/');
+    // ... open AwardPointsModal, click +1, assert before network settles ...
   });
 
-  expect(result.current).toBe(firstRef); // Same JS reference — structural sharing + useMemo held identity
+  test('award fails → rollback to pre-award value @p0 @award', async ({ authenticatedPage }) => {
+    // P0 R-05 / ASR-5 (a) — rollback null-guard regression guard
+    await authenticatedPage.route('**/rest/v1/point_transactions', (route) =>
+      route.fulfill({ status: 500, body: JSON.stringify({ error: 'forced' }) })
+    );
+    // ... click +1, assert UI snaps back to pre-award total, no `undefined` flash ...
+  });
+
+  test.skip('two browsers seating-chart sync @p1 @realtime @seating @migration-pending', async ({
+    browser,
+  }) => {
+    // BLOCKED on R-10 — useSeatingChart has no realtime channel.
+    // Unblocks when PRD Phase 5 lands and adds the seating-chart channel per ADR-005 §6.
+  });
 });
 ```
 
-**Example — T-03: NFR6 subscription cleanup (add to existing test file):**
+### Backend integration with impersonation-pair fixture
 
-```ts
-// src/hooks/__tests__/useRealtimeSubscription.test.ts — new case
-import { renderHook, cleanup } from '@testing-library/react';
-import { installRealtimeHarness } from '../../test/realtimeHarness';
+```typescript
+// tests/integration/rls/classrooms.test.ts
+import { describe, it, expect } from 'vitest';
+import { test } from '../support/impersonation';
 
-test('NFR6: subscription does not outlive component tree — removeChannel called on unmount', () => {
-  const harness = installRealtimeHarness(); // mocks supabase.channel; exposes removeChannelSpy
-  const { unmount } = renderHook(() =>
-    useRealtimeSubscription({
-      channel: 'students',
-      bindings: [{ table: 'students', onChange: () => {} }],
-    })
-  );
-
-  expect(harness.removeChannelSpy).not.toHaveBeenCalled();
-  unmount();
-  expect(harness.removeChannelSpy).toHaveBeenCalledTimes(1);
-  expect(harness.removeChannelSpy).toHaveBeenCalledWith(harness.lastCreatedChannel);
+describe('Classrooms RLS', () => {
+  it('User A cannot SELECT User B classrooms @p0 @rls @classroom', async () => {
+    const { userA, userB, cleanup } = await setupImpersonationPair();
+    try {
+      await userB.from('classrooms').insert({ name: 'B-only' });
+      const { data } = await userA.from('classrooms').select('*');
+      expect(data?.find((r) => r.name === 'B-only')).toBeUndefined();
+    } finally {
+      await cleanup();
+    }
+  });
 });
 ```
 
-**Running specific tests:**
+### Realtime + RLS
+
+```typescript
+// tests/integration/realtime/students-rls.test.ts
+import { describe, it, expect } from 'vitest';
+
+describe('Students realtime + RLS', () => {
+  it('User A does not receive User B row events @p0 @realtime @rls', async () => {
+    const { userA, userB } = await setupImpersonationPair();
+    const events: unknown[] = [];
+
+    const channel = userA
+      .channel('students-test')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) =>
+        events.push(payload)
+      )
+      .subscribe();
+
+    // Wait for SUBSCRIBED
+    await new Promise<void>((resolve) => {
+      const i = setInterval(() => {
+        if (channel.state === 'joined') {
+          clearInterval(i);
+          resolve();
+        }
+      }, 50);
+    });
+
+    // User B inserts a student in their own classroom — User A should NOT receive
+    await userB.from('students').insert({ name: 'B-only', classroom_id: '...' });
+
+    // Wait briefly for any potential leak
+    await new Promise((r) => setTimeout(r, 1000));
+
+    expect(events).toHaveLength(0);
+    await userA.removeChannel(channel);
+  });
+});
+```
+
+### Run-by-tag commands
 
 ```bash
-# Full Vitest suite (watch mode — default for dev)
-npm test
-
-# Run a specific test file once
-npm test -- src/hooks/__tests__/useRealtimeSubscription.test.ts --run
-
-# Production build + devtools leak check (T-01)
-npm run build && rg 'tanstack/react-query-devtools|ReactQueryDevtools' dist/   # expect 0 matches
-
-# Full Playwright E2E against local Supabase (regression baseline)
-npm run test:e2e:local
-
-# Architecture static-hook greps (spot-check — not all hooks, example Hook #3)
-rg "queryKey:\s*\[" src/ | grep -v 'src/lib/queryKeys.ts'   # expect 0 output
+npm run test:e2e -- --grep "@p0"                    # P0 release-gate E2E
+npm run test:e2e -- --grep "(@p0|@p1)"              # P0+P1 release-floor
+npm run test:e2e -- --grep "@rls"                   # Backend RLS scenarios only
+npm run test:e2e -- --grep "@realtime"              # Realtime scenarios
+npm test -- --grep "@p0"                            # P0 unit tests
 ```
 
 ---
 
 ## Appendix B: Knowledge Base References
 
-- **Risk Governance** — `_bmad/tea/testarch/knowledge/risk-governance.md` — Risk scoring methodology, gate decision rules
-- **Probability & Impact** — `_bmad/tea/testarch/knowledge/probability-impact.md` — 1-3 × 1-3 matrix, action thresholds
-- **Test Levels Framework** — `_bmad/tea/testarch/knowledge/test-levels-framework.md` — Unit/integration/E2E selection rules (informs the "delta-only, unit-heavy" strategy here)
-- **Test Quality DoD** — `_bmad/tea/testarch/knowledge/test-quality.md` — No hard waits, <300 lines, <1.5 min, self-cleaning
-- **PRD** — `_bmad-output/planning-artifacts/prd.md` — Scope, phases, FRs/NFRs, risks, testing scope discipline
-- **Architecture** — `_bmad-output/planning-artifacts/architecture.md` — Decisions, canonical patterns, 19 greppable acceptance hooks (Appendix: Architecture §Validation)
-- **Architecture Test-Design companion** — `_bmad-output/test-artifacts/test-design-architecture.md` — Testability concerns, blocker list, ADR readiness summary
+- **Risk Governance**: `risk-governance.md` — 1-9 score matrix, gate decision engine
+- **Probability/Impact**: `probability-impact.md` — DOCUMENT/MONITOR/MITIGATE/BLOCK action thresholds
+- **Test Levels**: `test-levels-framework.md` — UNIT/INT/E2E selection rules
+- **Test Priorities**: `test-priorities-matrix.md` — P0-P3 criteria with risk-score mapping
+- **Test Quality DoD**: `test-quality.md` — no `waitForTimeout`, ≤ 300 LOC, ≤ 1.5 min, self-cleaning, parallel-safe
+- **ADR Quality Readiness**: `adr-quality-readiness-checklist.md` — 8-category 29-criteria framework
+- **Playwright Utils**: `overview.md`, `api-request.md`, `auth-session.md`, `recurse.md`, `intercept-network-call.md`, `network-recorder.md`, `network-error-monitor.md`, `network-first.md`, `log.md`, `file-utils.md`, `fixtures-composition.md`
+- **Playwright CLI**: `playwright-cli.md` — `--debug=cli` agent-side test debugging
+- **ClassPoints sources**: `_bmad-output/project-context.md`, `_bmad-output/planning-artifacts/prd.md`, `_bmad-output/planning-artifacts/architecture.md`, `docs/adr/ADR-005-queryclient-defaults.md`, `_bmad-output/anti-pattern-audit.md`, `INPUT-classpoints-test-design-brief.md`
 
 ---
 
-**Generated by:** Manual TEA workflow (system-level mode, sequential execution)
-**Workflow:** `.claude/skills/bmad-testarch-test-design`
-**Version:** Adapted for solo-contributor brownfield technical modernization
+**Generated by:** TEA Master Test Architect
+**Workflow:** `bmad-testarch-test-design`
+**Version:** 4.0 (BMad v6)

@@ -1,30 +1,30 @@
 import { test, expect } from '../support/fixtures';
 
-test.describe('example: app bootstrap', () => {
-  test('renders the landing screen', async ({ page }) => {
-    // Given the app is reachable via the Playwright webServer
-    // When the user visits the root URL
+test.describe('App bootstrap (smoke)', () => {
+  test('Given an authenticated session, When the app loads, Then the dashboard chrome is visible', async ({
+    page,
+  }) => {
+    // Given: storageState from auth.setup.ts is already applied.
+    // When:
     await page.goto('/');
 
-    // Then the page responds with a title (placeholder assertion — replace
-    // with a data-testid-based check against a real landing element once the
-    // UI is stable, e.g. `await expect(page.getByTestId('app-root')).toBeVisible();`)
-    await expect(page).toHaveTitle(/ClassPoints|Vite|React/i);
+    // Then:
+    await expect(page.locator('aside').getByRole('heading', { name: /ClassPoints/ })).toBeVisible();
+    await expect(page.locator('aside').getByText('Classrooms', { exact: true })).toBeVisible();
   });
 });
 
-test.describe('example: data factory lifecycle', () => {
-  test(
-    'creates and cleans up a seeded user',
-    { tag: '@requires-service-role' },
-    async ({ userFactory }) => {
-      // Given a Supabase admin client (requires SUPABASE_SERVICE_ROLE_KEY in .env.test)
-      // When the test asks the factory for a user
-      const user = await userFactory.create();
+test.describe('User factory lifecycle (sample)', () => {
+  test('Given a userFactory fixture, When create() is called, Then the user exists and is auto-cleaned afterward', async ({
+    userFactory,
+  }) => {
+    // Given: factory provided by the merged fixture, cleanup wired by Playwright.
+    // When:
+    const user = await userFactory.create();
 
-      // Then the user has the expected shape; the fixture teardown will delete it
-      expect(user.id).toMatch(/[0-9a-f-]{8,}/i);
-      expect(user.email).toContain('@classpoints.local');
-    }
-  );
+    // Then:
+    expect(user.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(user.email).toMatch(/@classpoints\.local$/);
+    // Cleanup runs automatically when the test ends (see fixtures/index.ts).
+  });
 });

@@ -17,31 +17,31 @@ interface StudentPointCardProps {
 
 const SIZE_CONFIG = {
   small: {
-    avatar: 'w-10 h-10 text-lg',
-    padding: 'p-2',
+    avatar: 'w-11 h-11 text-base',
+    padding: 'p-3',
     name: 'text-xs',
-    points: 'text-lg',
+    points: 'text-base',
     today: 'text-[10px]',
-    badge: 'text-[9px] px-1 py-0.5',
-    gap: 'mb-1',
+    badge: 'text-[9px] px-1.5 py-0',
+    gap: 'mt-2',
   },
   medium: {
-    avatar: 'w-16 h-16 text-2xl',
+    avatar: 'w-16 h-16 text-xl',
     padding: 'p-4',
     name: 'text-sm',
     points: 'text-xl',
-    today: 'text-xs',
-    badge: 'text-[10px] px-1.5 py-0.5',
-    gap: 'mb-2',
+    today: 'text-[11px]',
+    badge: 'text-[10px] px-1.5 py-0',
+    gap: 'mt-3',
   },
   large: {
-    avatar: 'w-20 h-20 text-3xl',
-    padding: 'p-6',
+    avatar: 'w-20 h-20 text-2xl',
+    padding: 'p-5',
     name: 'text-base',
     points: 'text-2xl',
-    today: 'text-sm',
-    badge: 'text-xs px-2 py-1',
-    gap: 'mb-3',
+    today: 'text-xs',
+    badge: 'text-[11px] px-2 py-0.5',
+    gap: 'mt-4',
   },
 };
 
@@ -54,22 +54,20 @@ function StudentPointCardComponent({
   onSelect,
 }: StudentPointCardProps) {
   const config = SIZE_CONFIG[size];
-  const pointsColor =
-    student.pointTotal >= 0
-      ? 'text-emerald-600 dark:text-emerald-400'
-      : 'text-red-600 dark:text-red-400';
+  const isPositive = student.pointTotal >= 0;
+  const pointsColor = isPositive
+    ? 'text-emerald-600 dark:text-emerald-400'
+    : 'text-red-600 dark:text-red-400';
   const rawColor = student.avatarColor || getAvatarColorForName(student.name);
   const { bg: bgColor, textClass: avatarTextColor } = useAvatarColor(rawColor);
 
-  // Derive selectable state from presence of onSelect handler
+  // Dual-mode: presence of onSelect → selectable; absence → opens award modal
   const isSelectable = !!onSelect;
 
   const handleClick = useCallback(() => {
     if (onSelect) {
-      // Selection mode: call onSelect with student ID
       onSelect(student.id);
     } else {
-      // Normal mode: open award modal with student object
       onClickStudent(student);
     }
   }, [onSelect, onClickStudent, student]);
@@ -84,9 +82,13 @@ function StudentPointCardComponent({
     [handleClick]
   );
 
-  // Determine ARIA role and state based on mode
   const ariaRole = isSelectable ? 'checkbox' : undefined;
   const ariaChecked = isSelectable ? isSelected : undefined;
+
+  // Tile state: selected wins over normal hover; normal hover gets accent border lift.
+  const tileBorder = isSelected
+    ? 'border-accent-500 ring-2 ring-accent-500/30'
+    : 'border-hairline hover:border-accent-500/40';
 
   return (
     <button
@@ -94,39 +96,30 @@ function StudentPointCardComponent({
       onKeyDown={handleKeyDown}
       role={ariaRole}
       aria-checked={ariaChecked}
-      aria-label={`${student.name}, ${student.pointTotal} points${isSelectable ? (isSelected ? ', selected' : ', not selected') : ''}`}
-      className={`
-        relative flex flex-col items-center ${config.padding} bg-white dark:bg-zinc-900 rounded-xl shadow-sm dark:shadow-none border
-        hover:shadow-md dark:hover:shadow-none transition-all duration-200 cursor-pointer w-full
-        focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-offset-2 dark:focus:ring-offset-zinc-950
-        ${
-          isSelected
-            ? 'border-blue-500 dark:border-blue-400 border-2 bg-blue-50 dark:bg-blue-950/30'
-            : 'border-gray-100 dark:border-zinc-700 hover:border-blue-200 dark:hover:border-blue-700'
-        }
-      `}
+      aria-label={`${student.name}, ${student.pointTotal} points${
+        isSelectable ? (isSelected ? ', selected' : ', not selected') : ''
+      }`}
+      className={`group relative flex flex-col items-center w-full ${config.padding} bg-surface-2 border ${tileBorder} rounded-2xl transition-[border-color,transform,box-shadow,background-color] duration-150 hover:-translate-y-[1px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1`}
     >
-      {/* Point totals badges - only show when not in selection mode */}
+      {/* Corner point badges — only when totals enabled and not in selection mode */}
       {showPointTotals && !isSelectable && (
         <>
-          {/* Positive points - top left */}
-          <div
-            className={`absolute top-1 left-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 ${config.badge} rounded-full font-medium`}
+          <span
+            className={`absolute top-1.5 left-1.5 ${config.badge} rounded-full font-mono tabular-nums font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400`}
           >
             +{student.positiveTotal}
-          </div>
-          {/* Negative points - top right */}
-          <div
-            className={`absolute top-1 right-1 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ${config.badge} rounded-full font-medium`}
+          </span>
+          <span
+            className={`absolute top-1.5 right-1.5 ${config.badge} rounded-full font-mono tabular-nums font-medium bg-red-500/10 text-red-700 dark:text-red-400`}
           >
             {student.negativeTotal}
-          </div>
+          </span>
         </>
       )}
 
       {/* Avatar */}
       <div
-        className={`${config.avatar} rounded-full flex items-center justify-center ${avatarTextColor} font-bold ${config.gap} shadow-inner`}
+        className={`${config.avatar} rounded-full flex items-center justify-center ${avatarTextColor} font-semibold shadow-inner`}
         style={{ backgroundColor: bgColor }}
       >
         {student.name.charAt(0).toUpperCase()}
@@ -134,53 +127,46 @@ function StudentPointCardComponent({
 
       {/* Name */}
       <span
-        className={`${config.name} font-medium text-gray-800 dark:text-zinc-100 text-center truncate w-full`}
+        className={`${config.gap} ${config.name} font-display tracking-[-0.005em] text-ink-strong text-center truncate w-full leading-tight`}
       >
         {student.name}
       </span>
 
       {/* Points */}
-      <span className={`${config.points} font-bold mt-1 ${pointsColor}`}>
-        {student.pointTotal >= 0 ? '+' : ''}
+      <span
+        className={`mt-1 ${config.points} font-mono tabular-nums font-medium tracking-[-0.02em] ${pointsColor}`}
+      >
+        {isPositive ? '+' : ''}
         {student.pointTotal}
       </span>
 
-      {/* Today's points (small) */}
+      {/* Today's delta */}
       {student.todayTotal !== 0 && (
-        <span className={`${config.today} text-gray-500 dark:text-zinc-500 mt-0.5`}>
-          Today: {student.todayTotal >= 0 ? '+' : ''}
-          {student.todayTotal}
+        <span
+          className={`mt-0.5 ${config.today} font-mono tabular-nums tracking-[0.02em] text-ink-muted`}
+        >
+          {student.todayTotal >= 0 ? '+' : ''}
+          {student.todayTotal} today
         </span>
       )}
 
-      {/* Selection checkbox indicator - bottom center (visual only, button handles interaction) */}
-      {isSelectable && (
-        <div
+      {/* Selection check pip — bottom-right when selected (cleaner than full-row checkbox) */}
+      {isSelectable && isSelected && (
+        <span
           aria-hidden="true"
-          className={`
-            mt-2 w-5 h-5 rounded border-2 flex items-center justify-center
-            transition-colors duration-150 pointer-events-none
-            ${
-              isSelected
-                ? 'bg-blue-500 dark:bg-blue-500 border-blue-500 text-white'
-                : 'bg-white dark:bg-zinc-900 border-gray-300 dark:border-zinc-700'
-            }
-          `}
+          className="absolute bottom-2 right-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-accent-500 text-white shadow-[0_2px_6px_rgba(168,70,45,0.3)]"
         >
-          {isSelected && (
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                clipRule="evenodd"
-              />
-            </svg>
-          )}
-        </div>
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </span>
       )}
     </button>
   );
 }
 
-// Memoize to prevent unnecessary re-renders when parent state changes
 export const StudentPointCard = memo(StudentPointCardComponent);

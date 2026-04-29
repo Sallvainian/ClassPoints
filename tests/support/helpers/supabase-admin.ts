@@ -11,7 +11,7 @@ export function supabaseAdmin(): SupabaseClient {
   if (!url || !serviceKey) {
     throw new Error(
       'supabaseAdmin() requires VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. ' +
-        'Set them in .env.test (values come from `npx supabase status`).'
+        'Set them in .env.test (values come from `supabase status`).'
     );
   }
 
