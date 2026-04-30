@@ -23,8 +23,6 @@ npm run test:e2e:local # Same as test:e2e, but seeds the test user first
 npm run test:e2e:ui  # Playwright with UI
 ```
 
-**Single test file:** `npm test -- src/test/specificFile.test.ts`
-
 **Pre-commit hook:** Runs lint-staged + typecheck automatically.
 
 ## Environment
