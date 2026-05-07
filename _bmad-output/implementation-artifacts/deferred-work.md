@@ -146,6 +146,7 @@ These are spec seeds for future `bmad-quick-dev` or story/spec generation. They 
 - **Why deferred:** Tooling policy decision, not a docs-only fact.
 - **Quick-dev spec seed:** Decide whether this should be a local-only workflow guard, pre-commit gate, or CI gate; then wire reporters according to the package README, or remove the dependency if not wanted.
 - **Acceptance:** Config and docs agree; `npm test -- --run` still works; CI/pre-commit behavior is explicit.
+- **RESOLVED in `280fa10`** — chose to remove. The package was never wired into `vitest.config.ts` and was the sole root of three open Dependabot alerts: `hono` (GHSA-69xw-7hcm-h432), `ip-address` (GHSA-v2v4-37r5-5v8g), and `@anthropic-ai/sdk` (GHSA-p7fg-763f-g4gf). Uninstalling deleted the entire vulnerable subtree (95 packages); typecheck/lint/`npm test --run` all green afterward; `npm audit` reports 0 vulnerabilities. If TDD-guard tooling is wanted later, re-add and wire reporters per the package README in the same PR.
 
 ## Deferred from: code review (2026-05-07)
 
