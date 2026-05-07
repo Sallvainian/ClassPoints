@@ -49,7 +49,7 @@ jobs:
             - Required: export named functions, not default exports.
             - Critical: all hooks must be called before any early returns.
             - Avoid inline styles; use Tailwind classes.
-            - Avoid prop drilling; prefer `useApp()` where it is the established app-wide facade.
+            - Avoid prop drilling. For server data (students, transactions, behaviors), call mutation/query hooks (`useAwardPoints`, `useStudents`, `useBehaviors`) directly — do not add new server-data fields or wrapper functions to `useApp()`. `useApp()` is the established facade only for UI/session state and legacy adapter wrappers; do not extend it.
 
             ### Context Hierarchy
 
