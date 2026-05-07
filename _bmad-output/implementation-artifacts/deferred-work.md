@@ -146,3 +146,26 @@ These are spec seeds for future `bmad-quick-dev` or story/spec generation. They 
 - **Why deferred:** Tooling policy decision, not a docs-only fact.
 - **Quick-dev spec seed:** Decide whether this should be a local-only workflow guard, pre-commit gate, or CI gate; then wire reporters according to the package README, or remove the dependency if not wanted.
 - **Acceptance:** Config and docs agree; `npm test -- --run` still works; CI/pre-commit behavior is explicit.
+
+## Deferred from: code review (2026-05-07)
+
+### 18. Node version triple-divergence introduced by `mise.toml node = "25"`
+
+- **Source:** Code review (2026-05-07), edge case hunter + blind hunter on uncommitted `mise.toml` change.
+- **Scenario:** `mise.toml` adds `node = "25"` (current, non-LTS, EOL ~2026-04). `.nvmrc` still says `24`, and `.github/workflows/test.yml` (4 jobs) uses `node-version-file: '.nvmrc'` so CI runs on 24. `.github/workflows/deploy.yml:27` hardcodes `node-version: 20`. `package.json` has no `engines` field. `@types/node` is already at `^25.6.0`, so types describe APIs (`node:sqlite`, expanded `fs/promises`) the deploy.yml Node 20 runtime does not implement.
+- **Why deferred:** Multiple legitimate fixes; choice depends on intent. Was Node 25 a deliberate upgrade for the whole stack, an experimental local-only bump, or an accidental over-pin? Local repros under Node 25 + CI under Node 24 + prod build under Node 20 is the scenario where bugs reproduce only on one machine and CI green ships a runtime-broken artifact.
+- **Follow-up:** Decide a single source of truth for Node major. Three coherent paths: (a) align everything on Node 22 or 24 LTS — pull `mise.toml` and `@types/node` back, leave `.nvmrc` + `test.yml` + `deploy.yml` as-is. (b) raise the whole stack to 25 — bump `.nvmrc` to 25, retarget `deploy.yml` to 25, accept the April-2026 EOL window. (c) keep `mise.toml` at 25 but pin a compatibility floor: add `"engines": { "node": ">=22" }` to `package.json` so the divergence is at least documented and `npm` warns on incompatible runtimes. Recommendation: (a) unless there's a Node 25-specific feature being adopted.
+
+### 19. Deleted point-counter screenshots leave 8 dead links in `docs/point-counter-inventory.md`
+
+- **Source:** Code review (2026-05-07), edge case hunter.
+- **Scenario:** The PR deletes `docs/screenshots/counters/02-class-view-default.png` and `docs/screenshots/counters/03-student-card-corner-badges.png`. `docs/point-counter-inventory.md` references those files in 8 places (lines 20, 31, 37, 44, 53, 55, 60, 65 — 7 to `02-...png` and 1 to `03-...png`). The doc is the canonical inventory of every point-counter render path, and `_bmad-output/implementation-artifacts/spec-tanstack-phase-3.md` references it as the regression-check evidence for the TanStack migration. Markdown viewers will render broken-image badges; the doc's regression-check workflow silently degrades.
+- **Why deferred:** Three legitimate fix paths and the right one depends on intent. Were the screenshots intentionally retired (maybe superseded by Phase 3 redesign captures), accidentally `git rm`'d during cleanup, or being recaptured but not yet replaced?
+- **Follow-up:** Pick one. (a) **Retire**: batch-strip the 8 ` — see \`screenshots/counters/02-...\``(and 03-) trailers from`docs/point-counter-inventory.md`. (b) **Recapture**: run `npx tsx scripts/seed-counter-data.ts`per the inventory doc's own instructions and snapshot fresh PNGs at the same paths. (c) **Restore**:`git checkout HEAD -- docs/screenshots/counters/02-class-view-default.png docs/screenshots/counters/03-student-card-corner-badges.png` if the deletion was unintentional.
+
+### 20. CI-prompt softened "AVOID prop drilling" rule without explicit justification
+
+- **Source:** Code review (2026-05-07), blind hunter on `.github/workflows/claude-code-review.yml`.
+- **Scenario:** Prose changed from `"AVOID: Prop drilling - use \`useApp()\` instead"`to`"Avoid prop drilling; prefer \`useApp()\` where it is the established app-wide facade."`The new wording acknowledges that`useApp()`is not always the right facade (consistent with`\_bmad-output/project-context.md`'s "AppContext as transitional architecture" framing — new components are supposed to call mutation hooks directly, not extend `useApp()`). But it also softens the bar: a CI reviewer reading this prompt is now likelier to accept prop drilling without challenge.
+- **Why deferred:** Cannot tell from the diff whether the softening was deliberate or accidental. If deliberate, no action — the new wording matches direction of travel. If a side-effect of the markdown-cleanup pass, this is a substantive policy change buried in a "formatting" cleanup.
+- **Follow-up:** Confirm intent. If deliberate, leave as-is and consider explicitly framing it: `"Minimize prop drilling. For server data, call mutation/query hooks directly (per project-context.md). \`useApp()\` is a transitional facade for AppContext-managed state; do not add new server-data wrappers to it."`If accidental, restore the harder`"use \`useApp()\` instead"` form.

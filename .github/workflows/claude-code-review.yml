@@ -34,74 +34,90 @@ jobs:
 
             ## Code Review Instructions
 
-            Perform a comprehensive code review with the following focus areas:
+            Perform a comprehensive code review. Review only the pull request changes; use surrounding code only to understand impact.
 
-            ## PROJECT RULES - ClassPoints
+            Do not edit files, commit, push, approve the PR, or request changes. Produce one review in the output format below.
+
+            ## Project Rules - ClassPoints
 
             ### Component Patterns
-            - **Files:** PascalCase (`StudentGrid.tsx`)
-            - **Props interfaces:** `{ComponentName}Props`
-            - **Structure:** 1) ALL hooks first (before conditionals) 2) Event handlers 3) Early returns AFTER hooks 4) Main render
-            - **REQUIRED:** Use `useApp()` hook for app-wide state - never access contexts directly
-            - **REQUIRED:** Export named functions (not default exports)
-            - **CRITICAL:** All hooks must be called before any early returns
-            - **AVOID:** Inline styles - use Tailwind classes
-            - **AVOID:** Prop drilling - use `useApp()` instead
 
-            ### Context Hierarchy (Order Matters!)
+            - Files: PascalCase for components, for example `StudentGrid.tsx`.
+            - Props interfaces: `{ComponentName}Props`.
+            - Structure: 1) all hooks first, before conditionals 2) event handlers 3) early returns after hooks 4) main render.
+            - Required: use the `useApp()` hook for app-wide state; do not access contexts directly.
+            - Required: export named functions, not default exports.
+            - Critical: all hooks must be called before any early returns.
+            - Avoid inline styles; use Tailwind classes.
+            - Avoid prop drilling; prefer `useApp()` where it is the established app-wide facade.
+
+            ### Context Hierarchy
+
+            ```text
+            AuthProvider -> AuthGuard -> HybridAppProvider -> AppContent
             ```
-            AuthProvider → AuthGuard → HybridAppProvider → AppContent
-            ```
-            - Components MUST use `useApp()` - never import `AppContext`, `HybridAppContext`, etc. directly
-            - `useApp()` is the single facade for all data operations
+
+            - Components must use `useApp()` instead of importing `AppContext`, `HybridAppContext`, or similar context internals directly.
+            - `useApp()` is the single facade for app-wide data operations.
 
             ### Hook Patterns
-            - **Files:** camelCase with `use` prefix (`useClassrooms.ts`)
-            - **CRITICAL:** Always clean up subscriptions in useEffect return (memory leak prevention)
-            - **REQUIRED:** Use `useCallback` for functions returned to consumers
-            - **REQUIRED:** Handle loading and error states
-            - **NEVER:** Omit dependencies in useEffect/useCallback
+
+            - Files: camelCase with `use` prefix, for example `useClassrooms.ts`.
+            - Critical: clean up subscriptions in `useEffect` return callbacks.
+            - Required: use `useCallback` for functions returned to consumers.
+            - Required: handle loading and error states.
+            - Never omit dependencies in `useEffect` or `useCallback`.
 
             ### Supabase Patterns
-            - ALWAYS destructure `{ data, error }` - check error FIRST
-            - ALWAYS cleanup subscriptions in useEffect return
-            - Use optimistic updates: Update UI immediately, sync with server, rollback on error
-            - RLS is automatic - queries only return allowed rows
-            - Database uses `snake_case`, app uses `camelCase` - transform at context boundary
+
+            - Always destructure `{ data, error }` and check `error` before using `data`.
+            - Always clean up subscriptions in `useEffect` return callbacks.
+            - Use optimistic updates carefully: update UI immediately, sync with server, and rollback or invalidate on error.
+            - RLS is automatic; queries only return allowed rows.
+            - Database rows use `snake_case`; app-facing data should be `camelCase` at boundaries.
+            - Realtime DELETE payloads can be partial under RLS even with `REPLICA IDENTITY FULL`; code should tolerate missing `payload.old` fields and invalidate when required fields are absent.
 
             ### State Management
-            - **Global:** `AppContext` + `useApp()` (user, classrooms, active classroom)
-            - **Feature:** Custom hooks with Supabase backing (`useSeatingChart`, `useLayoutPresets`)
-            - **Local:** `useState`, `useReducer` (modal state, form inputs)
-            - Always use optimistic updates for responsive UI
+
+            - Global: `AppContext` plus `useApp()` for user, classrooms, and active classroom.
+            - Feature: custom hooks with Supabase backing, such as `useSeatingChart` and `useLayoutPresets`.
+            - Local: `useState` or `useReducer` for modal state and form inputs.
+            - Prefer optimistic updates for responsive UI, with a clear failure path.
 
             ### Testing Patterns
-            - **Unit tests:** `src/test/` with Vitest
-            - **E2E tests:** `e2e/` with Playwright
-            - Mock Supabase client for unit tests (don't hit real API)
-            - Use `data-testid` attributes for E2E selectors
-            - Test behavior, not implementation details
-            - NEVER test internal state, test observable behavior
+
+            - Unit tests: `src/**/*.test.{ts,tsx}` with Vitest and jsdom.
+            - Backend integration tests: `tests/integration/**/*.test.ts` with Vitest, Node, and local Supabase.
+            - E2E tests: `tests/e2e/**/*.spec.ts` with Playwright, Vite, and local Supabase.
+            - Unit tests should mock Supabase instead of hitting a real API.
+            - Use role, label, and text selectors first; use `data-testid` when accessible selectors are not stable enough.
+            - Test behavior, not implementation details.
+            - Never test internal state directly; test observable behavior.
+            - E2E and backend-integration tests must never point at hosted Supabase. They must use loopback, RFC1918, or Tailscale CGNAT hosts only.
 
             ## Review Checklist
 
             Check the PR for:
-            1. **Hooks Order:** All hooks called before any early returns
-            2. **Context Usage:** Uses `useApp()`, not direct context access
-            3. **Cleanup:** All useEffect subscriptions have cleanup returns
-            4. **Dependencies:** useEffect/useCallback have correct dependency arrays
-            5. **Error Handling:** Supabase calls check error before using data
-            6. **Type Safety:** Props interfaces defined, explicit return types
-            7. **Naming:** PascalCase components, camelCase hooks, named exports
-            8. **Tests:** Behavior-focused tests, mocked Supabase, no implementation details
+            1. Hooks order: all hooks called before early returns.
+            2. Context usage: components use `useApp()`, not direct context access.
+            3. Cleanup: subscriptions and side effects have cleanup paths.
+            4. Dependencies: `useEffect` and `useCallback` dependency arrays are correct.
+            5. Error handling: Supabase calls check `error` before using `data`.
+            6. Type safety: props interfaces and meaningful types are present.
+            7. Naming: PascalCase components, camelCase hooks, named exports.
+            8. Tests: behavior-focused tests, correct runner layer, no hosted Supabase.
+            9. Realtime/data consistency: optimistic updates, invalidation, and partial realtime payloads are handled safely.
+            10. Regression risk: user-facing workflows still have loading, empty, and error states.
 
             ## Output Format
 
             Use `gh pr comment` to post your review with this structure:
-            - **Summary:** Brief overview of changes
-            - **Issues Found:** Critical issues that must be fixed
-            - **Suggestions:** Non-blocking improvements
-            - **Positive Feedback:** What was done well
+
+            - Summary: brief overview of the change.
+            - Issues Found: critical or blocking issues that should be fixed, with file and line references.
+            - Suggestions: non-blocking improvements.
+            - Positive Feedback: what was done well.
+
+            If there are no blocking issues, say that clearly.
 
           claude_args: '--allowed-tools "mcp__github_inline_comment__create_inline_comment,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
-

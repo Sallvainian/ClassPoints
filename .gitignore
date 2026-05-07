@@ -39,6 +39,7 @@ supabase/.temp/
 .claude/*
 !.claude/rules/
 .cursor/
+.mcp.json
 .serena/
 
 # Test artifacts
