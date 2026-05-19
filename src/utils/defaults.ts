@@ -26,6 +26,7 @@ const BEHAVIOR_TEMPLATES: BehaviorTemplate[] = [
   { name: 'Unkind Words', points: -2, icon: '💬', category: 'negative' },
   { name: 'Not Following Rules', points: -1, icon: '🚫', category: 'negative' },
   { name: 'Late', points: -1, icon: '⏰', category: 'negative' },
+  { name: 'Insubordination', points: -5, icon: '🚨', category: 'negative' },
 ];
 
 // Generate default behaviors with unique IDs
