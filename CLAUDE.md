@@ -78,29 +78,3 @@ There are TWO independent contexts that may auto-manage the local Supabase stack
 ### BMAD-Module TEA Documentation
 
 Documentation: https://bmad-code-org.github.io/bmad-method-test-architecture-enterprise/explanation/test-quality-standards/
-
-Knowledge Fragment: test-quality.md has execution limits and criteria.
-
-Session 2 Key Takeaways
-
-1. Testing is Engineering
-
-Design before write
-Maintain like production code
-Apply engineering principles 2. Risk-Based Testing
-
-P0 = Critical, like login or payment
-P1 = High, like core workflows
-P2 = Medium, like secondary features
-P3 = Low, like tooltips or minor niceties
-Prioritize based on Probability × Impact 3. Definition of Done
-
-No flaky tests
-No hard waits
-Stateless and parallelizable
-Self-cleaning tests
-Low maintenance 4. Quality Standards = Engineering Rigor
-
-Not perfectionism, but reliability
-Prevents test maintenance problems
-Builds trust in CI/CD

@@ -158,21 +158,21 @@ Two problems, separate concerns:
 
 **Scope decision — which data actually needs push**
 
-| Domain                                           | Realtime? | Rationale                                                                                   |
-| ------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------- |
-| **Students + point totals**                      | **Yes**   | Smartboard must reflect awarded points within ~1 second for the live-class-display use case |
-| **Point transactions**                           | **Yes**   | Feeds the totals above; also needed for undo-across-devices                                 |
-| **Seating chart** (seats, groups, room elements) | **Yes**   | User requirement: show students live when the teacher rearranges seats                      |
-| Classrooms list                                  | No        | Created once, rarely edited; fine to refresh on page load or window focus                   |
-| Behavior templates                               | No        | Configured in advance, not changing mid-lesson                                              |
-| Layout presets                                   | No        | Saved once, loaded on demand                                                                |
-| User sound settings                              | No        | Per-device preference; no cross-device sync needed                                          |
+| Domain                                       | Realtime? | Rationale                                                                                                                                                         |
+| -------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Students + point totals**                  | **Yes**   | Smartboard must reflect awarded points within ~1 second for the live-class-display use case                                                                       |
+| **Point transactions**                       | **Yes**   | Feeds the totals above; also needed for undo-across-devices                                                                                                       |
+| Seating chart (seats, groups, room elements) | No        | Was previously planned as realtime for cross-device drag sync; that use case was dropped 2026-05-13 — single-device edits + on-demand invalidation are sufficient |
+| Classrooms list                              | No        | Created once, rarely edited; fine to refresh on page load or window focus                                                                                         |
+| Behavior templates                           | No        | Configured in advance, not changing mid-lesson                                                                                                                    |
+| Layout presets                               | No        | Saved once, loaded on demand                                                                                                                                      |
+| User sound settings                          | No        | Per-device preference; no cross-device sync needed                                                                                                                |
 
 Everything in the "No" rows switches to TanStack Query's default sync: `refetchOnWindowFocus` + on-demand `invalidateQueries` after mutations. That's sufficient for data the user views but doesn't "watch live."
 
 **Implementation — what realtime looks like post-migration**
 
-For the three domains that keep push, `useRealtimeSubscription` stays as a helper but its callbacks collapse to a single idiom:
+For the two domains that keep push, `useRealtimeSubscription` stays as a helper but its callbacks collapse to a single idiom:
 
 ```ts
 useRealtimeSubscription({
@@ -303,9 +303,9 @@ The "legacy-" prefix on that file is accurate only in the sense that it was writ
 
 The migration splits these:
 
-- **Server state → TanStack Query.** Separate `useQuery` per related table: `useSeatingChart`, `useSeats`, `useSeatingGroups`, `useRoomElements`. Mutations are `useMutation` with optimistic `setQueryData`.
+- **Server state → TanStack Query.** Separate `useQuery` per related table: `useSeatingChart`, `useSeats`, `useSeatingGroups`, `useRoomElements`. Mutations are `useMutation` with optimistic `setQueryData` where the UX needs instant feedback, plain otherwise.
 - **Drag / in-flight UI state → local `useState` in the canvas component, or a small Zustand store scoped to the seating feature.** This state genuinely doesn't belong on the server and shouldn't pretend to.
-- **Realtime stays on.** Unlike the classroom list or behavior templates, seating chart changes are meant to be visible live (student-facing smartboard use case: teacher rearranges seats → students see it update). Each of the four seating tables keeps a `useRealtimeSubscription` → `invalidateQueries` wiring.
+- **No realtime.** Originally planned as a realtime domain for the cross-device smartboard-sync use case, but that requirement was dropped 2026-05-13 — single-device seating-chart editing is the actual workflow, and on-demand `invalidateQueries` after mutations is sufficient. Seating-chart joins `classrooms` / `behaviors` / `layout_presets` in the non-realtime bucket.
 
 The 4 "store old position for rollback" sites collapse into `useMutation.onMutate` + `onError`.
 
@@ -336,7 +336,7 @@ High-level phases. The PRD will fill in acceptance criteria per phase.
 - `src/hooks/use{Classrooms,Students,Behaviors,Transactions,LayoutPresets,SeatingChart}.ts` each contain zero `useState(loading)` / `useState(error)` / manual `const previous = ...` rollback captures.
 - `src/contexts/AppContext.tsx` is under 200 lines and imports zero feature data hooks.
 - Every new data hook added after Phase 1 is a `useQuery` / `useMutation` wrapper.
-- Realtime subscriptions exist only on the three domains that need live sync (students + point totals, point transactions, seating chart) — `useClassrooms`, `useBehaviors`, `useLayoutPresets`, and user settings hooks have no realtime subscription.
+- Realtime subscriptions exist only on the two domains that need live sync (students + point totals, point transactions) — `useClassrooms`, `useBehaviors`, `useLayoutPresets`, `useSeatingChart`, and user settings hooks have no realtime subscription.
 - Surviving realtime callbacks exist only to invalidate or patch the TanStack Query cache (no manual `onInsert`/`onUpdate`/`onDelete` state merging).
 - `docs/architecture.md` is rewritten to describe the post-migration shape; the "React Context over Redux/Zustand" decision is replaced with "TanStack Query for server state."
 - `CLAUDE.md` remains lean — commands + env only (current state).
@@ -346,7 +346,7 @@ High-level phases. The PRD will fill in acceptance criteria per phase.
 ## Resolved decisions
 
 - **Sync transport:** keep Supabase Realtime. ClassDojo uses PubNub for the equivalent live-sync need — Supabase Realtime is the same category of solution, already bundled with the backend. No transport change.
-- **Scope of realtime:** students + point totals, point transactions, and seating chart only. Everything else uses TanStack Query's `refetchOnWindowFocus` + on-demand invalidation.
+- **Scope of realtime:** students + point totals, point transactions only. Everything else — including seating chart, as of 2026-05-13 — uses TanStack Query's `refetchOnWindowFocus` + on-demand invalidation. Seating chart was originally scoped as a third realtime domain for cross-device drag sync; that use case was dropped.
 
 ## Open questions — to resolve in PRD
 

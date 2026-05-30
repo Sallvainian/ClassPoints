@@ -266,4 +266,4 @@ Called by `useStudents.queryFn` (single classroom) and `useClassrooms.queryFn` (
 - `useStudents.ts` — subscribes to `students` (any event, classroom-filtered) AND to `point_transactions` (DELETE only, classroom-filtered).
 - `useTransactions.ts` — subscribes to `point_transactions` (any event, classroom-filtered).
 - `useLayoutPresets.ts` — legacy subscription to `layout_presets`.
-- `useSeatingChart.ts` — currently NO realtime subscription (target state has 4 seating tables wired up).
+- `useSeatingChart.ts` — NO realtime subscription, by design. Previously planned to add 4 seating-table subscriptions for cross-device drag sync; that use case was dropped 2026-05-13. Seating-chart now uses on-demand `invalidateQueries` after mutations.

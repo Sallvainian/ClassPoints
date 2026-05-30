@@ -72,25 +72,24 @@ _Critical rules and patterns AI agents must follow when implementing code in thi
 - `_bmad-output/anti-pattern-audit.md` — 2026-04-25 audit with REAL / OVERSTATED / FALSE-POSITIVE verdicts on 10 clusters. **Consult before re-raising rejected concerns.**
 - `docs/legacy/legacy-*.md` — AS-IS pattern inventory. **Refactor targets, NOT rules.** Authoritative subset (still correct, prefix is historical): `legacy-migrations.md`, `legacy-testing.md`, `legacy-utils.md`. The rest describe patterns being reversed.
 
-**Target realtime scope — exactly 3 domains (ADR-005 §6, PRD FR5):**
+**Target realtime scope — exactly 2 domains (ADR-005 §6, PRD FR5):**
 
-| Domain                           | Backing tables                                                       | Why realtime                                            |
-| -------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
-| `students` (point + time totals) | `students`                                                           | Smartboard reflects phone awards within ~1s             |
-| `point_transactions`             | `point_transactions`                                                 | Cross-device undo; DELETE branch decrements time totals |
-| `seating-chart`                  | `seating_charts`, `seating_groups`, `seating_seats`, `room_elements` | Drag on laptop → smartboard moves the seat              |
+| Domain                           | Backing tables       | Why realtime                                            |
+| -------------------------------- | -------------------- | ------------------------------------------------------- |
+| `students` (point + time totals) | `students`           | Smartboard reflects phone awards within ~1s             |
+| `point_transactions`             | `point_transactions` | Cross-device undo; DELETE branch decrements time totals |
 
-**Non-realtime domains (explicit, NOT default-by-omission):** `classrooms`, `behaviors`, `layout_presets`, user settings. They use `refetchOnWindowFocus: false` defaults + on-demand `invalidateQueries` after mutations.
+**Non-realtime domains (explicit, NOT default-by-omission):** `classrooms`, `behaviors`, `layout_presets`, `seating-chart`, user settings. They use `refetchOnWindowFocus: false` defaults + on-demand `invalidateQueries` after mutations. Seating-chart was previously a target realtime domain for cross-device drag sync; that use case was dropped (2026-05-13) and seating-chart now stays in the non-realtime bucket alongside its eventual TanStack migration.
 
-**Current HEAD drift from target:** actual subscriptions today are `useStudents` (`students` + `point_transactions`), `useTransactions` (`point_transactions`), and legacy `useLayoutPresets` (`layout_presets`). `useSeatingChart` is still hand-rolled and currently has no realtime subscription. Treat `layout_presets` realtime as legacy drift to remove when that hook migrates; treat seating-chart realtime as target work, not current implementation. Do not copy either shape.
+**Current HEAD drift from target:** actual subscriptions today are `useStudents` (`students` + `point_transactions`), `useTransactions` (`point_transactions`), and legacy `useLayoutPresets` (`layout_presets`). `useSeatingChart` is still hand-rolled and has no realtime subscription — that matches target now. Treat `layout_presets` realtime as legacy drift to remove when that hook migrates. Do not copy that shape.
 
-**The "exactly 3" count is load-bearing on PRD FR5, Phase 2 mutation race handling, and adapter-bridge memoization assumptions.** A PR that does any of:
+**The "exactly 2" count is load-bearing on PRD FR5, Phase 2 mutation race handling, and adapter-bridge memoization assumptions.** A PR that does any of:
 
 - Adds a realtime subscription to a domain NOT in the table above
 - Removes a subscription from a domain IN the table above
 - Introduces a new data domain or table with undefined realtime status
 
-MUST update ADR-005 §6 AND this section in the same commit. "Decide later" is not acceptable. Adding a 4th realtime channel without that update is a PR-review block.
+MUST update ADR-005 §6 AND this section in the same commit. "Decide later" is not acceptable. Adding a 3rd realtime channel without that update is a PR-review block.
 
 **Cross-cutting realtime DELETE rule:** ANY table receiving realtime DELETE events MUST have `ALTER TABLE x REPLICA IDENTITY FULL` in its migration. Without it, DELETE payloads arrive empty and `payload.old` is unusable. See `supabase/migrations/005_replica_identity_full.sql` for the canonical pattern (`point_transactions` is currently the only DELETE-watching domain; `students` realtime is INSERT/UPDATE-only).
 
@@ -254,7 +253,7 @@ function DevtoolsGate() {
 
 **Realtime subscription rules**
 
-- Target policy: realtime attaches ONLY to the three live-sync domains (see Migration Status section §6). Current HEAD still has `layout_presets` legacy realtime in `useLayoutPresets`; do not add more, and remove it when migrating that hook. Do NOT add realtime to classrooms, behaviors, or user settings.
+- Target policy: realtime attaches ONLY to the two live-sync domains (see Migration Status section §6). Current HEAD still has `layout_presets` legacy realtime in `useLayoutPresets`; do not add more, and remove it when migrating that hook. Do NOT add realtime to classrooms, behaviors, seating-chart, or user settings.
 - Use `useRealtimeSubscription<DbType>({ table, filter, enabled, onChange })` — the hook owns channel lifecycle (cleanup, reconnect, status transitions).
 - **Preferred callback:** the single `onChange` form (`(payload) => …`). The handler routes by `payload.eventType` and either `qc.setQueryData(...)` patches the cache (preferred for hot paths — see `useStudents.ts:48-102` INSERT/UPDATE/DELETE merge) OR `qc.invalidateQueries(...)` (for low-frequency events — see `useTransactions.ts:61-66`).
 - **Legacy callbacks** (`onInsert` / `onUpdate` / `onDelete`) — still supported, dev-mode warning fires when supplied alongside `onChange`. Current legacy consumers are `useLayoutPresets` and the `useStudents` `point_transactions` DELETE branch. Do NOT add new callers of the legacy fields.
@@ -493,4 +492,4 @@ _Captures the editorial/engineering redesign that landed in commits `ae7a9a8` (P
 - Remove rules that become enforceable by tooling (e.g., when `unwrap()` lands and ESLint enforces it, the planned-fix paragraph collapses to one line).
 - Re-run the audit (`_bmad-output/anti-pattern-audit.md`) periodically to catch new clusters; cite verdicts (REAL / OVERSTATED / FALSE POSITIVE) in this file rather than re-litigating.
 
-_Last updated: 2026-04-29_
+_Last updated: 2026-05-13_

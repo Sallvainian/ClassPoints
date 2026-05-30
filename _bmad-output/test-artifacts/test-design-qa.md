@@ -46,7 +46,7 @@ inputDocuments:
 - **P1:** 24 scenarios — happy-path E2E + transform/mutation unit tests
 - **P2:** 21 scenarios — edit/delete flows, settings, JSONB drift guard, rapid-tap stress
 - **P3:** 4 scenarios — UI polish, theme, lock-tables
-- **Blocked:** 1 (R-10 / SEAT.01-E2E-06 — `useSeatingChart` migration-pending)
+- **Retired:** 1 (R-10 / SEAT.01-E2E-06 — RETIRED 2026-05-13, cross-device seating-chart sync use case dropped)
 - **Background-existing (do not duplicate):** 4 (sounds.test.ts, leaderboardCalculations.test.ts, useRotatingCategory.test.ts, useRealtimeSubscription.test.ts — already 109 tests passing)
 
 **Total authoring effort:** ~60-95 hours, ~3-4 sprints solo + AI-assist.
@@ -76,7 +76,7 @@ inputDocuments:
 
 ## Dependencies & Test Blockers
 
-**CRITICAL:** Authoring **can** start now for everything except R-10 (blocked-on-migration). The four score-9 BLOCK mitigations are unblocked and should be authored first.
+**CRITICAL:** Authoring **can** start now for everything. R-10 (previously blocked-on-migration) was retired 2026-05-13 when the seating-chart cross-device sync use case was dropped. The four score-9 BLOCK mitigations are unblocked and should be authored first.
 
 ### Backend / Architecture Dependencies (none currently blocking)
 
@@ -92,10 +92,10 @@ See `test-design-architecture.md` "Quick Guide" for the full code-side picture. 
 
 ### Code Migration Dependencies (block specific scenarios, not the run)
 
-| Scenario           | Blocked on                                                              | Unblock action                                                                             |
-| ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| **SEAT.01-E2E-06** | `useSeatingChart` migration to TanStack + adding seating-chart realtime | PRD Phase 5 lands. Author scenario today with `test.skip` + TODO comment.                  |
-| **RT.01-INT-04**   | `useLayoutPresets` migration removing legacy realtime drift             | When migration lands, flip `expect-fail` annotation to assert no `layout_presets` realtime |
+| Scenario           | Blocked on                                                                  | Unblock action                                                                                                                      |
+| ------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| ~~SEAT.01-E2E-06~~ | ~~`useSeatingChart` migration to TanStack + adding seating-chart realtime~~ | **RETIRED 2026-05-13** — cross-device seating-chart sync use case dropped; scenario removed entirely (not authored as `test.skip`). |
+| **RT.01-INT-04**   | `useLayoutPresets` migration removing legacy realtime drift                 | When migration lands, flip `expect-fail` annotation to assert no `layout_presets` realtime                                          |
 
 ### QA Infrastructure Setup — Already in Place
 
@@ -189,17 +189,17 @@ Full details in `test-design-architecture.md`. This section maps each risk to th
 
 ### Medium / Low / Blocked Risks
 
-| Risk ID  | Category | Description                                                      | Score           | QA Test Coverage                                                   |
-| -------- | -------- | ---------------------------------------------------------------- | --------------- | ------------------------------------------------------------------ |
-| R-12     | TECH     | Realtime channel reconnect loses event                           | 4               | HIST.01-INT-05                                                     |
-| R-16     | PERF     | Per-student rapid-tap → optimistic write race                    | 4               | AWARD.01-E2E-09                                                    |
-| R-18     | TECH     | Snake_case → camelCase transform regression                      | 4               | CLASS.01-UNIT-03, STUD.01-UNIT-02, BEH.01-UNIT-02, CLASS.01-INT-04 |
-| R-09     | TECH     | New realtime channel without ADR-005 §6 update                   | 3               | Code-review gate; no test                                          |
-| R-11     | DATA     | Optimistic temp ID collision                                     | 2               | AWARD.01-UNIT-03                                                   |
-| R-14     | DATA     | Migration wizard data loss                                       | 3               | Out of scope                                                       |
-| R-15     | OPS      | Allow-list bypass                                                | 3               | AUTH.01-INT-01                                                     |
-| R-19     | DATA     | Sound-settings query lookup race                                 | 2               | SET.01-UNIT-01                                                     |
-| **R-10** | DATA     | Cross-device seating-chart drift — `useSeatingChart` no realtime | **6 (blocked)** | SEAT.01-E2E-06 (`test.skip` + TODO until Phase 5)                  |
+| Risk ID  | Category | Description                                                          | Score              | QA Test Coverage                                                   |
+| -------- | -------- | -------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------ |
+| R-12     | TECH     | Realtime channel reconnect loses event                               | 4                  | HIST.01-INT-05                                                     |
+| R-16     | PERF     | Per-student rapid-tap → optimistic write race                        | 4                  | AWARD.01-E2E-09                                                    |
+| R-18     | TECH     | Snake_case → camelCase transform regression                          | 4                  | CLASS.01-UNIT-03, STUD.01-UNIT-02, BEH.01-UNIT-02, CLASS.01-INT-04 |
+| R-09     | TECH     | New realtime channel without ADR-005 §6 update                       | 3                  | Code-review gate; no test                                          |
+| R-11     | DATA     | Optimistic temp ID collision                                         | 2                  | AWARD.01-UNIT-03                                                   |
+| R-14     | DATA     | Migration wizard data loss                                           | 3                  | Out of scope                                                       |
+| R-15     | OPS      | Allow-list bypass                                                    | 3                  | AUTH.01-INT-01                                                     |
+| R-19     | DATA     | Sound-settings query lookup race                                     | 2                  | SET.01-UNIT-01                                                     |
+| ~~R-10~~ | DATA     | ~~Cross-device seating-chart drift — `useSeatingChart` no realtime~~ | RETIRED 2026-05-13 | No test scenario; use case dropped. SEAT.01-E2E-06 stub deleted.   |
 
 ---
 
@@ -225,7 +225,7 @@ Testing phase complete when ALL are met:
 - [ ] Nightly pipeline runtime under 30 min
 - [ ] Every test passes the **Test Quality DoD** (no `waitForTimeout`, no try/catch flow control, < 300 LOC, < 1.5 min per test, self-cleaning, parallel-safe, unique data via `faker`, explicit assertions in test bodies)
 - [ ] Selector strategy followed: `getByRole > getByLabel > getByText({exact: true}) > getByTestId > locator(css)`
-- [ ] R-10 (SEAT.01-E2E-06) authored with `test.skip` + TODO; un-skip when `useSeatingChart` migrates
+- [x] ~~R-10 (SEAT.01-E2E-06) authored with `test.skip` + TODO; un-skip when `useSeatingChart` migrates~~ — RETIRED 2026-05-13; scenario removed.
 
 ---
 
@@ -363,11 +363,11 @@ Testing phase complete when ALL are met:
 
 ### Blocked
 
-| Test ID        | Requirement                                              | Risk Link | Notes                                                                             |
-| -------------- | -------------------------------------------------------- | --------- | --------------------------------------------------------------------------------- |
-| SEAT.01-E2E-06 | Two browsers, same user: drag in A → B updates within 2s | R-10      | `test.skip("BLOCKED: useSeatingChart has no realtime — unblocks at PRD Phase 5")` |
+| Test ID            | Requirement                                                  | Risk Link | Notes                                                                                                                     |
+| ------------------ | ------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------- |
+| ~~SEAT.01-E2E-06~~ | ~~Two browsers, same user: drag in A → B updates within 2s~~ | ~~R-10~~  | **RETIRED 2026-05-13** — cross-device seating-chart sync use case dropped. Scenario removed; no `test.skip` stub remains. |
 
-**Total blocked:** 1 scenario.
+**Total blocked:** 0 scenarios. (Previously 1; R-10 / SEAT.01-E2E-06 retired 2026-05-13.)
 
 ---
 
@@ -403,7 +403,7 @@ Testing phase complete when ALL are met:
 
 ### Weekly / On-demand
 
-- **R-10 / SEAT.01-E2E-06** when `useSeatingChart` migration lands (tagged `@migration-pending`)
+- ~~**R-10 / SEAT.01-E2E-06** when `useSeatingChart` migration lands~~ — RETIRED 2026-05-13; no scenario to run.
 - **RT.01-INT-04** legacy-drift expected-fail flag (tagged `@drift-expected`)
 - Manual smoke for migration-wizard, browser-matrix exploration
 
@@ -435,14 +435,14 @@ npm test -- tests/integration/                         # all integration
 
 QA test development effort. Solo contributor + AI-assist via `bmad-testarch-atdd` and `bmad-testarch-automate`.
 
-| Priority        | Count                                  | Effort Range     | Notes                                                                                                                                       |
-| --------------- | -------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0              | 39                                     | **~30-45 hours** | 16 RLS scenarios (heavy initial fixture build, then ~15-20 min each) + 9 award optimistic + 7 schema invariants + 7 auth/feature happy-path |
-| P1              | 24                                     | **~18-28 hours** | Mostly E2E happy-path + UNIT mutation/transform tests. Lighter fixtures.                                                                    |
-| P2              | 17                                     | **~10-18 hours** | Edit/delete + settings + JSONB drift guard + transforms.                                                                                    |
-| P3              | 4                                      | **~2-4 hours**   | UI polish + background-existing.                                                                                                            |
-| Blocked / Drift | 2                                      | **~1 hour**      | Author `test.skip` + TODO; trivial.                                                                                                         |
-| **Total**       | **86 net-new** + 4 existing-stay-green | **~60-95 hours** | Spread across 3-4 sprints if interleaved with feature work; less if focused sprint.                                                         |
+| Priority  | Count                                  | Effort Range     | Notes                                                                                                                                       |
+| --------- | -------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0        | 39                                     | **~30-45 hours** | 16 RLS scenarios (heavy initial fixture build, then ~15-20 min each) + 9 award optimistic + 7 schema invariants + 7 auth/feature happy-path |
+| P1        | 24                                     | **~18-28 hours** | Mostly E2E happy-path + UNIT mutation/transform tests. Lighter fixtures.                                                                    |
+| P2        | 17                                     | **~10-18 hours** | Edit/delete + settings + JSONB drift guard + transforms.                                                                                    |
+| P3        | 4                                      | **~2-4 hours**   | UI polish + background-existing.                                                                                                            |
+| Drift     | 1                                      | **~0.5 hour**    | RT.01-INT-04 `layout_presets` legacy drift `expect-fail` annotation; trivial. (R-10 retired 2026-05-13.)                                    |
+| **Total** | **86 net-new** + 4 existing-stay-green | **~60-95 hours** | Spread across 3-4 sprints if interleaved with feature work; less if focused sprint.                                                         |
 
 **Calibration anchors:**
 
@@ -463,17 +463,17 @@ QA test development effort. Solo contributor + AI-assist via `bmad-testarch-atdd
 
 Suggested sprint sequencing for solo + AI-assist execution:
 
-| Work Item                                                                          | Owner               | Target                           | Dependencies / Notes                                                            |
-| ---------------------------------------------------------------------------------- | ------------------- | -------------------------------- | ------------------------------------------------------------------------------- |
-| Author impersonation-pair fixture                                                  | Sallvain            | Sprint 1, day 1                  | Blocks all RLS scenarios                                                        |
-| Score-9 BLOCK mitigations (RLS x2, REPLICA IDENTITY x1, rollback x1)               | Sallvain + atdd     | Sprint 1                         | R-01, R-02, R-03, R-05 — release gate                                           |
-| Score 6-8 high-priority mitigations (R-04, R-06..R-08, R-13, R-17, R-20)           | Sallvain + atdd     | Sprint 1-2                       | Cluster #2 fix is parallel code-side track                                      |
-| P1 happy-path E2E + UNIT (auth, classroom, student CRUD)                           | Sallvain + automate | Sprint 2                         | After P0 done                                                                   |
-| P2 secondary features                                                              | Sallvain + automate | Sprint 3                         | Edit/delete + settings + JSONB drift guard                                      |
-| P3 polish                                                                          | Sallvain + automate | Sprint 4 or skip if time-pressed | Lock-tables + theme                                                             |
-| Cluster #2 code fix (out of test scope but unblocks R-06/R-07 tests to fully pass) | Sallvain (code)     | Sprint 2                         | When done, delete lying comments at `ClassAwardModal:64` + `MultiAwardModal:62` |
-| KI-1 empty-state Suspense fix                                                      | Sallvain (code)     | Sprint 1-2                       | Removes auth.setup workaround                                                   |
-| `useSeatingChart` migration (PRD Phase 5) → unblocks SEAT.01-E2E-06                | Sallvain (code)     | Future PRD work                  | Architecture doc has Phase 5 file plan ready                                    |
+| Work Item                                                                          | Owner               | Target                           | Dependencies / Notes                                                                     |
+| ---------------------------------------------------------------------------------- | ------------------- | -------------------------------- | ---------------------------------------------------------------------------------------- |
+| Author impersonation-pair fixture                                                  | Sallvain            | Sprint 1, day 1                  | Blocks all RLS scenarios                                                                 |
+| Score-9 BLOCK mitigations (RLS x2, REPLICA IDENTITY x1, rollback x1)               | Sallvain + atdd     | Sprint 1                         | R-01, R-02, R-03, R-05 — release gate                                                    |
+| Score 6-8 high-priority mitigations (R-04, R-06..R-08, R-13, R-17, R-20)           | Sallvain + atdd     | Sprint 1-2                       | Cluster #2 fix is parallel code-side track                                               |
+| P1 happy-path E2E + UNIT (auth, classroom, student CRUD)                           | Sallvain + automate | Sprint 2                         | After P0 done                                                                            |
+| P2 secondary features                                                              | Sallvain + automate | Sprint 3                         | Edit/delete + settings + JSONB drift guard                                               |
+| P3 polish                                                                          | Sallvain + automate | Sprint 4 or skip if time-pressed | Lock-tables + theme                                                                      |
+| Cluster #2 code fix (out of test scope but unblocks R-06/R-07 tests to fully pass) | Sallvain (code)     | Sprint 2                         | When done, delete lying comments at `ClassAwardModal:64` + `MultiAwardModal:62`          |
+| KI-1 empty-state Suspense fix                                                      | Sallvain (code)     | Sprint 1-2                       | Removes auth.setup workaround                                                            |
+| `useSeatingChart` migration (PRD Phase 5) — non-realtime target as of 2026-05-13   | Sallvain (code)     | Future PRD work                  | Architecture doc has Phase 5 file plan ready; SEAT.01-E2E-06 retired, not gated on this. |
 
 ---
 
@@ -542,12 +542,10 @@ test.describe('Award Points', () => {
     // ... click +1, assert UI snaps back to pre-award total, no `undefined` flash ...
   });
 
-  test.skip('two browsers seating-chart sync @p1 @realtime @seating @migration-pending', async ({
-    browser,
-  }) => {
-    // BLOCKED on R-10 — useSeatingChart has no realtime channel.
-    // Unblocks when PRD Phase 5 lands and adds the seating-chart channel per ADR-005 §6.
-  });
+  // RETIRED 2026-05-13: the "two browsers seating-chart sync" test was previously a P1
+  // test.skip stub waiting on a seating-chart realtime channel. The cross-device drag-sync
+  // use case has been dropped — seating-chart is no longer a target realtime domain
+  // (ADR-005 §6 now lists seating-chart under non-realtime). Stub deleted intentionally.
 });
 ```
 

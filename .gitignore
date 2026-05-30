@@ -52,3 +52,6 @@ src.zip
 
 # Local one-off verification scripts (kept on disk but not tracked)
 scripts/verify-*.ts
+.dmux/
+.coddo/
+.claude/

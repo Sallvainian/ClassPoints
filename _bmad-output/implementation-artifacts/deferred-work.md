@@ -21,12 +21,10 @@ Surfaced but deliberately deferred from its originating spec. Each entry records
 
 ## From user-observed bug (logged during spec-tanstack-phase-2 scoping, 2026-04-24)
 
-### 3. Seating chart realtime updates broken — requires manual refresh
+### 3. ~~Seating chart realtime updates broken — requires manual refresh~~ — WONTFIX 2026-05-13
 
 - **Source:** User report (2026-04-24) while scoping Phase 2. "Seating charts don't update real time. I need to refresh."
-- **Scenario:** Seating chart is one of the three approved realtime domains per ADR-005 §6 + PRD FR5. Subscription exists in `useSeatingChart.ts`, but cross-device seat moves are not propagating; the second device sees stale layout until a manual refresh.
-- **Why deferred:** Out of Phase 2 scope — Phase 2 only touches `useClassrooms` and `useTransactions`. `useSeatingChart` is untouched per the spec's Boundaries constraints. Fixing the subscription likely requires inspecting channel filter, enabled flag, or `onChange` routing specific to the seating-chart hook — a separate focused investigation.
-- **Follow-up:** Dedicated bug-fix PR. Start by verifying: (a) the Supabase `seating_charts` table has `REPLICA IDENTITY FULL` or the columns needed for the filter, (b) the `useRealtimeSubscription` filter in `useSeatingChart.ts` matches the row(s) the other device is updating, (c) the channel actually reaches `SUBSCRIBED` status (check dev console for CHANNEL_ERROR), (d) `onChange` / legacy-callback routing isn't swallowing events. Likely a single-file fix in `useSeatingChart.ts` once the root cause is found.
+- **Resolution (2026-05-13):** **WONTFIX.** The user determined the cross-device seating-chart sync use case is no longer needed — seating-chart editing is single-device in practice. Seating-chart is now an explicit non-realtime domain (see ADR-005 §6, project-context.md, PRD FR5 — all updated in the same commit). The previously-attempted fix (new migration `20260508141116_enable_seating_realtime.sql` + four `useRealtimeSubscription` blocks in `useSeatingChart.ts`) was REVERTED on 2026-05-13. `useSeatingChart` stays hand-rolled with no realtime, and on-demand `invalidateQueries` after mutations is the freshness mechanism going forward.
 
 ## From spec-tanstack-phase-2 (Phase 2 — classrooms + transactions migration)
 
@@ -50,9 +48,9 @@ Surfaced but deliberately deferred from its originating spec. Each entry records
 ### 6. DashboardView polls `getRecentUndoableAction()` on a 1-second interval
 
 - **Source:** Phase 2.5 edge-case-hunter v2 (finding F18). Captured during Phase 3 spec planning.
-- **Scenario:** `src/components/dashboard/DashboardView.tsx:43, 57-63` calls `getRecentUndoableAction()` every 1000ms via a `setInterval`, AND on every mutation completion handler (lines 116, 124, 134). Both flows produce a NEW object reference on each call even when the underlying transaction hasn't changed. Phase 2.5 fixed the user-visible symptom (the `UndoToast` timer kept resetting) by deriving a stable `actionKey` (`batchId ?? timestamp`) and using it as the effect dep. Root cause — the polling itself — is untouched. Net effect: a useless 1Hz spin that produces a fresh object even when no transaction was added/removed; benign today but wasteful, and any future `UndoableAction`-derived state needs to know about the polling churn.
+- **Scenario:** `src/components/dashboard/DashboardView.tsx:61-70` runs a 1Hz `setInterval` that increments a `tick` state purely so a `useMemo` re-derives `getRecentUndoableAction()` every second to expire the undo window. Net effect: a useless 1Hz spin that fires even when no transaction was added/removed; benign today but wasteful, and any future `UndoableAction`-derived state needs to know about the polling churn. (Partial progress noted 2026-05-07: the per-mutation `setUndoableAction(getRecentUndoableAction())` calls and the unstable-object reference issue described in the original entry are already gone — replaced by `actionKey` deps and the `useMemo` derivation. Only the `setInterval` itself remains.)
 - **Why deferred:** Fix lives in `src/components/dashboard/DashboardView.tsx` — a component file. Same scope-creep boundary as Phase 2.5's UndoToast carve-out (Phase 3 strictly does not touch components). The polling is symptomatic, not load-bearing.
-- **Follow-up:** Standalone PR. Replace the `setInterval` (`DashboardView.tsx:57-63`) with a memoized derivation from `getRecentUndoableAction` itself — e.g. `useMemo(() => getRecentUndoableAction(), [getRecentUndoableAction])` — so recomputation tracks the selector's real inputs rather than only `useTransactions().data`. If the implementation instead memoizes from raw data, include every dependency that feeds `getRecentUndoableAction` (currently both transactions and students), not just `transactions`. Also remove the per-mutation `setUndoableAction(getRecentUndoableAction())` calls (lines 116, 124, 134) since the memo will handle it. Verifies via React DevTools (no more 1Hz state churn) and the existing `UndoToast` smoke tests.
+- **Follow-up:** Standalone PR. Replace the `setInterval` (`DashboardView.tsx:61-63`) with an event-driven expiry: a single `setTimeout` keyed off `actionKey` that fires when the undo window ends, rather than ticking every second. Verifies via React DevTools (no more 1Hz state churn) and the existing `UndoToast` smoke tests.
 
 ### 7. `batch_kind` DB column for cross-device subset/class undo labeling
 
@@ -138,6 +136,7 @@ These are spec seeds for future `bmad-quick-dev` or story/spec generation. They 
 - **Why deferred:** UI refactor outside docs refresh.
 - **Quick-dev spec seed:** Replace hand-rolled overlay/chrome with `Dialog`, preserving current sound settings behavior and accessibility semantics.
 - **Acceptance:** Escape/scroll-lock/ARIA behavior comes from `Dialog`; visual layout remains equivalent; relevant component smoke test or manual Playwright check passes.
+- **RESOLVED in `fb3f239`** (Phase 2 inner-screen restructure) — `src/components/settings/SoundSettingsModal.tsx` now imports and renders `Dialog` from `../ui` instead of a hand-rolled overlay; no custom portal, escape-key handler, or scroll-lock implementation remains. Verified 2026-05-07 during a deferred-work staleness audit.
 
 ### 17. Decide and wire `tdd-guard-vitest`, or remove it from project context as latent tooling
 

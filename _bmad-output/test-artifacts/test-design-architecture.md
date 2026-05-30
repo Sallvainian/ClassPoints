@@ -114,7 +114,7 @@ inputDocuments:
 | Risk ID  | Category | Description                                                                                             | P   | I   | Score | Mitigation                                                                                 | Owner    | Timeline           |
 | -------- | -------- | ------------------------------------------------------------------------------------------------------- | --- | --- | ----- | ------------------------------------------------------------------------------------------ | -------- | ------------------ |
 | **R-01** | **SEC**  | RLS breach via PostgREST: User A reads/writes User B's classrooms / students / behaviors / transactions | 3   | 3   | **9** | Per-table RLS integration scenarios with two impersonated user clients                     | Sallvain | Before next deploy |
-| **R-02** | **SEC**  | RLS breach via realtime: User A subscribes to User B's row events                                       | 3   | 3   | **9** | Realtime + RLS integration scenarios on each of the 3 official channels                    | Sallvain | Before next deploy |
+| **R-02** | **SEC**  | RLS breach via realtime: User A subscribes to User B's row events                                       | 3   | 3   | **9** | Realtime + RLS integration scenarios on each of the 2 official channels                    | Sallvain | Before next deploy |
 | **R-03** | **DATA** | Realtime DELETE on a table missing `REPLICA IDENTITY FULL` → time-totals desync                         | 3   | 3   | **9** | Schema-introspection invariant test enumerating realtime publication membership            | Sallvain | Next sprint        |
 | **R-05** | **TECH** | Optimistic rollback writes `undefined` to cache (ADR-005 §4 (a) regression)                             | 3   | 3   | **9** | UNIT test for `useAwardPoints.onError` null-guard + E2E for award-fails-then-rollback flow | Sallvain | Next sprint        |
 
@@ -150,9 +150,9 @@ inputDocuments:
 
 #### Blocked Risk
 
-| Risk ID | Category | Description                                                         | P   | I   | Score | Action                                                                                         |
-| ------- | -------- | ------------------------------------------------------------------- | --- | --- | ----- | ---------------------------------------------------------------------------------------------- |
-| R-10    | DATA     | Cross-device seating-chart drift — `useSeatingChart` lacks realtime | 3   | 2   | **6** | **P1-blocked-on-migration** — author scenario with `test.skip` + TODO; unblocks at PRD Phase 5 |
+| Risk ID  | Category | Description                                                             | P   | I   | Score | Action                                                                                                                                                                  |
+| -------- | -------- | ----------------------------------------------------------------------- | --- | --- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~R-10~~ | DATA     | ~~Cross-device seating-chart drift — `useSeatingChart` lacks realtime~~ | n/a | n/a | n/a   | **RETIRED 2026-05-13** — cross-device seating-chart sync use case dropped; no longer a target. Any `test.skip` stub for this scenario should be deleted, not unblocked. |
 
 #### Risk Category Legend
 
@@ -171,11 +171,11 @@ inputDocuments:
 
 **1. Blockers to Fast Feedback**
 
-| Concern                                               | Impact                                                                                                                       | What's Required                                                                                                                             | Owner    | Timeline                                      |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------- |
-| **TC-1 — Empty-state Suspense never resolves** (KI-1) | New-user E2E cannot wait for "dashboard loaded" signal before assertions                                                     | Bug-fix in `TeacherDashboard` chunk so empty `classrooms.length === 0` resolves Suspense fallback                                           | Sallvain | Next sprint (parallel to test work)           |
-| **TC-3 — `useSeatingChart` lacks realtime** (KI-3)    | Cross-device seating-chart sync E2E is red-by-design today (P1-blocked-on-migration R-10)                                    | Migrate `useSeatingChart` to TanStack + add seating-chart realtime channel per ADR-005 §6                                                   | Sallvain | PRD Phase 5                                   |
-| **TC-4 — Realtime DELETE invariant unenforced**       | A future migration that adds DELETE realtime to a new table without `REPLICA IDENTITY FULL` would silently break time totals | Schema invariant test (covered by mitigation for R-03) is the only enforcement layer; CONSIDER adding a Supabase migration linter long-term | Sallvain | Next sprint (test); long-term linter optional |
+| Concern                                               | Impact                                                                                                                                                                                            | What's Required                                                                                                                                | Owner    | Timeline                                      |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------- |
+| **TC-1 — Empty-state Suspense never resolves** (KI-1) | New-user E2E cannot wait for "dashboard loaded" signal before assertions                                                                                                                          | Bug-fix in `TeacherDashboard` chunk so empty `classrooms.length === 0` resolves Suspense fallback                                              | Sallvain | Next sprint (parallel to test work)           |
+| ~~TC-3 — `useSeatingChart` lacks realtime~~ (KI-3)    | ~~Cross-device seating-chart sync E2E is red-by-design today~~ — **RESOLVED 2026-05-13** as WONTFIX; the cross-device sync feature was dropped, so the "red-by-design" gap is no longer a concern | Delete any associated `test.skip` stubs. `useSeatingChart` still has the deferred TanStack-migration target (separate work item, no realtime). | Sallvain | n/a — retired                                 |
+| **TC-4 — Realtime DELETE invariant unenforced**       | A future migration that adds DELETE realtime to a new table without `REPLICA IDENTITY FULL` would silently break time totals                                                                      | Schema invariant test (covered by mitigation for R-03) is the only enforcement layer; CONSIDER adding a Supabase migration linter long-term    | Sallvain | Next sprint (test); long-term linter optional |
 
 **2. Architectural Improvements Needed**
 
@@ -199,7 +199,7 @@ Of 10 ASRs identified, 7 are **ACTIONABLE** in the test catalog: ASR-1 (RLS), AS
 - **TS-1 — Local-only Supabase fail-closed allow-list:** `playwright.config.ts` parses `VITE_SUPABASE_URL` and refuses non-private hosts. Same allow-list at `tests/support/helpers/supabase-admin.ts`. Doubles as security boundary + CI safety guard.
 - **TS-2 — Zero-step E2E run:** `tests/e2e/global-setup.ts` boots local stack, seeds idempotent, teardown stops it. Host-detection picks the right behavior (local vs remote).
 - **TS-3 — Optimistic mutation contract is canonical:** `useAwardPoints` (`useTransactions.ts:97-235`) inline-comments all five ADR-005 §4 (a)-(e) AC. New mutations have a one-template five-checklist target.
-- **TS-4 — Realtime scope = exactly 3 domains, PR-block enforced:** Adding a 4th channel without ADR-005 §6 update is a review block. Catalog has finite live-sync surface.
+- **TS-4 — Realtime scope = exactly 2 domains, PR-block enforced:** Adding a 3rd channel without ADR-005 §6 update is a review block. Catalog has finite live-sync surface. (Reduced from 3 → 2 on 2026-05-13 when seating-chart was dropped from the realtime list.)
 - **TS-5 — Trigger-maintained totals are server-of-truth:** Tests never reproduce client aggregation; backend asserts trigger correctness, UI asserts denormalized-value rendering.
 - **TS-6 — Query key registry single source of truth:** `src/lib/queryKeys.ts`. Read-path / invalidation-path drift is structurally impossible.
 - **TS-7 — Playwright fixtures established:** `mergeTests`, `userFactory`, `authenticatedPage` — 109 tests passing 2026-04-28.
@@ -224,7 +224,7 @@ Of 10 ASRs identified, 7 are **ACTIONABLE** in the test catalog: ASR-1 (RLS), AS
 1. RLS policies already exist in `supabase/migrations/002_*.sql`. **Verification, not creation, is the test scope.**
 2. Build a fixture that creates two test users (User A, User B) and an admin client; impersonate each via `supabase.auth.admin.createUser` + `supabase.auth.signInWithPassword`.
 3. For each user-scoped table (classrooms, students, behaviors, point_transactions, layout_presets, sound_settings, seating_charts/\_groups/\_seats, room_elements): assert User A's client cannot SELECT/INSERT/UPDATE/DELETE User B's rows.
-4. For each of the 3 official realtime channels (students, point_transactions, seating-chart): assert User A's subscription receives only User A's events; User B's row mutation is silent on User A's channel.
+4. For each of the 2 official realtime channels (students, point_transactions): assert User A's subscription receives only User A's events; User B's row mutation is silent on User A's channel. (Seating-chart was originally a third channel; dropped from the realtime list 2026-05-13.)
 
 **Owner:** Sallvain (test author).
 **Timeline:** Before next deploy.
@@ -331,7 +331,7 @@ Of 10 ASRs identified, 7 are **ACTIONABLE** in the test catalog: ASR-1 (RLS), AS
 
 1. **Local Supabase stack** — required for E2E + INT. Already automated via `tests/e2e/global-setup.ts`. **Status: Ready.**
 2. **`fnox exec` access** — required for any test that touches hosted Supabase. **None of the test catalog requires this** (E2E is local-only, INT is local-only). Hosted access stays out-of-scope.
-3. **`useSeatingChart` migration to TanStack + realtime** — required to unblock R-10 (SEAT.01-E2E-06). **Status: PRD Phase 5 — not gating this catalog.**
+3. ~~**`useSeatingChart` migration to TanStack + realtime**~~ — **RETIRED 2026-05-13.** The seating-chart realtime requirement was dropped, so R-10 (SEAT.01-E2E-06) is no longer a blocked-test concern. `useSeatingChart` still has a deferred TanStack reshape target, but no realtime dependency.
 4. **Cluster #2 fix** (orchestrator partial-failure surfacing) — gating for R-06 / R-07 tests to pass. **Status: Tracked in `anti-pattern-audit.md`. Tests authored against expected post-fix behavior.**
 
 #### Risks to the Test Plan

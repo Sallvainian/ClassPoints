@@ -123,10 +123,10 @@ Rules agents must follow. Reference code and full interface bodies live in the i
 
 ### Runtime Channel Count
 
-- Exactly **3** Supabase channels at steady state: `students`, `point_transactions`, `seating-chart`
-- Seating channel is multi-binding: four `postgres_changes` bindings on one channel (seating_charts, seating_groups, seating_seats, room_elements)
-- Owner of the seating channel is the `useSeatingChart` facade, not the three underlying query hooks
-- Enforcement: `supabase.getChannels().length === 3` at steady state
+- Exactly **2** Supabase channels at steady state: `students`, `point_transactions`
+- Seating-chart was originally scoped as a third multi-binding channel (four `postgres_changes` bindings: seating_charts, seating_groups, seating_seats, room_elements). The cross-device drag-sync use case was dropped 2026-05-13 and seating-chart now uses on-demand `invalidateQueries` after mutations instead.
+- With no remaining multi-table realtime domain, the `{ channel, bindings[] }` multi-binding refactor of `useRealtimeSubscription` is deferred (no current consumer); each remaining channel is single-table.
+- Enforcement: `supabase.getChannels().length === 2` at steady state
 
 ### Adapter Bridge (Phases 1–3)
 
@@ -177,12 +177,13 @@ Each requirement mapped to the section that addresses it. Mechanism detail lives
 | -------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
 | FR1–FR3        | Mutation Lifecycle, QueryClient Topology      | Canonical hook shape + per-hook override policy                          |
 | FR4, FR13–FR15 | Adapter Bridge                                | Phase 4 adapter teardown; direct hook calls from components              |
-| FR5, FR6       | Runtime Channel Count, Realtime Subscriptions | 3 channels / seating multi-binding                                       |
+| FR5, FR6       | Runtime Channel Count, Realtime Subscriptions | 2 channels (seating-chart dropped 2026-05-13)                            |
 | FR7, FR10–FR12 | Mutation Lifecycle                            | Optimistic `setQueryData` in `onMutate`; cache as single source of truth |
 | FR8            | ADR-3, Realtime Subscriptions                 | `onChange` only; legacy callbacks removed Phase 3                        |
 | FR9            | QueryClient Topology                          | `refetchOnWindowFocus: true` default                                     |
 | FR16           | Structure (seating split)                     | 3 hooks + facade                                                         |
-| FR17, FR18     | ADR-1                                         | Drag state intra-component; never touches cache                          |
+| FR17           | ADR-1                                         | Drag state intra-component; never touches cache                          |
+| FR18           | n/a — obsolete 2026-05-13                     | Seating-chart no longer realtime; "mid-drag realtime event" can't occur  |
 | FR19–FR21      | Locked (PRD non-goals)                        | Not touched                                                              |
 | FR22           | Type Boundary                                 | `dbToX` in `queryFn`                                                     |
 | FR23–FR25      | Entire document                               | Greppable invariants as external signal                                  |
@@ -209,7 +210,7 @@ Cross-phase static-inspection invariants. Per-phase subsets and the full greppab
 - `rg 'tanstack/react-query-devtools' dist/` and `rg 'ReactQueryDevtools' dist/` → 0 matches after `npm run build` (NFR4)
 - `rg "queryKey:\s*\[" src/` outside `src/lib/queryKeys.ts` → 0 matches
 - `rg "supabase\.channel\(" src/hooks/` → exactly 1 match, inside `useRealtimeSubscription.ts`
-- `supabase.getChannels().length === 3` at steady state with an active classroom and seating chart open
+- `supabase.getChannels().length === 2` at steady state with an active classroom (seating-chart dropped from realtime list 2026-05-13)
 - `wc -l src/contexts/AppContext.tsx` → < 200 post-Phase-4 (NFR8)
 - `wc -l src/hooks/useSeatingChart.ts` → < 200 post-Phase-5 (facade only)
 - `rg "useApp\(\)\.(students|classrooms|behaviors|transactions|seatingChart|layoutPresets)" src/components/` → 0 matches post-Phase-4

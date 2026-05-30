@@ -63,7 +63,7 @@ ClassPoints is a React + Supabase classroom-management SPA. The application work
 
 The current codebase reimplements, by hand, what `@tanstack/react-query` provides natively: ~2,400 lines of feature hooks each maintaining parallel `useState(data) / useState(loading) / useState(error)` buckets, an 849-line `AppContext` god-facade that re-exposes every hook's surface through a single `useApp()` object, a manually-applied 5-step optimistic-update contract repeated across every mutation site, and realtime subscriptions on every domain — including data nobody watches live. This pattern was codified as "architecture" in the original `CLAUDE.md`, turning an ad-hoc implementation choice into a trap every subsequent feature fell into.
 
-The initiative replaces that seam in place: server-state hooks become thin `useQuery` / `useMutation` wrappers; realtime scope contracts to three live-sync domains (students + point totals, point transactions, seating chart); `AppContext` slims to UI/session state only; the database layer (RLS, `REPLICA IDENTITY FULL`, triggers, RPCs) and Supabase Realtime transport are unchanged. Components continue to consume data via `useApp()` during migration — 45 component files need zero mechanical edits — and convert to direct hook calls as part of phase-scoped work.
+The initiative replaces that seam in place: server-state hooks become thin `useQuery` / `useMutation` wrappers; realtime scope contracts to two live-sync domains (students + point totals, point transactions); `AppContext` slims to UI/session state only; the database layer (RLS, `REPLICA IDENTITY FULL`, triggers, RPCs) and Supabase Realtime transport are unchanged. Components continue to consume data via `useApp()` during migration — 45 component files need zero mechanical edits — and convert to direct hook calls as part of phase-scoped work. Seating-chart was initially scoped as a third realtime domain for cross-device drag sync; that use case was dropped 2026-05-13 and seating-chart now uses on-demand invalidation alongside its eventual TanStack reshape.
 
 ### Why Now
 
@@ -81,7 +81,7 @@ Every target has a measurable symptom tied to a specific line-count or structura
 
 - Hand-rolled hooks → each migrated file contains zero `useState(loading) / useState(error)` and zero manual `const previous = ...` rollback captures
 - `AppContext.tsx` → from 849 lines to under 200, with zero imports from feature data hooks
-- Realtime → subscriptions exist only on three domains; everywhere else relies on TanStack Query's `refetchOnWindowFocus` + on-demand invalidation
+- Realtime → subscriptions exist only on two domains; everywhere else (including seating-chart, as of 2026-05-13) relies on TanStack Query's `refetchOnWindowFocus` + on-demand invalidation
 - Optimistic updates → manual 5-step contract collapses into `useMutation.onMutate` + `onError` — single source of truth in the cache
 
 The scope is deliberately narrow. No UX changes, no schema changes, no replacement of Supabase Realtime, no new libraries beyond `@tanstack/react-query` and its devtools. Zustand for UI-side client state (including the `useSeatingChart` drag-state split) remains an open architectural question, surfaced but not resolved in this PRD.
@@ -108,7 +108,7 @@ The initiative is done when the following conditions hold simultaneously. These 
 
 ### Initiative Success
 
-- Zero user-facing behavior changes across the migration. Smartboard live display, point award/undo, seating-chart live sync, and the teacher UI operate indistinguishably from pre-migration
+- Zero user-facing behavior changes across the migration. Smartboard live display, point award/undo, and the teacher UI (including seating-chart edits, which no longer carry a cross-device live-sync requirement as of 2026-05-13) operate indistinguishably from pre-migration
 - Existing unit and E2E test suites pass at every phase boundary. No test is rewritten to match changed internals unless the test was asserting on internal hook state (a violation of testing guidance) in the first place
 - The E2E Supabase local-only allow-list in `playwright.config.ts` survives unchanged — this is a security boundary, not a refactor target
 
@@ -119,7 +119,7 @@ Each of the following is a concrete, greppable end-state condition:
 - `src/hooks/useBehaviors.ts`, `useClassrooms.ts`, `useLayoutPresets.ts`, `useStudents.ts`, `useTransactions.ts`, and the server-state portion of `useSeatingChart.ts` each contain **zero** `useState(loading)`, **zero** `useState(error)`, and **zero** manual `const previous = ...` rollback captures
 - `src/contexts/AppContext.tsx` is **under 200 lines** and imports from **zero** files matching `src/hooks/use{Classrooms,Students,Behaviors,Transactions,LayoutPresets,SeatingChart}.ts`
 - Every data hook added after Phase 1 is a `useQuery` or `useMutation` wrapper. The hand-rolled `{ data, loading, error, refetch }` shape is not cloned into any new file
-- Realtime subscriptions exist on **exactly three** domains: students + point totals, point transactions, and seating-chart tables (seats, seating_groups, room_elements). `useClassrooms`, `useBehaviors`, `useLayoutPresets`, and user-settings hooks hold zero realtime subscriptions
+- Realtime subscriptions exist on **exactly two** domains: students + point totals, point transactions. `useClassrooms`, `useBehaviors`, `useLayoutPresets`, `useSeatingChart`, and user-settings hooks hold zero realtime subscriptions
 - Surviving realtime callbacks invoke **only** `queryClient.invalidateQueries` or `queryClient.setQueryData`. No manual `onInsert` / `onUpdate` / `onDelete` state-merging logic remains
 - The database layer (RLS policies, `REPLICA IDENTITY FULL`, trigger-maintained denormalized totals, RPC functions) is unchanged. No `supabase/migrations/*.sql` file is added or altered as part of this initiative
 
@@ -138,7 +138,7 @@ Each of the following is a concrete, greppable end-state condition:
 - Introducing `@tanstack/react-query` + devtools at the application root
 - Rewriting each feature data hook as a `useQuery` / `useMutation` wrapper
 - Slimming `AppContext` to UI/session state only
-- Reducing realtime subscription surface to three domains
+- Reducing realtime subscription surface to two domains
 - Rewriting `useRealtimeSubscription` callers to invalidate cache, not merge state
 - Splitting `useSeatingChart` server state from drag / in-flight UI state
 - Migrating 45 component files that consume data via `useApp()` — in-place, mechanical edits as part of phase-scoped work
@@ -244,7 +244,7 @@ This section describes the **end-state shape** of the codebase. Sequencing and p
 
 ### Realtime — Cache-Invalidation Trigger
 
-- Realtime subscriptions exist on exactly three table sets: `students` (for totals), `point_transactions`, and `seats` / `seating_groups` / `room_elements` (for seating-chart live sync)
+- Realtime subscriptions exist on exactly two table sets: `students` (for totals) and `point_transactions`
 - `useRealtimeSubscription` callbacks invoke only `queryClient.invalidateQueries` or `queryClient.setQueryData` — never manual state merges
 - Hot-path mutations that benefit from targeted cache patching (e.g., point award on smartboard) may call `setQueryData` deliberately; invalidation is the default
 - Reconnect handling is `invalidateQueries` (TanStack Query refetches automatically), replacing the hand-rolled `onReconnect` → `fetchX` pattern
@@ -395,8 +395,8 @@ This section describes the **end-state shape** of the codebase. Sequencing and p
 
 - `src/hooks/useSeatingChart.ts` and its siblings collectively contain **zero** `useState(loading)`, **zero** `useState(error)`, and **zero** manual `const previous = ...` rollback captures for server state
 - The four rollback-capture sites present in the legacy `useSeatingChart` are replaced by `useMutation.onMutate` / `onError` pairs operating on the TanStack Query cache
-- Realtime subscriptions for `seats`, `seating_groups`, and `room_elements` remain; each callback invokes only `invalidateQueries` / `setQueryData`
 - Drag state (active drag position, hover targets, selection rectangle, unsaved position edits) is cleanly separated from server state — either in local component `useState` or in a dedicated client store; the separation is greppable (no drag state lives in a `useQuery` cache entry)
+- No realtime subscriptions are added to `seats`, `seating_groups`, `room_elements`, or `seating_charts`. Seating-chart was previously scoped for realtime; the cross-device drag-sync use case was dropped 2026-05-13 and seating-chart now uses on-demand `invalidateQueries` after mutations
 - All existing unit and E2E tests pass unchanged
 - Manual smoke: drag a seat to a new position; drag a seat that a realtime event arrives for mid-drag; cancel an in-flight drag; save a layout preset mid-rearrangement — all behave without regression
 
@@ -428,7 +428,7 @@ All FRs below are testable capabilities of the **post-migration codebase**. "Con
 
 ### Realtime Sync Surface
 
-- **FR5:** Codebase exposes realtime live-sync subscriptions on exactly three table sets: students (+ point totals), point transactions, and seating-chart tables (seats, seating_groups, room_elements).
+- **FR5:** Codebase exposes realtime live-sync subscriptions on exactly two table sets: students (+ point totals) and point transactions. (Seating-chart was originally scoped as a third realtime table set; that requirement was dropped 2026-05-13.)
 - **FR6:** Contributor can wire a realtime subscription for a sync-bearing domain with a single-line callback that invalidates the relevant query key, using the existing `useRealtimeSubscription` helper.
 - **FR7:** Contributor can opt a hot-path mutation into targeted cache patching via `queryClient.setQueryData` when realtime invalidation would produce visible flicker; invalidation remains the default.
 - **FR8:** Codebase contains no hand-rolled `onInsert` / `onUpdate` / `onDelete` callbacks that merge server-state changes into local component state.
@@ -451,9 +451,9 @@ All FRs below are testable capabilities of the **post-migration codebase**. "Con
 
 ### Seating Chart State Split
 
-- **FR16:** Seating-chart server state (seats, groups, room elements, layout presets) is exposed through dedicated `useQuery` hooks, each with its realtime subscription wired to cache invalidation.
+- **FR16:** Seating-chart server state (seats, groups, room elements, layout presets) is exposed through dedicated `useQuery` hooks. Mutations invalidate the relevant query keys on `onSettled`; no realtime subscriptions are wired (the cross-device sync requirement was dropped 2026-05-13).
 - **FR17:** Seating-chart in-flight UI state (drag position, hover targets, selection rectangle, unsaved edits) is separated from server state and is greppable — drag state does not live in a `useQuery` cache entry.
-- **FR18:** A mid-drag realtime event updates the server-state cache without interrupting the active drag interaction.
+- **FR18:** ~~A mid-drag realtime event updates the server-state cache without interrupting the active drag interaction.~~ Obsolete as of 2026-05-13 — seating-chart is no longer a realtime domain, so there is no "mid-drag realtime event" to handle.
 
 ### Architectural Preservation
 
@@ -474,7 +474,7 @@ Documented only where the migration introduces a quality constraint that differs
 
 ### Behavioral Equivalence (Correctness)
 
-- **NFR1:** Post-migration realtime propagation latency for the three live-sync domains (students + totals, point transactions, seating chart) is equivalent to pre-migration — the smartboard reflects an awarded point within the same ~1-second user-perceived window it does today. Cache invalidation + refetch must not add a perceptible tier of delay over the legacy merge-in-place pattern.
+- **NFR1:** Post-migration realtime propagation latency for the two live-sync domains (students + totals, point transactions) is equivalent to pre-migration — the smartboard reflects an awarded point within the same ~1-second user-perceived window it does today. Cache invalidation + refetch must not add a perceptible tier of delay over the legacy merge-in-place pattern. (Seating-chart was originally a third live-sync domain; the cross-device sync requirement was dropped 2026-05-13, so NFR1 no longer applies to it.)
 - **NFR2:** Optimistic mutations are visible in the initiating UI within a single render after user interaction. A server-side error triggers cache rollback within one additional render, without intermediate inconsistent states visible to the user.
 - **NFR3:** Two components reading the same server-state query key render identical data at all times; cache dedup is verifiable via TanStack Query devtools during development.
 

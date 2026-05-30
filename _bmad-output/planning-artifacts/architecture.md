@@ -190,7 +190,7 @@ interface UseRealtimeSubscriptionOptions<T, D = { id: string }> {
 
 Internal routing: if `onChange` is provided, route all events to it and ignore the legacy three. Otherwise fan out to the legacy three (preserving current behavior). In development, warn if a caller supplies both `onChange` and any of the legacy three — that's a mis-migration.
 
-**Recommended idiom for the three realtime domains:**
+**Recommended idiom for the two realtime domains:**
 
 ```ts
 const invalidate = () => queryClient.invalidateQueries({ queryKey: ['students', classroomId] });
@@ -402,7 +402,7 @@ StrictMode
 
 **Per-hook override policy** — **defer to empirical signal**, not speculation:
 
-- Realtime domains (`useStudents`, `useTransactions`, seating-chart server-state hooks): no override needed at baseline. Defaults are correct.
+- Realtime domains (`useStudents`, `useTransactions`): no override needed at baseline. Defaults are correct.
 - Rarely-changing non-realtime (`useClassrooms`, `useBehaviors`, `useLayoutPresets`): may raise `staleTime` to `5 * 60_000` _if the hook's PR surfaces real refetch chatter_ — not preemptively.
 - RPC-backed reads (`get_student_time_totals` called inside `useStudents`): default acceptable; the RPC is server-aggregated so a 30s window is appropriate.
 
@@ -601,7 +601,7 @@ Mutations default to `retry: 0` (per §QueryClient topology). Per-mutation overr
 
 ### `useRealtimeSubscription` — canonical reference
 
-**Target signature** (post-Phase-3, after legacy callbacks deleted) — unified `{ channel, bindings[] }` shape. Single-binding callers pass a 1-element `bindings` array; multi-binding callers (seating chart) pass multiple bindings that share one Supabase channel. This shape is required to satisfy the runtime 3-channel constraint — see §"Multi-binding and runtime channel count" below.
+**Target signature** (post-Phase-3, after legacy callbacks deleted) — unified `{ channel, bindings[] }` shape. Single-binding callers pass a 1-element `bindings` array. Originally driven by the seating-chart's four-table single-channel requirement; with seating-chart no longer a realtime domain (cross-device sync use case dropped 2026-05-13), there is no current in-tree multi-binding consumer. The shape is preserved for forward-compatibility but the multi-binding refactor of `useRealtimeSubscription.ts` is no longer load-bearing for FR5.
 
 ```ts
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
@@ -664,7 +664,7 @@ useRealtimeSubscription({
 
 - **`RealtimePostgresChangesPayload<T>` is imported from `@supabase/supabase-js`** (already at `useRealtimeSubscription.ts:3`) — not invented. Payload shape includes `eventType`, `new`, `old`, `errors`, `table`, `schema`, `commit_timestamp`.
 - **Per-binding `onChange`.** Each `RealtimeBinding` has its own `onChange`; the hook dispatches each Postgres event to the binding whose table matches. Callers that need to invalidate multiple query keys from the same event compose multiple `invalidate*()` calls inside a single `onChange` (rather than registering duplicate bindings on the same table).
-- **`onReconnect` is channel-level, not binding-level.** One `onReconnect` per channel fires once on recovery. Callers typically invalidate every query key touched by any binding on that channel — a shared invalidation helper that hits all relevant keys (see §"Multi-binding and runtime channel count" for the seating channel's `invalidateAllSeatingKeys` pattern).
+- **`onReconnect` is channel-level, not binding-level.** One `onReconnect` per channel fires once on recovery. Callers typically invalidate every query key touched by any binding on that channel. (With seating-chart dropped from the realtime list 2026-05-13, no current channel has multi-table bindings, so each channel's `onReconnect` invalidates a single domain's keys.)
 - **The hook does NOT internally route `onReconnect` through `onChange`** — explicit separation avoids hidden control flow.
 - **Ref-based callback storage preserved.** The internal implementation continues the `useRef` + effect-sync pattern at `useRealtimeSubscription.ts:47–60` so binding `onChange` identity does not trigger re-subscription on every parent render. Applies across all bindings.
 - **Effect dependency array.** Re-subscribe on changes to: `channel` name, `bindings.length`, per-binding `table` / `schema` / `event` / `filter`, and top-level `enabled`. Callback identity (per-binding `onChange`, channel-level `onReconnect`, `onStatusChange`) is ref-stored and does NOT trigger re-subscription. Implementation guidance: derive a stable dependency signature by joining binding configs (e.g., `bindings.map(b => ` `${b.table}|${b.schema ?? 'public'}|${b.event ?? '*'}|${b.filter ?? ''}`).join(',')`) and include it plus `channel`and`enabled` in the effect deps.
@@ -672,102 +672,47 @@ useRealtimeSubscription({
 
 **Scope table — tables and runtime channels post-migration:**
 
-| Table                | Subscription?    | Channel (runtime)                              | Owning hook                                                                                           | Invalidation target                                                                                                     |
-| -------------------- | ---------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `students`           | yes              | **Channel 1: `students`**                      | `useStudents`                                                                                         | `queryKeys.students.byClassroom(classroomId)`                                                                           |
-| `point_transactions` | yes              | **Channel 2: `point_transactions`**            | `useTransactions` (sole subscriber)                                                                   | Fans out: `queryKeys.transactions.byClassroom(classroomId)` AND `queryKeys.students.timeTotalsByClassroom(classroomId)` |
-| `seating_charts`     | yes              | **Channel 3: `seating-chart`** (multi-binding) | Seating channel owned by the `useSeatingChart` facade; see §"Multi-binding and runtime channel count" | `queryKeys.seatingChart.metaByClassroom(classroomId)`                                                                   |
-| `seating_groups`     | yes              | Channel 3 (binding on same channel)            | same                                                                                                  | `queryKeys.seatingChart.groupsByChart(chartId)`                                                                         |
-| `seating_seats`      | yes              | Channel 3 (binding on same channel)            | same                                                                                                  | `queryKeys.seatingChart.groupsByChart(chartId)` (seats are embedded in groups)                                          |
-| `room_elements`      | yes              | Channel 3 (binding on same channel)            | same                                                                                                  | `queryKeys.seatingChart.roomElementsByChart(chartId)`                                                                   |
-| `classrooms`         | **no** (Phase 2) | —                                              | `useClassrooms` — relies on `refetchOnWindowFocus` + `invalidateQueries` after mutations              | —                                                                                                                       |
-| `behaviors`          | **no** (Phase 1) | —                                              | `useBehaviors` — same                                                                                 | —                                                                                                                       |
-| `layout_presets`     | **no** (Phase 2) | —                                              | `useLayoutPresets` — same                                                                             | —                                                                                                                       |
+| Table                | Subscription?       | Channel (runtime)                   | Owning hook                                                                              | Invalidation target                                                                                                     |
+| -------------------- | ------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `students`           | yes                 | **Channel 1: `students`**           | `useStudents`                                                                            | `queryKeys.students.byClassroom(classroomId)`                                                                           |
+| `point_transactions` | yes                 | **Channel 2: `point_transactions`** | `useTransactions` (sole subscriber)                                                      | Fans out: `queryKeys.transactions.byClassroom(classroomId)` AND `queryKeys.students.timeTotalsByClassroom(classroomId)` |
+| `seating_charts`     | **no** (2026-05-13) | —                                   | `useSeatingChart` — on-demand `invalidateQueries` after mutations                        | —                                                                                                                       |
+| `seating_groups`     | **no** (2026-05-13) | —                                   | same                                                                                     | —                                                                                                                       |
+| `seating_seats`      | **no** (2026-05-13) | —                                   | same                                                                                     | —                                                                                                                       |
+| `room_elements`      | **no** (2026-05-13) | —                                   | same                                                                                     | —                                                                                                                       |
+| `classrooms`         | **no** (Phase 2)    | —                                   | `useClassrooms` — relies on `refetchOnWindowFocus` + `invalidateQueries` after mutations | —                                                                                                                       |
+| `behaviors`          | **no** (Phase 1)    | —                                   | `useBehaviors` — same                                                                    | —                                                                                                                       |
+| `layout_presets`     | **no** (Phase 2)    | —                                   | `useLayoutPresets` — same                                                                | —                                                                                                                       |
+
+**Seating-chart row note (2026-05-13):** seating-chart was originally scoped as Channel 3 with four multi-binding rows (`seating_charts`, `seating_groups`, `seating_seats`, `room_elements`) for cross-device drag sync. That use case was dropped; seating-chart joins the non-realtime bucket and uses on-demand invalidation after mutations.
 
 **Eliminated at Phase 3** — the legacy `useStudents.ts:207` subscription on `point_transactions` (delete-only, for time-total refresh) is **deleted, not migrated**. Its invalidation target — `queryKeys.students.timeTotalsByClassroom(classroomId)` — is folded into `useTransactions`'s `onChange` (see row 2 above), which invalidates both the transactions key and the students-time-totals key on any point_transactions event. This consolidation is what takes `point_transactions` from two subscriptions to one.
 
-Matches FR5 ("realtime live-sync on exactly three table sets") at both the logical (three sets) AND runtime (three Supabase channels) levels.
+Matches FR5 ("realtime live-sync on exactly two table sets") at both the logical (two sets) AND runtime (two Supabase channels) levels.
 
-### Multi-binding and runtime channel count
+### Runtime channel count
 
-**Requirement.** Runtime Supabase channel count at steady state (one classroom actively viewed, seating chart open) must equal **3** — one per logical domain. FR5 at the channel level, not just the table-set level.
+**Requirement.** Runtime Supabase channel count at steady state (one classroom actively viewed) must equal **2** — one per logical realtime domain. FR5 at the channel level, not just the table-set level.
 
-**Why this is a real constraint.** The current `useRealtimeSubscription` implementation creates one channel per hook invocation (`supabase.channel(...)` at `useRealtimeSubscription.ts:79`). A naive migration that produces six single-table subscriptions (students, point_transactions×2, seating_charts, seating_groups, seating_seats, room_elements) yields six runtime channels — four more than FR5 targets. Supabase Realtime's cost model and the client's tab-wide WebSocket semantics both favor fewer channels with multiple bindings over many channels with one binding each.
+**History — multi-binding API was originally driven by the seating-chart use case.** With seating-chart no longer a realtime domain (cross-device drag sync use case dropped 2026-05-13), each remaining realtime domain (`students`, `point_transactions`) is single-table. The `useRealtimeSubscription` helper can stay on its existing single-binding API — the planned `{ channel, bindings[] }` multi-binding refactor has no in-tree consumer, so it is **deferred** and out of scope until a future multi-table realtime domain materializes.
 
-**Mechanism — multiplexed `postgres_changes` on one channel.** Supabase's `channel.on('postgres_changes', config, cb)` can be called multiple times on the same channel instance before `.subscribe()`. Each call registers one `postgres_changes` binding; the channel fans incoming events to the matching binding's callback. Consolidating the seating-chart's four tables onto one channel uses this directly.
-
-**Seating-chart channel — where it lives.** The `useSeatingChart.ts` facade (Phase 5) owns the seating channel. It is NOT opened independently by `useSeatingChartMeta` / `useSeatingGroups` / `useRoomElements` — those three hooks handle only queries and mutations. The facade opens one subscription with four bindings and routes invalidations to the appropriate per-hook query keys:
-
-```ts
-// src/hooks/useSeatingChart.ts (facade, Phase 5)
-import { useRealtimeSubscription } from './useRealtimeSubscription';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '../lib/queryKeys';
-
-// ... inside the facade function, after meta/groups/roomElements query hooks are wired:
-const queryClient = useQueryClient();
-const classroomId = /* from facade's input */;
-const chartId = metaQuery.data?.id ?? null;
-
-const invalidateMeta = () =>
-  queryClient.invalidateQueries({ queryKey: queryKeys.seatingChart.metaByClassroom(classroomId) });
-const invalidateGroups = () =>
-  queryClient.invalidateQueries({ queryKey: queryKeys.seatingChart.groupsByChart(chartId) });
-const invalidateRoomElements = () =>
-  queryClient.invalidateQueries({ queryKey: queryKeys.seatingChart.roomElementsByChart(chartId) });
-const invalidateAllSeatingKeys = () =>
-  queryClient.invalidateQueries({ queryKey: queryKeys.seatingChart.all });
-
-useRealtimeSubscription({
-  channel: 'seating-chart',
-  enabled: !!chartId,
-  bindings: [
-    {
-      table: 'seating_charts',
-      filter: chartId ? `id=eq.${chartId}` : undefined,
-      onChange: invalidateMeta,
-    },
-    {
-      table: 'seating_groups',
-      filter: chartId ? `seating_chart_id=eq.${chartId}` : undefined,
-      onChange: invalidateGroups,
-    },
-    {
-      // seating_seats has no seating_chart_id column; filtering would require
-      // `seating_group_id=in.(...)` with ever-changing group IDs. Instead:
-      // no filter; RLS scopes events to user-owned data; invalidation is
-      // per-chart via groupsByChart so the cost is bounded. At classroom
-      // scale (small N groups, ~30 seats), this is negligible.
-      table: 'seating_seats',
-      onChange: invalidateGroups,
-    },
-    {
-      table: 'room_elements',
-      filter: chartId ? `seating_chart_id=eq.${chartId}` : undefined,
-      onChange: invalidateRoomElements,
-    },
-  ],
-  onReconnect: invalidateAllSeatingKeys,
-});
-```
-
-**Students and point_transactions — each one channel, one binding.** These hooks (`useStudents`, `useTransactions`) each call `useRealtimeSubscription` with a 1-element `bindings` array. They share no channel with each other (different logical domains; different invalidation targets; separate lifecycle per mounted hook).
+**Students and point_transactions — each one channel, one table.** Each hook (`useStudents`, `useTransactions`) calls `useRealtimeSubscription` with a single `table`. They share no channel with each other (different logical domains; different invalidation targets; separate lifecycle per mounted hook).
 
 **Acceptance hook — runtime channel count:**
 
-A Vitest test (Phase 5 acceptance, or Phase 1 if wired earlier as part of the hook rewrite) instantiates the full realtime graph (render an app tree with an active classroom and seating chart open) and asserts:
+A Vitest test instantiates the full realtime graph (render an app tree with an active classroom) and asserts:
 
 ```ts
 // Pseudocode — exact Supabase test harness shape TBD by Phase 1 pattern note
-expect(supabase.getChannels()).toHaveLength(3);
+expect(supabase.getChannels()).toHaveLength(2);
 expect(supabase.getChannels().map((c) => c.topic)).toEqual(
-  expect.arrayContaining(['students', 'point_transactions', 'seating-chart'])
+  expect.arrayContaining(['students', 'point_transactions'])
 );
 ```
 
-Supabase's `supabase.getChannels()` returns the current channel set. The length-3 assertion is the canonical acceptance hook for this decision and lives in the Phase 5 acceptance list.
+Supabase's `supabase.getChannels()` returns the current channel set. The length-2 assertion is the canonical acceptance hook for this decision.
 
-**Fallback acceptance** (if the Vitest harness is deferred): a manual smoke test with the browser DevTools WebSocket frame inspector — open an active classroom with the seating chart rendered, count the `postgres_changes` subscription frames sent on the WebSocket. Expect three `phx_join` messages (one per channel) at steady state.
+**Fallback acceptance** (if the Vitest harness is deferred): a manual smoke test with the browser DevTools WebSocket frame inspector — open an active classroom, count the `postgres_changes` subscription frames sent on the WebSocket. Expect two `phx_join` messages (one per channel) at steady state.
 
 **Phase 3 semantic delta — referenced from Decision 3, for acceptance visibility:** `useStudents.ts:207–228` today merges incoming DELETE payloads for `point_transactions` into local state synchronously, producing an instant UI update for both the local undoer AND remote users. Post-Phase-3, the local user's path is `useMutation.onMutate` (immediate cache patch, same visible speed); the remote-user path is `onChange → invalidateQueries → refetch`, which adds one network roundtrip. Correct post-migration shape — cache is single source of truth, time-based totals come from the `get_student_time_totals` RPC rather than client-side subtraction from the DELETE payload. Documented in Phase 3 acceptance so it does not read as regressed functionality. Two-tab manual smoke test (teacher awards in tab A → smartboard tab B reflects within ~1 second; undo in tab A → tab B reverts within ~1 second) covers the post-migration timing window; NFR1 intact.
 
@@ -969,8 +914,8 @@ Per Decision 1, `SeatingChartEditor.tsx` is not split in this initiative. `Seati
 //   - useQuery: ['seatingChart', 'meta', classroomId] → SeatingChartMeta | null
 //     queryFn: supabase.from('seating_charts').select().eq('classroom_id', ...).maybeSingle()
 //     returns: { id, classroomId, name, snapEnabled, gridSize, canvasWidth, canvasHeight, createdAt, updatedAt }
-//   - NO realtime subscription here — seating channel is owned by the facade (see below).
-//     Invalidation for the meta row is triggered from the facade's seating_charts binding.
+//   - NO realtime subscription. Seating-chart was dropped from the realtime domain list 2026-05-13;
+//     freshness comes from on-demand invalidation via the mutation onSettled handlers below.
 //   - useMutation: createChart, updateSettings, deleteChart (each with onMutate/onError/onSettled
 //     invalidating queryKeys.seatingChart.metaByClassroom(classroomId))
 ```
@@ -981,8 +926,8 @@ Per Decision 1, `SeatingChartEditor.tsx` is not split in this initiative. `Seati
 // useSeatingGroups(chartId: string | null)
 //   - useQuery: ['seatingChart', 'groups', chartId] → SeatingGroup[]  (groups + embedded seats per dbToSeatingGroup)
 //     queryFn: fetch groups by seating_chart_id, then fetch seats by group IDs, compose via dbToSeatingGroup
-//   - NO realtime subscription here — seating channel is owned by the facade (see below).
-//     Invalidation for groups and seats is triggered from the facade's seating_groups and seating_seats bindings.
+//   - NO realtime subscription. Freshness comes from each mutation's onSettled invalidation of
+//     queryKeys.seatingChart.groupsByChart(chartId).
 //   - useMutation: addGroup, moveGroup, deleteGroup, rotateGroup, assignStudent, unassignStudent, swapStudents,
 //     randomizeAssignments — each with onMutate/onError/onSettled invalidating
 //     queryKeys.seatingChart.groupsByChart(chartId).
@@ -996,7 +941,8 @@ Per Decision 1, `SeatingChartEditor.tsx` is not split in this initiative. `Seati
 // useRoomElements(chartId: string | null)
 //   - useQuery: ['seatingChart', 'roomElements', chartId] → RoomElement[]
 //     queryFn: supabase.from('room_elements').select().eq('seating_chart_id', chartId), map via dbToRoomElement
-//   - NO realtime subscription here — seating channel is owned by the facade (see below).
+//   - NO realtime subscription. Freshness comes from each mutation's onSettled invalidation of
+//     queryKeys.seatingChart.roomElementsByChart(chartId).
 //   - useMutation: addRoomElement, moveRoomElement, resizeRoomElement, deleteRoomElement, rotateRoomElement —
 //     each with onMutate/onError/onSettled invalidating queryKeys.seatingChart.roomElementsByChart(chartId).
 ```
@@ -1009,14 +955,15 @@ Per Decision 1, `SeatingChartEditor.tsx` is not split in this initiative. `Seati
 //       const meta = useSeatingChartMeta(classroomId);
 //       const groups = useSeatingGroups(meta.data?.id ?? null);
 //       const roomElements = useRoomElements(meta.data?.id ?? null);
-//   - Owns the single 'seating-chart' Supabase channel with four postgres_changes bindings — see
-//     §"Multi-binding and runtime channel count" for the full wiring.
+//   - NO realtime subscription. Seating-chart was dropped from the realtime domain list 2026-05-13;
+//     freshness is driven by each split hook's mutation onSettled invalidations. The facade owns no
+//     Supabase channel.
 //   - Composes the UseSeatingChartReturn object — combining the three queries' data via
 //     dbToSeatingChart(metaRow, groups, roomElements), plus mutation functions re-exported from
 //     useSeatingChartMeta / useSeatingGroups / useRoomElements.
 //   - Exposes the existing UseSeatingChartReturn shape so SeatingChartView.tsx:46 call site is unchanged.
-//   - File size target: UNDER 200 lines. Composition, invalidation wiring, and dbToSeatingChart call only —
-//     no fetch logic, no mutation logic, no rollback captures.
+//   - File size target: UNDER 200 lines. Composition and dbToSeatingChart call only — no fetch logic,
+//     no mutation logic, no rollback captures, no realtime wiring.
 ```
 
 **Drag-state separation** (Decision 1 preserved): local `useState` in `SeatingChartEditor.tsx:602–615` is untouched. No seating-chart state lives in a `useQuery` cache entry.
@@ -1027,7 +974,7 @@ Per Decision 1, `SeatingChartEditor.tsx` is not split in this initiative. `Seati
 - `wc -l src/hooks/useSeatingChart.ts` → **under 200 lines** (composition facade only).
 - `rg "queryKey:\s*\[" src/hooks/useSeatingChart*.ts src/hooks/useSeatingGroups.ts src/hooks/useRoomElements.ts` → **zero matches** (keys only via `queryKeys.seatingChart.*` builders).
 - `rg "setQueryData\|invalidateQueries" src/components/seating/` → **zero matches** (cache manipulation stays inside hooks, not components).
-- `rg "supabase\.channel\(" src/hooks/` → **exactly one match** — inside `useRealtimeSubscription.ts`. No hook opens a raw Supabase channel; all realtime access routes through the hook. Combined with the runtime channel-count acceptance (`supabase.getChannels()` length = 3), confirms no rogue subscriptions.
+- `rg "supabase\.channel\(" src/hooks/` → **exactly one match** — inside `useRealtimeSubscription.ts`. No hook opens a raw Supabase channel; all realtime access routes through the hook. Combined with the runtime channel-count acceptance (`supabase.getChannels()` length = 2), confirms no rogue subscriptions.
 
 ### Devtools mount wiring
 
@@ -1085,7 +1032,7 @@ Real cross-references between decisions and infrastructure; each arrow is a load
 - **Decision 3 (`onChange` migration timing) ⇄ Query key conventions.** `onChange`'s body is `() => invalidateQueries({ queryKey: queryKeys.X(scope) })`. The key only exists once the hook is migrated; the phased rollout makes the alongside variant the only coherent option. Coherent.
 - **Decision 4 (devtools grep) ⇄ §QueryClient topology instantiation site.** `main.tsx` is both the `QueryClient` mount point AND the devtools mount point; single file, single render root. Coherent.
 - **QueryClient `structuralSharing: true` ⇄ Adapter bridge (PRD Risk 3).** The adapter's `useMemo`-chain reference stability depends on this being default-on and not overridden. Noted explicitly in §Adapter bridge and in `queryClient.ts` config comment. Coherent.
-- **Query-key shared-prefix convention ⇄ Seating chart multi-binding channel.** The facade's four-binding channel invalidates via `queryKeys.seatingChart.{metaByClassroom,groupsByChart,roomElementsByChart}(...)`, all sharing the `['seatingChart', ...]` prefix. `onReconnect` uses `queryKeys.seatingChart.all` for broad invalidation of the whole seating region. Coherent.
+- **Query-key shared-prefix convention ⇄ Seating chart split hooks.** The three split read hooks (`useSeatingChartMeta`, `useSeatingGroups`, `useRoomElements`) and their mutations invalidate via `queryKeys.seatingChart.{metaByClassroom,groupsByChart,roomElementsByChart}(...)`, all sharing the `['seatingChart', ...]` prefix. A mutation that warrants broad invalidation of the seating region calls `invalidateQueries({ queryKey: queryKeys.seatingChart.all })` — matches all three children. With seating-chart no longer a realtime domain (2026-05-13), the previous facade-owned multi-binding channel and its `invalidateAllSeatingKeys` `onReconnect` are obsolete; the shared-prefix shape now serves only mutation-side invalidation. Coherent.
 - **Decision 2 (AppContext-resident ID) ⇄ Adapter bridge (Phase 4 slim).** `activeClassroomId` stays on `useApp()` post-Phase-4; derived `activeClassroom` composite dissolves because `AppContext` no longer holds students. Migration per-component pattern: `useStudents(useApp().activeClassroomId).data`. Coherent.
 - **Decision 1 (no Zustand) ⇄ Decision 2 ownership options.** Option (iii) "dedicated small store" rejected on Decision-1 consistency grounds, not independently. Coherent.
 - **Transform location (§6) ⇄ Naming inconsistency flag.** §Type boundary acknowledges `database.ts` does NOT use `Db*` prefix for non-seating types; the aliased-rename pattern at every importer is the documented workaround. Not pretending the gap doesn't exist. Coherent.
@@ -1096,36 +1043,36 @@ No contradictions found between sections.
 
 Every PRD FR1–FR25 and NFR1–NFR9 is architecturally addressed or explicitly locked-as-is:
 
-| Requirement                                                                                    | Addressed in                                                             | Mechanism                                                                                                        |
-| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| FR1 (new hook: useQuery/useMutation, no useState for data/loading/error)                       | §useMutation lifecycle; §useRealtimeSubscription                         | Canonical templates + greppable acceptance hooks                                                                 |
-| FR2 (queryFn as pure async, testable)                                                          | §Type boundary; §QueryClient topology                                    | `dbToX` transforms called inside `queryFn`; test-local QueryClient harness pattern noted                         |
-| FR3 (per-hook overrides for staleTime/retry/etc.)                                              | §QueryClient topology                                                    | Per-hook override policy; defer-to-signal                                                                        |
-| FR4 (new features without AppContext edits)                                                    | §Adapter bridge                                                          | Phase 4 adapter deletion + greppable hook on feature-hook imports                                                |
-| FR5 (exactly three realtime domains)                                                           | §useRealtimeSubscription scope table + §Multi-binding                    | 3 logical + 3 runtime channels; acceptance hook on `supabase.getChannels().length`                               |
-| FR6 (single-line realtime callback wiring)                                                     | §useRealtimeSubscription canonical idiom                                 | Single-binding example; `const invalidate = () => ...`                                                           |
-| FR7 (setQueryData for hot-path mutations)                                                      | §useMutation lifecycle                                                   | `onMutate` optimistic `setQueryData` is the canonical path                                                       |
-| FR8 (no hand-rolled event-type state merges)                                                   | §useRealtimeSubscription; Decision 3                                     | Legacy `onInsert/onUpdate/onDelete` removed at Phase 3; `onChange` is the only data callback                     |
-| FR9 (non-realtime → refetchOnWindowFocus + invalidate)                                         | §QueryClient topology defaults + §useRealtimeSubscription scope table    | `refetchOnWindowFocus: true`; scope table shows non-realtime domains explicitly                                  |
-| FR10–FR12 (optimistic mutation + rollback + cross-component consistency)                       | §useMutation lifecycle + §QueryClient `structuralSharing`                | Canonical 5-callback template; cache is single source of truth; structural sharing ensures ref-stable fan-out    |
-| FR13–FR15 (AppContext = UI/session only; no feature-hook imports; direct component hook calls) | §Adapter bridge Phase 4 teardown                                         | Deletion criterion + two grep acceptance hooks                                                                   |
-| FR16 (seating server state via `useQuery` hooks)                                               | §Phase 5 file plan                                                       | `useSeatingChartMeta` / `useSeatingGroups` / `useRoomElements` split                                             |
-| FR17 (drag state not in cache; greppable)                                                      | Decision 1                                                               | Already structurally satisfied; not re-architected; acceptance greps in §Phase 5 file plan                       |
-| FR18 (mid-drag realtime event doesn't interrupt)                                               | §Multi-binding + §QueryClient `structuralSharing`                        | Seating channel invalidates groups query; `@dnd-kit` drag transforms unaffected; ref-stable data where unchanged |
-| FR19 (DB layer unchanged)                                                                      | Locked (PRD non-goal); not touched                                       | —                                                                                                                |
-| FR20 (Supabase Realtime as transport)                                                          | Locked; preserved in §useRealtimeSubscription (same hook, new signature) | —                                                                                                                |
-| FR21 (E2E infra unchanged)                                                                     | Locked; not touched                                                      | —                                                                                                                |
-| FR22 (type transform at hook boundary via transformX)                                          | §Type boundary                                                           | `src/types/transforms.ts` new file; gap flagged (non-seating transforms must be CREATED)                         |
-| FR23–FR25 (pattern discoverability; single-file self-describing)                               | Entire document                                                          | Canonical templates + greppable hooks as external/verifiable signals                                             |
-| NFR1 (realtime propagation latency equivalent)                                                 | §useRealtimeSubscription + Phase 3 semantic-delta note                   | Cache invalidation + optimistic mutation path; two-tab smoke test preserved                                      |
-| NFR2 (optimistic visible within one render)                                                    | §useMutation lifecycle                                                   | `onMutate` synchronous `setQueryData`                                                                            |
-| NFR3 (cache dedup cross-component)                                                             | §QueryClient topology                                                    | Singleton client; shared cache by query key                                                                      |
-| NFR4 (devtools not in prod bundle)                                                             | Decision 4 + §Devtools wiring                                            | Env-branched static import + contingency dynamic import; authoritative grep on `dist/`                           |
-| NFR5 (bundle size ≤ TanStack Query's contribution)                                             | §QueryClient topology                                                    | No additional runtime libraries adopted (Decision 1 no Zustand; Decision 4 devtools is devDependency)            |
-| NFR6 (subscription lifecycle: mount→subscribe, unmount→removeChannel)                          | §useRealtimeSubscription load-bearing invariants                         | Hook-managed cleanup + Phase 1 Vitest test                                                                       |
-| NFR7 (query cancellation on unmount)                                                           | §QueryClient topology                                                    | TanStack default behavior; no override introduced                                                                |
-| NFR8 (`AppContext.tsx` < 200 lines post-Phase-4)                                               | §Adapter bridge teardown                                                 | Phase 4 deletion scope; measurable on PR                                                                         |
-| NFR9 (each migrated hook < pre-migration line count)                                           | §useMutation lifecycle + §Phase 5 file plan                              | Thin wrapper shape + facade under 200 lines                                                                      |
+| Requirement                                                                                    | Addressed in                                                             | Mechanism                                                                                                                   |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| FR1 (new hook: useQuery/useMutation, no useState for data/loading/error)                       | §useMutation lifecycle; §useRealtimeSubscription                         | Canonical templates + greppable acceptance hooks                                                                            |
+| FR2 (queryFn as pure async, testable)                                                          | §Type boundary; §QueryClient topology                                    | `dbToX` transforms called inside `queryFn`; test-local QueryClient harness pattern noted                                    |
+| FR3 (per-hook overrides for staleTime/retry/etc.)                                              | §QueryClient topology                                                    | Per-hook override policy; defer-to-signal                                                                                   |
+| FR4 (new features without AppContext edits)                                                    | §Adapter bridge                                                          | Phase 4 adapter deletion + greppable hook on feature-hook imports                                                           |
+| FR5 (exactly two realtime domains)                                                             | §useRealtimeSubscription scope table + §Runtime channel count            | 2 logical + 2 runtime channels; acceptance hook on `supabase.getChannels().length`. Seating-chart dropped 2026-05-13.       |
+| FR6 (single-line realtime callback wiring)                                                     | §useRealtimeSubscription canonical idiom                                 | Single-binding example; `const invalidate = () => ...`                                                                      |
+| FR7 (setQueryData for hot-path mutations)                                                      | §useMutation lifecycle                                                   | `onMutate` optimistic `setQueryData` is the canonical path                                                                  |
+| FR8 (no hand-rolled event-type state merges)                                                   | §useRealtimeSubscription; Decision 3                                     | Legacy `onInsert/onUpdate/onDelete` removed at Phase 3; `onChange` is the only data callback                                |
+| FR9 (non-realtime → refetchOnWindowFocus + invalidate)                                         | §QueryClient topology defaults + §useRealtimeSubscription scope table    | `refetchOnWindowFocus: true`; scope table shows non-realtime domains explicitly                                             |
+| FR10–FR12 (optimistic mutation + rollback + cross-component consistency)                       | §useMutation lifecycle + §QueryClient `structuralSharing`                | Canonical 5-callback template; cache is single source of truth; structural sharing ensures ref-stable fan-out               |
+| FR13–FR15 (AppContext = UI/session only; no feature-hook imports; direct component hook calls) | §Adapter bridge Phase 4 teardown                                         | Deletion criterion + two grep acceptance hooks                                                                              |
+| FR16 (seating server state via `useQuery` hooks)                                               | §Phase 5 file plan                                                       | `useSeatingChartMeta` / `useSeatingGroups` / `useRoomElements` split                                                        |
+| FR17 (drag state not in cache; greppable)                                                      | Decision 1                                                               | Already structurally satisfied; not re-architected; acceptance greps in §Phase 5 file plan                                  |
+| FR18 (mid-drag realtime event doesn't interrupt) — obsolete 2026-05-13                         | n/a                                                                      | Seating-chart is no longer a realtime domain; no "mid-drag realtime event" can occur. FR18 retired alongside FR5 reduction. |
+| FR19 (DB layer unchanged)                                                                      | Locked (PRD non-goal); not touched                                       | —                                                                                                                           |
+| FR20 (Supabase Realtime as transport)                                                          | Locked; preserved in §useRealtimeSubscription (same hook, new signature) | —                                                                                                                           |
+| FR21 (E2E infra unchanged)                                                                     | Locked; not touched                                                      | —                                                                                                                           |
+| FR22 (type transform at hook boundary via transformX)                                          | §Type boundary                                                           | `src/types/transforms.ts` new file; gap flagged (non-seating transforms must be CREATED)                                    |
+| FR23–FR25 (pattern discoverability; single-file self-describing)                               | Entire document                                                          | Canonical templates + greppable hooks as external/verifiable signals                                                        |
+| NFR1 (realtime propagation latency equivalent)                                                 | §useRealtimeSubscription + Phase 3 semantic-delta note                   | Cache invalidation + optimistic mutation path; two-tab smoke test preserved                                                 |
+| NFR2 (optimistic visible within one render)                                                    | §useMutation lifecycle                                                   | `onMutate` synchronous `setQueryData`                                                                                       |
+| NFR3 (cache dedup cross-component)                                                             | §QueryClient topology                                                    | Singleton client; shared cache by query key                                                                                 |
+| NFR4 (devtools not in prod bundle)                                                             | Decision 4 + §Devtools wiring                                            | Env-branched static import + contingency dynamic import; authoritative grep on `dist/`                                      |
+| NFR5 (bundle size ≤ TanStack Query's contribution)                                             | §QueryClient topology                                                    | No additional runtime libraries adopted (Decision 1 no Zustand; Decision 4 devtools is devDependency)                       |
+| NFR6 (subscription lifecycle: mount→subscribe, unmount→removeChannel)                          | §useRealtimeSubscription load-bearing invariants                         | Hook-managed cleanup + Phase 1 Vitest test                                                                                  |
+| NFR7 (query cancellation on unmount)                                                           | §QueryClient topology                                                    | TanStack default behavior; no override introduced                                                                           |
+| NFR8 (`AppContext.tsx` < 200 lines post-Phase-4)                                               | §Adapter bridge teardown                                                 | Phase 4 deletion scope; measurable on PR                                                                                    |
+| NFR9 (each migrated hook < pre-migration line count)                                           | §useMutation lifecycle + §Phase 5 file plan                              | Thin wrapper shape + facade under 200 lines                                                                                 |
 
 No FR or NFR is un-addressed.
 
@@ -1143,7 +1090,7 @@ No FR or NFR is un-addressed.
 **Nice-to-have** (possible future refinement, not required):
 
 - `invalidateOnReconnect` convenience flag on `useRealtimeSubscription` — can be added later if the `onChange + onReconnect` separate-wiring idiom proves noisy. Deferred.
-- Vitest harness for runtime channel count assertion (`supabase.getChannels().length === 3`) — exact shape TBD by Phase 1's pattern note. Until then, the manual DevTools WebSocket-frame smoke test covers the assertion.
+- Vitest harness for runtime channel count assertion (`supabase.getChannels().length === 2`) — exact shape TBD by Phase 1's pattern note. Until then, the manual DevTools WebSocket-frame smoke test covers the assertion.
 
 ### Greppable acceptance hook inventory
 
@@ -1168,7 +1115,7 @@ Canonical list of verifiable post-migration invariants, consolidated from per-se
 | 15  | Phase 5   | `rg "useState.*loading\|useState.*error\b\|const previous\s*=" src/hooks/useSeatingChart*.ts src/hooks/useSeatingGroups.ts src/hooks/useRoomElements.ts` | 0 matches                                                           |
 | 16  | Phase 5   | `wc -l src/hooks/useSeatingChart.ts`                                                                                                                     | < 200 (facade only)                                                 |
 | 17  | Phase 5   | `rg "supabase\.channel\(" src/hooks/`                                                                                                                    | Exactly 1 match (inside `useRealtimeSubscription.ts`)               |
-| 18  | Phase 5   | Runtime: `supabase.getChannels().length === 3` at steady state (active classroom + seating chart open)                                                   | true                                                                |
+| 18  | Phase 5   | Runtime: `supabase.getChannels().length === 2` at steady state (active classroom). Seating-chart dropped 2026-05-13 so a 3rd channel must NOT appear.    | true                                                                |
 | 19  | Phase 5   | `rg "setQueryData\|invalidateQueries" src/components/seating/`                                                                                           | 0 matches                                                           |
 
 Every check is mechanically verifiable. A PR that fails any check for its phase is a migration-rule violation.

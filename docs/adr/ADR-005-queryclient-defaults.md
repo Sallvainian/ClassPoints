@@ -83,23 +83,21 @@ Supabase Realtime subscription is added to a domain **only if cross-device live 
 
 ClassPoints adopts the same split deliberately; the simpler architecture is not a gap, it is a validated pattern.
 
-**Realtime domains (exactly 3 — matches PRD FR5):**
+**Realtime domains (exactly 2 — matches PRD FR5):**
 
-| Domain                                  | Reason                                                         | Backing tables                                                                  |
-| --------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `students` (point totals, time totals)  | Smartboard must reflect phone awards within ~1 s               | `students`                                                                      |
-| `point_transactions`                    | Award / undo events must propagate cross-device                | `point_transactions`                                                            |
-| `seating-chart` (multi-binding channel) | Teacher drags a seat on the laptop → smartboard shows the move | `seating_charts` (meta row), `seating_groups`, `seating_seats`, `room_elements` |
+| Domain                                 | Reason                                           | Backing tables       |
+| -------------------------------------- | ------------------------------------------------ | -------------------- |
+| `students` (point totals, time totals) | Smartboard must reflect phone awards within ~1 s | `students`           |
+| `point_transactions`                   | Award / undo events must propagate cross-device  | `point_transactions` |
 
 **Non-realtime domains (explicit — not default-by-omission):**
 
-| Domain           | Reason                                                                         | Backing tables   |
-| ---------------- | ------------------------------------------------------------------------------ | ---------------- |
-| `behaviors`      | Configured once per class, used hundreds of times. ClassDojo parallel confirms | `behaviors`      |
-| `classrooms`     | Infrequent edits, single-teacher context                                       | `classrooms`     |
-| `layout_presets` | Saved templates, one-time actions                                              | `layout_presets` |
-
-The `seating_charts` **meta** row (create / delete / settings) rides on the `seating-chart` realtime channel alongside its body tables. Not an architectural exception — cheap to share the channel, and simpler than splitting meta-lifecycle-events from body-position-events for what is effectively a 1-per-classroom resource.
+| Domain           | Reason                                                                                                                | Backing tables                                                       |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `behaviors`      | Configured once per class, used hundreds of times. ClassDojo parallel confirms                                        | `behaviors`                                                          |
+| `classrooms`     | Infrequent edits, single-teacher context                                                                              | `classrooms`                                                         |
+| `layout_presets` | Saved templates, one-time actions                                                                                     | `layout_presets`                                                     |
+| `seating-chart`  | Single-device edit session; cross-device drag sync use case dropped 2026-05-13. On-demand invalidation after mutation | `seating_charts`, `seating_groups`, `seating_seats`, `room_elements` |
 
 **Gate criterion for realtime scope.** A PR that does any of:
 
@@ -107,7 +105,7 @@ The `seating_charts` **meta** row (create / delete / settings) rides on the `sea
 - Removes a subscription from a domain **in** the Realtime Domains table
 - Introduces a new data domain or table with **undefined** realtime status
 
-must update this section in the same commit that makes the code change. "Decide later" is not acceptable — the realtime count is load-bearing on PRD FR5 (exactly 3 channels), Phase 2 mutation race handling, and adapter bridge memoization assumptions.
+must update this section in the same commit that makes the code change. "Decide later" is not acceptable — the realtime count is load-bearing on PRD FR5 (exactly 2 channels), Phase 2 mutation race handling, and adapter bridge memoization assumptions.
 
 ## Consequences
 
