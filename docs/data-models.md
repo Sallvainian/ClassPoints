@@ -1,22 +1,22 @@
 # Data Models
 
-_Generated 2026-04-29 (exhaustive full rescan)._
+_Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
 
 ## Overview
 
-ClassPoints uses Postgres via Supabase. The schema is defined in `supabase/migrations/001_initial_schema.sql` through `011_add_student_point_totals.sql` (11 migrations). All tables have Row-Level Security enabled and policies keyed on `auth.uid()`. Type definitions are auto-generated to `src/types/database.ts`; the camelCase app shapes live in `src/types/index.ts` and the boundary transforms in `src/types/transforms.ts`.
+ClassPoints uses Postgres via Supabase. The schema is defined across **13 migrations** in `supabase/migrations/`: the zero-padded `001_initial_schema.sql` → `012_add_insubordination_behavior.sql`, plus one timestamp-prefixed file, `20260429181608_harden_database_linter_findings.sql`, emitted by the Supabase CLI during the PR #86 linter-hardening work. Migrations apply in lexicographic order, so `012` sorts before the timestamped file; hand-authored migrations continue the zero-padded sequence (next = `013`). All tables have Row-Level Security enabled and policies keyed on `auth.uid()`. Type definitions are auto-generated to `src/types/database.ts`; the camelCase app shapes live in `src/types/index.ts` and the boundary transforms in `src/types/transforms.ts`.
 
 ## Tables
 
 ### `classrooms`
 
-| Column       | Type                 | Notes                                                                  |
-| ------------ | -------------------- | ---------------------------------------------------------------------- |
-| `id`         | UUID PK              | `gen_random_uuid()` default                                            |
-| `user_id`    | UUID FK auth.users   | Cascade delete. Auto-set by `set_user_id()` trigger if NULL on insert. |
-| `name`       | TEXT NOT NULL        |                                                                        |
-| `created_at` | TIMESTAMPTZ NOT NULL | NOW() default                                                          |
-| `updated_at` | TIMESTAMPTZ NOT NULL | NOW() default + `update_updated_at_column()` BEFORE UPDATE trigger     |
+| Column       | Type                 | Notes                                                                          |
+| ------------ | -------------------- | ------------------------------------------------------------------------------ |
+| `id`         | UUID PK              | `gen_random_uuid()` default                                                    |
+| `user_id`    | UUID FK auth.users   | Cascade delete. Auto-set by `private.set_user_id()` trigger if NULL on insert. |
+| `name`       | TEXT NOT NULL        |                                                                                |
+| `created_at` | TIMESTAMPTZ NOT NULL | NOW() default                                                                  |
+| `updated_at` | TIMESTAMPTZ NOT NULL | NOW() default + `update_updated_at_column()` BEFORE UPDATE trigger             |
 
 Indexes: `idx_classrooms_created_at` (DESC), `idx_classrooms_user_id`.
 
@@ -41,27 +41,30 @@ RLS: SELECT/INSERT/UPDATE/DELETE all gated through parent classroom's `auth.uid(
 
 ### `behaviors`
 
-| Column       | Type                          | Notes                                                                                            |
-| ------------ | ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| `id`         | UUID PK                       |                                                                                                  |
-| `user_id`    | UUID FK auth.users            | Nullable. NULL = system-default behavior. Auto-set by `set_user_id()` trigger on custom inserts. |
-| `name`       | TEXT NOT NULL                 |                                                                                                  |
-| `points`     | INTEGER NOT NULL              | CHECK `points >= -5 AND points <= 5 AND points != 0`                                             |
-| `icon`       | TEXT NOT NULL                 | Emoji                                                                                            |
-| `category`   | `behavior_category` ENUM      | `'positive' \| 'negative'`                                                                       |
-| `is_custom`  | BOOLEAN NOT NULL DEFAULT true | Defaults are `is_custom = false`, custom is `true`                                               |
-| `created_at` | TIMESTAMPTZ NOT NULL          | NOW() default                                                                                    |
+| Column       | Type                          | Notes                                                                                                    |
+| ------------ | ----------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `id`         | UUID PK                       |                                                                                                          |
+| `user_id`    | UUID FK auth.users            | Nullable. NULL = system-default behavior. Auto-set by `private.set_user_id()` trigger on custom inserts. |
+| `name`       | TEXT NOT NULL                 |                                                                                                          |
+| `points`     | INTEGER NOT NULL              | CHECK `points >= -5 AND points <= 5 AND points != 0`                                                     |
+| `icon`       | TEXT NOT NULL                 | Emoji                                                                                                    |
+| `category`   | `behavior_category` ENUM      | `'positive' \| 'negative'`                                                                               |
+| `is_custom`  | BOOLEAN NOT NULL DEFAULT true | Defaults are `is_custom = false`, custom is `true`                                                       |
+| `created_at` | TIMESTAMPTZ NOT NULL          | NOW() default                                                                                            |
 
 Indexes: `idx_behaviors_category`, `idx_behaviors_user_id`.
 
 RLS: visible when `user_id IS NULL OR user_id = auth.uid()`. INSERT/UPDATE/DELETE require `user_id = auth.uid()`.
 
-**14 system defaults** seeded by `003_sync_default_behaviors.sql` (8 positive + 6 negative). Currently:
+**System defaults** — `003_sync_default_behaviors.sql` seeds 14 (8 positive + 6 negative); `012_add_insubordination_behavior.sql` adds one more negative default (idempotent `INSERT ... WHERE NOT EXISTS`), so the DB ships **15** defaults (8 positive + 7 negative):
 
 - **Positive (8)**: On Task (+1 📚), Helping Others (+2 🤝), Great Effort (+2 💪), Participation (+1 ✋), Excellent Work (+3 ⭐), Being Kind (+2 ❤️), Following Rules (+1 ✅), Working Quietly (+1 🤫)
-- **Negative (6)**: Off Task (-1 😴), Disruptive (-2 🔊), Unprepared (-1 📝), Unkind Words (-2 💬), Not Following Rules (-1 🚫), Late (-1 ⏰)
+- **Negative (7)**: Off Task (-1 😴), Disruptive (-2 🔊), Unprepared (-1 📝), Unkind Words (-2 💬), Not Following Rules (-1 🚫), Late (-1 ⏰), Insubordination (-5 🚨, added in 012)
 
-These are duplicated as a TS constant in `AppContext.tsx:DEFAULT_BEHAVIORS` for the `resetBehaviorsToDefault` flow.
+These defaults are also hard-coded as TWO TS constants, and they have **drifted** — keep this in mind when touching default behaviors:
+
+- `src/contexts/AppContext.tsx:49` `DEFAULT_BEHAVIORS` — **14 entries, no Insubordination**. Inserted by the `resetBehaviorsToDefault` flow (`AppContext.tsx:271`), so "reset to default" currently restores the pre-012 set.
+- `src/utils/defaults.ts:13` `createDefaultBehaviors()` — **15 entries, includes Insubordination**. Used by the legacy localStorage→Supabase migration path (`src/utils/migrations.ts`).
 
 ### `point_transactions`
 
@@ -217,18 +220,31 @@ Returns per-student aggregates for `today_total` and `this_week_total` based on 
 
 Called by `useStudents.queryFn` (single classroom) and `useClassrooms.queryFn` (Promise.all per classroom for the home view aggregates).
 
+The harden migration recreated this RPC with `SET search_path = ''` and tightened its grants: EXECUTE is revoked from `anon`/`PUBLIC` and granted explicitly to `authenticated` and `service_role`. It is the only app-facing RPC; the `update_*` and `private.*` trigger functions have EXECUTE revoked from all client roles (they run only as trigger bodies).
+
+## Schema hardening (`20260429181608_harden_database_linter_findings.sql`)
+
+This timestamp-prefixed migration resolves Supabase database-linter findings without revoking the table grants the REST/Data API needs:
+
+- **`DROP EXTENSION IF EXISTS pg_graphql`** — the app uses supabase-js table queries, not GraphQL, so dropping `pg_graphql` clears the GraphQL-schema-exposure warning without touching table SELECT grants.
+- **`CREATE SCHEMA private`** with `REVOKE ALL ... FROM PUBLIC, anon, authenticated` — holds the SECURITY DEFINER trigger helpers (`set_user_id`, `auto_create_group_seats`, `ensure_student_single_seat`) out of the client-exposed `public` schema.
+- **`SET search_path = ''`** on every recreated function — pins an immutable, empty search path (functions reference fully-qualified `public.*` names internally).
+- Trigger reassignment: each affected trigger is dropped and recreated to call the `private.*` helper; the old `public.*` copies are dropped.
+
 ## Triggers (named)
 
-| Trigger                                    | Table                 | Event                                 | Function                             |
-| ------------------------------------------ | --------------------- | ------------------------------------- | ------------------------------------ |
-| `update_classrooms_updated_at`             | `classrooms`          | BEFORE UPDATE                         | `update_updated_at_column()`         |
-| `set_classrooms_user_id`                   | `classrooms`          | BEFORE INSERT                         | `set_user_id()`                      |
-| `set_behaviors_user_id`                    | `behaviors`           | BEFORE INSERT                         | `set_user_id()`                      |
-| `trigger_update_student_totals`            | `point_transactions`  | AFTER INSERT OR DELETE                | `update_student_point_totals()`      |
-| `trigger_update_sound_settings_updated_at` | `user_sound_settings` | BEFORE UPDATE                         | `update_sound_settings_updated_at()` |
-| `trigger_auto_create_group_seats`          | `seating_groups`      | AFTER INSERT                          | `auto_create_group_seats()`          |
-| `trigger_ensure_student_single_seat`       | `seating_seats`       | BEFORE INSERT OR UPDATE OF student_id | `ensure_student_single_seat()`       |
-| `trigger_update_seating_chart_timestamp`   | `seating_charts`      | BEFORE UPDATE                         | `update_seating_chart_timestamp()`   |
+Function schemas reflect the harden migration (`20260429181608_*`): trigger-only helpers that set `user_id` / create seats / enforce single-seat were moved to a `private` schema; the `public.update_*` helpers stay in `public` but are recreated with `SET search_path = ''` and have EXECUTE revoked from `anon`/`authenticated`/`PUBLIC`.
+
+| Trigger                                    | Table                 | Event                                 | Function                                    |
+| ------------------------------------------ | --------------------- | ------------------------------------- | ------------------------------------------- |
+| `update_classrooms_updated_at`             | `classrooms`          | BEFORE UPDATE                         | `public.update_updated_at_column()`         |
+| `set_classrooms_user_id`                   | `classrooms`          | BEFORE INSERT                         | `private.set_user_id()`                     |
+| `set_behaviors_user_id`                    | `behaviors`           | BEFORE INSERT                         | `private.set_user_id()`                     |
+| `trigger_update_student_totals`            | `point_transactions`  | AFTER INSERT OR DELETE                | `public.update_student_point_totals()`      |
+| `trigger_update_sound_settings_updated_at` | `user_sound_settings` | BEFORE UPDATE                         | `public.update_sound_settings_updated_at()` |
+| `trigger_auto_create_group_seats`          | `seating_groups`      | AFTER INSERT                          | `private.auto_create_group_seats()`         |
+| `trigger_ensure_student_single_seat`       | `seating_seats`       | BEFORE INSERT OR UPDATE OF student_id | `private.ensure_student_single_seat()`      |
+| `trigger_update_seating_chart_timestamp`   | `seating_charts`      | BEFORE UPDATE                         | `public.update_seating_chart_timestamp()`   |
 
 ## Realtime publication
 
@@ -251,7 +267,7 @@ Called by `useStudents.queryFn` (single classroom) and `useClassrooms.queryFn` (
 - `src/types/database.ts` — auto-generated Postgres types. Pattern: `Database['public']['Tables']['X']['Row' | 'Insert' | 'Update']`. Convenience aliases: `Classroom`, `NewClassroom`, `UpdateClassroom`, etc. Function aliases: `Database['public']['Functions']['get_student_time_totals']['Args' | 'Returns']`.
 - `src/types/index.ts` — camelCase app shapes (`Behavior`, `Student`, `Classroom`, `PointTransaction`, `AppState`, `StudentPoints`, `UndoableAction`). Re-exports `*` from `./seatingChart` (cleanup target; the explicit-export rule applies to new code).
 - `src/types/seatingChart.ts` — DB types, app types, AND transforms colocated in one file (predates the boundary-separation pattern; left as-is for that domain).
-- `src/types/transforms.ts` — `dbToBehavior`, `dbToClassroom` (with `ClassroomAggregate` payload), `dbToStudent` (with `timeTotals` payload), `dbToPointTransaction` (passthrough — the Db shape leaks intentionally to 45 legacy consumers via `useApp().transactions`).
+- `src/types/transforms.ts` — `dbToBehavior`, `dbToClassroom` (with `ClassroomAggregate` payload), `dbToStudent` (with `timeTotals` payload), `dbToPointTransaction` (passthrough — the Db shape leaks intentionally to legacy consumers reading `useApp().transactions`).
 
 ### Adding a column — checklist
 

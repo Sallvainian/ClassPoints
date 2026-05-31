@@ -1,6 +1,6 @@
 # Source Tree Analysis
 
-_Generated 2026-04-29 (exhaustive full rescan)._
+_Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
 
 ClassPoints is a single-part monolith — one React SPA backed by Supabase. The repo's interesting structure lives in `src/`, `supabase/`, `tests/`, `scripts/`, and `.github/workflows/`; everything else is config or generated output.
 
@@ -8,8 +8,8 @@ ClassPoints is a single-part monolith — one React SPA backed by Supabase. The 
 
 ```
 ClassPoints/
-├── src/                        # React app source (108 .ts/.tsx/.css files; 97 non-test .ts/.tsx)
-├── supabase/                   # Local Supabase config + 11 migrations
+├── src/                        # React app source (113 .ts/.tsx/.css files; 103 non-test .ts/.tsx)
+├── supabase/                   # Local Supabase config + 13 migrations
 ├── tests/                      # Playwright E2E, Vitest backend integration, support helpers
 ├── scripts/                    # Node-side dev/CI/seed scripts (tsx + .mjs)
 ├── public/                     # Static assets served at /ClassPoints/
@@ -27,7 +27,7 @@ ClassPoints/
 ├── test-results/               # Last Playwright artifacts
 │
 ├── package.json                # Scripts + dependencies
-├── package-lock.json           # ~389 KB lockfile
+├── package-lock.json           # ~311 KB lockfile
 ├── tsconfig.json + .app.json + .node.json   # Strict TS, isolatedModules, bundler resolution
 ├── vite.config.ts              # `base: '/ClassPoints/'`, react plugin, host: true
 ├── vitest.config.ts            # jsdom, src/test/setup.ts
@@ -48,7 +48,7 @@ ClassPoints/
 ```
 src/
 ├── App.tsx                     # 4-provider stack: Auth > Theme > Sound > App. View routing via useState.
-├── main.tsx                    # createRoot, QueryClientProvider, DevtoolsGate (DEV-only dynamic import)
+├── main.tsx                    # createRoot, QueryClientProvider, <DevtoolsGate /> (imported from components/)
 ├── index.css                   # Tailwind v4 @theme tokens (terracotta accent, Instrument Serif/Geist/JetBrains Mono),
 │                               #   semantic surfaces/ink/hairline, .dark overrides, chart-grid vars
 ├── vite-env.d.ts
@@ -56,7 +56,8 @@ src/
 ├── assets/
 │   └── sounds/                 # SOUND_DEFINITIONS + synthesizeSound (Web Audio buffers, no .mp3 files)
 │
-├── components/                 # 46 .tsx component files + 12 historical folder barrels
+├── components/                 # 47 .tsx component files + 12 historical folder barrels
+│   ├── DevtoolsGate.tsx        # DEV-only gated dynamic import of react-query-devtools (extracted from main.tsx); DCE'd from prod bundle
 │   ├── auth/                   # AuthGuard, AuthPage, LoginForm, SignupForm, ForgotPasswordForm
 │   ├── behaviors/              # BehaviorButton, BehaviorPicker
 │   ├── classes/                # ImportStudentsModal
@@ -76,11 +77,17 @@ src/
 │   ├── students/               # StudentGrid, StudentPointCard
 │   └── ui/                     # Button, Dialog, Input, Modal, ErrorToast (primitive design system)
 │
-├── contexts/                   # 4 React contexts (NOT migrated to TanStack — by design)
-│   ├── AuthContext.tsx         # Supabase auth + stale-JWT graceful degrade (server validate, sb-* purge)
-│   ├── AppContext.tsx          # 797 LOC. Thin wrapper around hooks. Phase 4 dissolution target.
+├── contexts/                   # 4 React contexts (NOT migrated to TanStack — by design). Each split:
+│   │                           #   XContext.tsx = Provider component only; useX.ts = type + context + useX hook
+│   │                           #   (react-refresh/only-export-components fix)
+│   ├── AuthContext.tsx         # Supabase auth + stale-JWT graceful degrade (Promise.race 5s validate, sb-* purge)
+│   ├── useAuth.ts              # AuthContextValue + AuthContext + useAuth()
+│   ├── AppContext.tsx          # 710 LOC. Thin wrapper around hooks. Phase 4 dissolution target.
+│   ├── useApp.ts               # AppContextValue + AppContext + useApp()
 │   ├── SoundContext.tsx        # Web Audio + user_sound_settings table + cross-device sync
-│   └── ThemeContext.tsx        # light/dark, prefers-color-scheme + localStorage
+│   ├── useSoundContext.ts      # SoundSettings + SoundContextValue + SoundContext + useSoundContext()
+│   ├── ThemeContext.tsx        # light/dark, prefers-color-scheme + localStorage
+│   └── useTheme.ts             # Theme + ThemeContextValue + ThemeContext + useTheme()
 │
 ├── hooks/                      # 12 hook implementation files + index barrel + hook tests
 │   ├── index.ts                # Hook barrel export
@@ -141,8 +148,12 @@ supabase/
     ├── 008_add_seating_charts.sql          # seating_charts (1:1 classroom), seating_groups, seating_seats, room_elements, layout_presets
     ├── 009_fix_room_element_dimensions.sql # Backfill + new defaults for teacher_desk / door
     ├── 010_add_room_element_types.sql      # ALTER TYPE room_element_type ADD VALUE — window, countertop, sink
-    └── 011_add_student_point_totals.sql    # students.point_total/positive_total/negative_total + DB trigger + get_student_time_totals RPC
+    ├── 011_add_student_point_totals.sql    # students.point_total/positive_total/negative_total + DB trigger + get_student_time_totals RPC
+    ├── 012_add_insubordination_behavior.sql           # Insubordination default (-5, negative); idempotent INSERT...WHERE NOT EXISTS
+    └── 20260429181608_harden_database_linter_findings.sql  # Supabase-CLI-generated (timestamp prefix): DROP pg_graphql, private schema, SET search_path='' on functions, tighten RPC/trigger grants
 ```
+
+Naming note: `001`–`012` are hand-authored with a zero-padded `0NN` prefix; the single timestamp-prefixed file was emitted by `supabase migration` during the PR #86 linter-hardening work. Files apply in lexicographic order, so `012` sorts before the timestamped one. Hand-authored migrations continue the zero-padded sequence (next = `013`).
 
 ## `tests/` — E2E and backend integration
 
@@ -162,11 +173,15 @@ tests/
 │   └── schema/student-totals.test.ts
 └── support/
     ├── fixtures/
+    │   ├── factories/classroom.factory.ts
     │   ├── factories/user.factory.ts
     │   └── index.ts
-    └── helpers/
-        ├── auth.ts
-        └── supabase-admin.ts
+    ├── helpers/
+    │   ├── auth.ts
+    │   ├── impersonation.ts
+    │   ├── supabase-admin.ts
+    │   └── unique.ts            # uniqueSlug() etc. for namespacing parallel-E2E data
+    └── page-objects/           # .gitkeep placeholder (no page objects yet)
 ```
 
 There are also Vitest unit tests under `src/`:
@@ -196,8 +211,11 @@ src/utils/__tests__/
 ```
 scripts/
 ├── dev.mjs                     # `npm run dev` entrypoint — local-by-default; preflights Docker, manages Supabase lifecycle
-├── lib/
-│   └── supabase-host.mjs       # readEnvTest, shouldManageLocalStack, ensureDockerRunning, isStackRunning
+├── lib/                        # Committed compiled .mjs + .d.mts helpers (importable by .mjs scripts + E2E globalSetup, no build step)
+│   ├── supabase-host.mjs       # readEnvTest, shouldManageLocalStack, isDockerRunning, ensureDockerRunning, startSupabaseWithRecovery, isStackRunning
+│   ├── supabase-host.d.mts
+│   ├── seed-test-user.mjs
+│   └── seed-test-user.d.mts
 ├── check-bundle.mjs            # CI: assert prod bundle has no react-query-devtools
 ├── seed-test-user.ts           # Seeds .env.test user via service role key
 ├── seed-test-classroom.ts      # Sample classroom data
@@ -269,7 +287,7 @@ docs/
 | `src/lib/queryKeys.ts`        | Single source of truth for query keys — used for both reads AND invalidations to keep them in sync.                          |
 | `scripts/dev.mjs`             | `npm run dev` entrypoint. Local-by-default; starts/stops local Supabase + preflights Docker.                                 |
 | `playwright.config.ts`        | E2E. Fail-closed network allow-list (loopback, RFC1918, Tailscale CGNAT).                                                    |
-| `supabase/migrations/`        | 11 migrations in numerical order.                                                                                            |
+| `supabase/migrations/`        | 13 migrations (12 zero-padded `0NN` + 1 timestamp-prefixed CLI file); applied in lexicographic order.                        |
 
 ## Where to add new code
 

@@ -1,8 +1,8 @@
 # Component Inventory
 
-_Generated 2026-04-29 (exhaustive full rescan)._
+_Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
 
-46 React component files under `src/components/`, organized by feature folder. Twelve component folders have historical sibling `index.ts` barrels (`auth`, `behaviors`, `classes`, `dashboard`, `home`, `layout`, `points`, `profile`, `seating`, `settings`, `students`, `ui`); `common` and `migration` do not. Components MUST use named exports (HMR stability under `react-refresh/only-export-components`). The single exception is `App.tsx` (default export); do NOT add new default exports.
+47 React component files under `src/components/`, organized by feature folder, plus one top-level file — `DevtoolsGate.tsx` (see Lazy loading). Twelve component folders have historical sibling `index.ts` barrels (`auth`, `behaviors`, `classes`, `dashboard`, `home`, `layout`, `points`, `profile`, `seating`, `settings`, `students`, `ui`); `common` and `migration` do not. Components MUST use named exports (HMR stability under `react-refresh/only-export-components`). The single exception is `App.tsx` (default export); do NOT add new default exports.
 
 A file exporting a component should export ONLY components — `allowConstantExport: true` permits constants alongside, but no helper functions or types. Move helpers/types to dedicated files: cross-feature → `src/utils/`, feature-scoped → sibling `*.utils.ts`, types → `src/types/` or sibling `*.types.ts`.
 
@@ -91,7 +91,7 @@ A file exporting a component should export ONLY components — `allowConstantExp
 | `MultiAwardModal`  | Award points to a multi-select subset of students. Calls `awardPointsToStudents` wrapper.                                                                                                                                                                                  |
 | `ClassPointsBox`   | **NEW (commit 350c7c9)** — Class-total card promoted to its own surface. Tap to open `ClassAwardModal`. Displays total + breakdown (positive / negative) + today + this-week chips. Editorial design: Instrument Serif heading, JetBrains Mono numerics, hairline divider. |
 | `TodaySummary`     | Today's-points summary panel.                                                                                                                                                                                                                                              |
-| `UndoToast`        | 10-second undo toast. Polls `getRecentUndoableAction()` from `AppContext` on a 1Hz interval. Shows different copy for batch vs single-student undo.                                                                                                                        |
+| `UndoToast`        | 10-second undo toast. Receives the current undoable `action` as a prop from `DashboardView` (`DashboardView.tsx:451`), which derives it via `useMemo` + a 1s tick (no longer polled inside the toast). Shows different copy for batch vs single-student undo.              |
 
 ## Profile
 
@@ -166,7 +166,7 @@ A file exporting a component should export ONLY components — `allowConstantExp
 
 `App.tsx` uses `React.lazy` for the 5 view-level components: `MigrationWizard`, `DashboardView`, `ClassSettingsView`, `ProfileView`, `TeacherDashboard`. `<Suspense>` with a small spinner fallback wraps each view switch. This keeps the initial bundle lean (Auth + Layout + Sidebar + provider stack only).
 
-`<DevtoolsGate />` (in `src/main.tsx`) dynamically imports `@tanstack/react-query-devtools` inside a `useEffect` body gated on `import.meta.env.DEV`. Vite replaces the flag with a `false` literal in prod, the entire `if` block dead-codes, and Rollup emits no chunk for the devtools package. CI asserts via `scripts/check-bundle.mjs`.
+`DevtoolsGate` lives in its own file `src/components/DevtoolsGate.tsx` (extracted from `main.tsx` so the entry module declares no internal-only components) and is rendered by `main.tsx` as a sibling of `<App />` inside `QueryClientProvider`. It dynamically imports `@tanstack/react-query-devtools` inside a `useEffect` body gated on `import.meta.env.DEV`. Vite replaces the flag with a `false` literal in prod, the entire `if` block dead-codes, and Rollup emits no chunk for the devtools package. CI asserts via `scripts/check-bundle.mjs`.
 
 ## Design system patterns (editorial / engineering redesign)
 

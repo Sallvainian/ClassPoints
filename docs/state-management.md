@@ -1,6 +1,6 @@
 # State Management
 
-_Generated 2026-04-29 (exhaustive full rescan)._
+_Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
 
 ## Summary
 
@@ -23,6 +23,8 @@ Per-device prefs use `localStorage` directly (`useDisplaySettings`, `ThemeContex
   </QueryClientProvider>
 </StrictMode>
 ```
+
+`DevtoolsGate` was extracted out of `main.tsx` into `src/components/DevtoolsGate.tsx` (so the entry module declares no internal-only components). Its DEV-only gated dynamic-import dead-code-elimination pattern is unchanged — see Component Inventory and ADR-005 / `npm run check:bundle`.
 
 `src/App.tsx` wraps `<AppContent />`:
 
@@ -163,7 +165,16 @@ Wraps `supabase.channel(...).on('postgres_changes', ...).subscribe(...)`. Key be
 
 ## React contexts
 
-### `AppContext` (`src/contexts/AppContext.tsx`, 797 LOC)
+Each context is split across two sibling files to satisfy `react-refresh/only-export-components` (Fast Refresh requires a module to export only components). The `XContext.tsx` file exports the Provider component **only**; the matching `useX.ts` sibling exports the context value type, the `createContext(...)` object, and the `useX()` consumer hook:
+
+| Provider (`*.tsx`)                   | Type + context + hook (`*.ts`)                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| `AppContext.tsx` (`AppProvider`)     | `useApp.ts` (`AppContextValue`, `useApp`)                                      |
+| `AuthContext.tsx` (`AuthProvider`)   | `useAuth.ts` (`AuthContextValue`, `useAuth`)                                   |
+| `SoundContext.tsx` (`SoundProvider`) | `useSoundContext.ts` (`SoundSettings`, `SoundContextValue`, `useSoundContext`) |
+| `ThemeContext.tsx` (`ThemeProvider`) | `useTheme.ts` (`Theme`, `ThemeContextValue`, `useTheme`)                       |
+
+### `AppContext` (`src/contexts/AppContext.tsx`, 710 LOC; type + `useApp` hook in `src/contexts/useApp.ts`)
 
 Phase 4 dissolution target. Holds:
 
@@ -172,29 +183,29 @@ Phase 4 dissolution target. Holds:
 - **Imperative wrappers**: `createClassroom`, `addStudent`, `updateStudent`, `removeStudent`, `addBehavior`, `updateBehavior`, `deleteBehavior`, `resetBehaviorsToDefault`, `awardPoints`, `awardClassPoints`, `awardPointsToStudents`, `undoTransaction`, `undoBatchTransaction`, `clearStudentPoints`, `adjustStudentPoints`, `resetClassroomPoints`. Most direct mutation wrappers propagate `mutateAsync` errors; some legacy student wrappers catch/log and batch award orchestrators filter per-student failures.
 - **Loading bridge nuance**: `classrooms` and `behaviors` use `isPending` for their always-enabled queries. `studentsQuery.isLoading` and `transactionsQuery.isLoading` are used for classroom-scoped queries so disabled queries (`activeClassroomId === null`) do not block the home dashboard with a full loading state.
 
-**Wrapper-throw nuance** — `awardClassPoints` and `awardPointsToStudents` orchestrate `Promise.all` over per-student awards and SILENTLY filter rejected promises to nulls (lines 410-424 and 455-469). The orchestrator returns the "successful" results; per-item failures vanish. This is anti-pattern audit cluster #2. Current code cleans up `batchKindRef` when all per-student mutations fail, but partial failures are still not surfaced to callers.
+**Wrapper-throw nuance** — `awardClassPoints` (`AppContext.tsx:329-351`) and `awardPointsToStudents` (`:375-395`) orchestrate `Promise.all` over per-student awards where each `mutateAsync(...).catch(...)` `console.error`s the rejection and returns `null`; the orchestrator then filters nulls and returns only the `successful` results. Per-item failures are logged to the console but never surfaced to the caller or UI. This is anti-pattern audit cluster #2. Current code cleans up `batchKindRef` only when EVERY per-student mutation fails (`successful.length === 0`); partial failures still leave no caller-visible signal.
 
-`getRecentUndoableAction()` returns the most recent transaction within a 10-second window, with batch-aware aggregation when `batch_id` is set. Polled by `DashboardView` on a 1Hz interval.
+`getRecentUndoableAction()` returns the most recent transaction within a 10-second window (`UNDO_WINDOW_MS`, `AppContext.tsx:68`), with batch-aware aggregation when `batch_id` is set; it is a `useCallback` over context state. `DashboardView` no longer polls it on a timer — it derives `undoableAction` via `useMemo` keyed on `[getRecentUndoableAction, tick]` plus a 1s `setInterval` `tick` that forces re-evaluation so the wall-clock window expires on time (`DashboardView.tsx:60-70`). A `dismissedTxnRef` hides the toast for one render after an undo until the post-undo cache update propagates. The previous `setTimeout(..., 100)` post-close workaround and `refreshUndoableSoon` helper are gone.
 
 `getStudentPoints` reads from `students.point_total` etc. (stored columns maintained by the DB trigger), NOT computed from `transactions` at call time. `getClassPoints` sums those stored columns only when the caller passes `studentIds`; without that argument it returns zero totals.
 
-### `AuthContext` (`src/contexts/AuthContext.tsx`)
+### `AuthContext` (`src/contexts/AuthContext.tsx`; type + `useAuth` hook in `src/contexts/useAuth.ts`)
 
 Owns the Supabase auth lifecycle. The "stale-JWT graceful degrade" is the load-bearing feature here:
 
 1. On boot, `getSession()` reads from localStorage.
 2. If a cached session exists, validate with `supabase.auth.getUser()`.
-3. If validation throws or errors: `signOut({ scope: 'local' })`, manually purge every `sb-*` key from `localStorage`, route to login. The code creates a 5s `AbortController`, but the signal is not currently passed to `getUser()`, so it does not enforce a hard timeout yet.
+3. The validation is wrapped in `Promise.race([userPromise, timeoutPromise])` where `timeoutPromise` rejects after 5s (`AuthContext.tsx:78-90`). `getUser()` accepts no `AbortSignal` in `@supabase/auth-js` and the underlying fetch has no default timeout, so the race is what bounds a hung `/auth/v1/user` — the timeout genuinely fires now (the earlier unwired `AbortController` was replaced). The detached `userPromise.catch(() => {})` (`:75`) suppresses an unhandled rejection if the timeout wins the race. If validation throws or errors: `signOut({ scope: 'local' })`, `purgeAuthStorage()` removes every `sb-*` key from `localStorage`, route to login.
 4. `onAuthStateChange` listener tracks user-id transitions via `prevUserIdRef`. The first event (`prev === undefined`) is INITIAL_SESSION and is NOT treated as a transition. A genuine user-id transition → `queryClient.clear()` so user A's cache can't flash on user B's first render.
 5. `signOut()` also clears the QueryClient — defense-in-depth that doesn't depend on the listener winning the race.
 
-### `SoundContext` (`src/contexts/SoundContext.tsx`)
+### `SoundContext` (`src/contexts/SoundContext.tsx`; type + `useSoundContext` hook in `src/contexts/useSoundContext.ts`)
 
 - Owns `AudioContext` + preloaded sound buffers. Synthesizes all `SOUND_DEFINITIONS` on first user interaction (autoplay-policy compliant).
-- Loads `user_sound_settings` from Supabase on user change. Handles `PGRST116` (no rows) by falling back to `DEFAULT_SETTINGS` — loadbearing example of code-discriminating Supabase error handling (need `.code` access, so `if (error) throw error` form is required, NOT `throw new Error(error.message)`).
+- Loads `user_sound_settings` from Supabase on user change. Handles `PGRST116` (no rows) by falling back to `DEFAULT_SETTINGS` (`SoundContext.tsx:120`, `throw fetchError` at `:123`) — loadbearing example of code-discriminating Supabase error handling (need `.code` access, so `if (error) throw error` form is required, NOT `throw new Error(error.message)`).
 - `updateSettings()` upserts to Supabase with optimistic local update + revert on failure.
 
-### `ThemeContext` (`src/contexts/ThemeContext.tsx`)
+### `ThemeContext` (`src/contexts/ThemeContext.tsx`; type + `useTheme` hook in `src/contexts/useTheme.ts`)
 
 Trivial. `theme: 'light' | 'dark'`, persisted to `localStorage:theme`. Initial value comes from localStorage, falling back to `prefers-color-scheme: dark` media query. Adds/removes `.dark` class on `<html>`.
 
@@ -204,7 +215,7 @@ Trivial. `theme: 'light' | 'dark'`, persisted to `localStorage:theme`. Initial v
 
 ## Adapter contracts (ADR-005 §2)
 
-- **Throw-the-original** (`if (error) throw error`) — preserves `error.code` (`PGRST116`, `42501`, …), `error.details`, `error.hint`. Required when consumers need to discriminate by code. Only known load-bearing example today: `SoundContext.tsx:148` (`fetchError.code === 'PGRST116'`).
+- **Throw-the-original** (`if (error) throw error`) — preserves `error.code` (`PGRST116`, `42501`, …), `error.details`, `error.hint`. Required when consumers need to discriminate by code. Only known load-bearing example today: `SoundContext.tsx:120` (`fetchError.code === 'PGRST116'`).
 - **Throw-message-only** (`if (error) throw new Error(error.message)`) — currently dominant: 18 sites in TanStack hooks (audit cluster #1, REAL sev 4) + 9 in `useSeatingChart.ts` (out-of-cluster, same pattern). Drops `error.code`. Audit-tagged for migration to an `unwrap()` helper.
 
 ## State migration / persistence helpers

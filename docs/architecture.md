@@ -1,14 +1,14 @@
 # Architecture
 
-_Generated 2026-04-29 (exhaustive full rescan)._
+_Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
 
 ## Executive summary
 
 ClassPoints is a single-page React application backed by Supabase (Auth + Postgres + Realtime + RLS + RPCs). It runs entirely in the browser; there is no app server, no Node backend, no API layer of our own. The browser talks directly to Supabase via `@supabase/supabase-js`. Authorization happens at the database layer via Postgres Row-Level Security policies — every classroom, student, behavior, transaction, seating chart, and sound-settings row is gated on `auth.uid()`.
 
-The app is mid-migration from a hand-rolled `useState + useEffect + AppContext` data layer to TanStack Query. As of HEAD `4126a49` on `redesign/editorial-engineering` (2026-04-29), four core domains — `useClassrooms`, `useStudents`, `useTransactions`, `useBehaviors` — are fully migrated. Two legacy hooks remain (`useLayoutPresets`, `useSeatingChart`); they are migration targets, not templates. `AppContext` survives as a thin imperative-wrapper layer for legacy consumers and is scheduled for Phase 4 dissolution. `useAwardPoints` is the canonical optimistic-mutation showcase (3 cache patches: transactions + classrooms + students).
+The app is mid-migration from a hand-rolled `useState + useEffect + AppContext` data layer to TanStack Query. As of HEAD `cad3cfa` on `main` (2026-05-31), four core domains — `useClassrooms`, `useStudents`, `useTransactions`, `useBehaviors` — are fully migrated. Two legacy hooks remain (`useLayoutPresets`, `useSeatingChart`); they are migration targets, not templates. `AppContext` survives as a thin imperative-wrapper layer for legacy consumers and is scheduled for Phase 4 dissolution. `useAwardPoints` is the canonical optimistic-mutation showcase (3 cache patches: transactions + classrooms + students).
 
-A separate, parallel UI redesign (the "editorial / engineering" track on `redesign/editorial-engineering`) replaces the prior visual language with a terracotta accent, Instrument Serif + Geist + JetBrains Mono typography, and a semantic-token system in `src/index.css` `@theme`. Phase 1 introduced the token cascade; Phase 2 redesigned inner screens (in-class workflow + settings). Hardcoded `bg-blue-*` / `from-indigo-*` references throughout the codebase pick up the new accent automatically via the cascade aliases.
+The "editorial / engineering" UI redesign has merged to `main` (PR #86, `6b06828`). It replaced the prior visual language with a terracotta accent, Instrument Serif + Geist + JetBrains Mono typography, and a semantic-token system in `src/index.css` `@theme`. Phase 1 introduced the token cascade; Phase 2 redesigned inner screens (in-class workflow + settings). Hardcoded `bg-blue-*` / `from-indigo-*` references throughout the codebase pick up the new accent automatically via the cascade aliases.
 
 ## Technology stack
 
@@ -27,7 +27,7 @@ See `docs/project-overview.md` for the version-pinned table. Critical version co
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Topology      | Client SPA + BaaS. No app-tier server.                                                                                                                                                                                                                                                                                                                                                                                                          |
 | State         | Server state in TanStack Query (4 migrated domains, 2 legacy). UI state in component-local React state. Cross-cutting UI/session state (active classroom, modal flags, batch correlation refs) in `AppContext`.                                                                                                                                                                                                                                 |
-| Auth          | Supabase Auth (`@supabase/supabase-js`). JWT in `localStorage` (key prefix `sb-`). On boot, `AuthContext` validates the cached session with `supabase.auth.getUser()`; validation failure signs out locally, purges `sb-*` keys, and routes to login. A 5s `AbortController` exists in code, but its signal is not passed to `getUser()` yet, so it is not an enforced timeout.                                                                 |
+| Auth          | Supabase Auth (`@supabase/supabase-js`). JWT in `localStorage` (key prefix `sb-`). On boot, `AuthContext` validates the cached session with `supabase.auth.getUser()`, wrapped in `Promise.race` against a 5s timeout that genuinely fires (the earlier unwired `AbortController` was replaced, since `getUser()` accepts no `AbortSignal`); validation failure signs out locally, purges `sb-*` keys, and routes to login.                     |
 | Authorization | Postgres RLS. Every table has policies keyed on `auth.uid()`; classrooms own users, and students/transactions/seating descend transitively.                                                                                                                                                                                                                                                                                                     |
 | Realtime      | 2 domains: `students` table (stored lifetime totals / identity changes) and `point_transactions`. `useStudents` is the SINGLE realtime owner for `students` AND for `point_transactions` DELETE events; `useTransactions` subscribes to `point_transactions` for invalidation. Seating-chart was previously a target realtime domain; that cross-device drag use case was dropped 2026-05-13 and seating-chart now uses on-demand invalidation. |
 | Routing       | None. View state is `useState<View>` in `App.tsx`, persisted to `localStorage:app:view`. Five views: `home`, `dashboard`, `settings`, `migration`, `profile`.                                                                                                                                                                                                                                                                                   |
@@ -96,7 +96,7 @@ Non-realtime (explicit, NOT default-by-omission): `classrooms`, `behaviors`, `la
 - **DB types** (`snake_case`) live in `src/types/database.ts` as `Database` + `DbX` / `NewX` / `UpdateX` aliases.
 - **App types** (`camelCase`) live in `src/types/index.ts`.
 - **Conversion** in `src/types/transforms.ts`: `dbToBehavior`, `dbToClassroom`, `dbToStudent`, `dbToPointTransaction`. Transform at the `queryFn` boundary so `snake_case` never leaks into components.
-- **Exception**: `useTransactions` deliberately keeps `DbPointTransaction` shape because 45 legacy consumers read it directly via `useApp().transactions`. `dbToPointTransaction` is `{ ...row }` passthrough that formalizes the boundary without reshaping fields.
+- **Exception**: `useTransactions` deliberately keeps `DbPointTransaction` shape because legacy consumers read it directly via `useApp().transactions`. `dbToPointTransaction` is `{ ...row }` passthrough that formalizes the boundary without reshaping fields.
 
 ## State management
 
@@ -111,7 +111,7 @@ See `docs/state-management.md` for the full pattern catalog. Two-layer model:
 
 - Holds UI/session state (`activeClassroomId`, modal flags, `batchKindRef`).
 - Holds thin imperative wrappers (`createClassroom`, `awardPoints`, `awardClassPoints`, `awardPointsToStudents`, `addBehavior` family, `clearStudentPoints`, `adjustStudentPoints`, `resetClassroomPoints`) that adapt the new mutation hooks to legacy callers. Most direct mutation wrappers propagate `mutateAsync` errors; legacy student wrappers catch/log and batch award orchestrators handle failures separately.
-- **Wrapper-throw nuance**: `awardClassPoints` and `awardPointsToStudents` orchestrate per-student `Promise.all` and SILENTLY filter rejected promises to nulls (`AppContext.tsx:410-424`, `:455-469`). The orchestrator returns the "successful" results; per-item failures vanish. Both wrappers now delete the local `batchKindRef` entry when every mutation fails, but they still do not surface partial failure counts to the caller.
+- **Wrapper-throw nuance**: `awardClassPoints` (`AppContext.tsx:329-351`) and `awardPointsToStudents` (`:375-395`) orchestrate per-student `Promise.all` where each `mutateAsync(...).catch(...)` `console.error`s the rejection and returns `null`; the orchestrator filters nulls and returns only successes, so per-item failures are logged but never reach the caller/UI (anti-pattern audit cluster #2). Both wrappers delete the local `batchKindRef` entry only when EVERY mutation fails; partial-failure counts are still not surfaced.
 
 **New components MUST**:
 
@@ -143,7 +143,7 @@ ADR-005 §4 (a)–(e) compliance, inline in the hook (`src/hooks/useTransactions
 
 1. On mount, `getSession()` reads the cached session from `localStorage`.
 2. If a cached session exists, validate it against the server with `supabase.auth.getUser()`.
-3. If validation fails OR throws: log warning, `signOut({ scope: 'local' })`, manually `localStorage.removeItem(...)` every `sb-*` key, route to login. The surrounding 5s `AbortController` is scaffolding until its signal is wired into the auth request.
+3. If validation fails OR throws: log warning, `signOut({ scope: 'local' })`, `purgeAuthStorage()` removes every `sb-*` key from `localStorage`, route to login. Validation is bounded by `Promise.race([getUser(), timeoutPromise])` where `timeoutPromise` rejects after 5s — a genuine enforced timeout (the prior unwired `AbortController` was replaced because `getUser()` accepts no `AbortSignal`). A detached `userPromise.catch(() => {})` prevents an unhandled rejection if the timeout wins.
 4. `onAuthStateChange` listener handles user-id transitions. The first event (`prev === undefined`) is INITIAL_SESSION and is NOT treated as a transition (so user A's cache can't flash on user B's first render). On a user-id transition (account-switch), `queryClient.clear()` runs.
 5. `signOut()` also `queryClient.clear()`s — defense-in-depth, doesn't depend on the listener winning the race.
 
@@ -151,7 +151,7 @@ This is the "stale-JWT graceful degrade" fix from commit `d652260`.
 
 ## UI / Design System
 
-Editorial / engineering redesign on `redesign/editorial-engineering`. Lives entirely in `src/index.css` `@theme` block + the redesigned components.
+Editorial / engineering redesign, merged to `main` via PR #86 (`6b06828`). Lives entirely in `src/index.css` `@theme` block + the redesigned components.
 
 **Tokens** (`src/index.css`):
 

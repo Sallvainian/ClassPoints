@@ -1,6 +1,6 @@
 # ClassPoints Documentation
 
-_Last generated: 2026-04-29 via BMad document-project full rescan, exhaustive scan._
+_Last generated: 2026-05-31 via BMad document-project full rescan, exhaustive scan (HEAD `cad3cfa` on `main`)._
 
 ClassPoints is a React classroom-management app for teachers to track behavior points, classroom totals, today/this-week roll-ups, seating charts, and per-user sound feedback. It is a client-only SPA backed by Supabase Auth, Postgres, Realtime, RLS, and RPCs.
 

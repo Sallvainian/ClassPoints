@@ -1,6 +1,6 @@
 # Development Guide
 
-_Generated 2026-04-29 (exhaustive full rescan)._
+_Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
 
 ## Prerequisites
 
@@ -9,7 +9,7 @@ _Generated 2026-04-29 (exhaustive full rescan)._
 - **fnox** — age-encrypted secrets loader. Required for hosted dev / build / preview / migrate. NOT required for local dev (default mode reads `.env.test`).
 - **age private key** — needed to decrypt `fnox.toml`. The two recipient public keys are listed in `fnox.toml`.
 - **Docker daemon** — required for local Supabase (`npm run test:e2e`, `npm run dev` when pointed at a local URL). On macOS use OrbStack (preferred — fastest cold-start), Docker Desktop, or Colima. `scripts/dev.mjs` will preflight and auto-start the daemon if it's down (commit `136f493`).
-- **Supabase CLI** — installed as a devDependency (`supabase ^2.95.0`). Invoked via `npx supabase ...`. CI pins to the same version (see `.github/workflows/test.yml`).
+- **Supabase CLI** — installed as a **brew global** (no longer an npm devDependency; the `supabase` package was dropped). Invoked directly as `supabase ...`. CI installs a pinned `2.95.0` via `supabase/setup-cli@v1` (see `.github/workflows/test.yml`); your local brew version may be newer (e.g. `2.102.0`).
 - **Playwright browsers** — installed by `npx playwright install chromium` the first time you run E2E.
 - **Tailscale** (optional) — `playwright.config.ts` and `scripts/lib/supabase-host.mjs` allow Tailscale CGNAT (`100.64.0.0/10`) hosts so a Linux box can drive a Mac-hosted local Supabase, or vice versa.
 
@@ -81,7 +81,7 @@ cp .env.test.example .env.test
    - URL is local AND stack is down → start it (after Docker preflight); stop it on exit.
    - URL is local AND stack is already up → leave it alone (do NOT stop on exit).
    - URL is remote (e.g. another machine's Tailscale IP) → skip lifecycle entirely.
-   - `isStackRunning()` uses a `curl` HTTP probe of `<url>/auth/v1/health` instead of `npx supabase status` — the CLI exits 0 even when containers are missing, so it would falsely claim "already up" after a previous run torn things down.
+   - `isStackRunning()` uses a `curl` HTTP probe of `<url>/auth/v1/health` instead of `supabase status` — the CLI exits 0 even when containers are missing, so it would falsely claim "already up" after a previous run torn things down. `scripts/dev.mjs` also wraps `supabase start` in `startSupabaseWithRecovery` (one `supabase stop` + retry) to clear stale CLI-vs-container state after sleep/wake.
 
 2. **`npm run test:e2e`** — `tests/e2e/global-setup.ts` is the owner.
    - Starts the stack, seeds the test user (idempotent), runs tests.
@@ -96,7 +96,7 @@ cp .env.test.example .env.test
 - Config: `vitest.config.ts`. jsdom environment, globals on, setup file at `src/test/setup.ts`.
 - Tests live next to source under `src/test/`, `src/hooks/__tests__/`, `src/utils/__tests__/`, and `src/contexts/`.
 - Vitest **4** API — older v1 patterns may not apply; check existing tests under `src/test/**`.
-- `tdd-guard-vitest` is installed as a devDependency but NOT wired into `vitest.config.ts` — latent tooling only.
+- (`tdd-guard-vitest` was removed in `280fa10` to close Dependabot alerts — it is no longer a dependency.)
 
 ### Backend integration (Vitest + Node)
 

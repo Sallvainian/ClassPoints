@@ -1,40 +1,41 @@
 # Project Overview
 
-_Generated 2026-04-29 (exhaustive full rescan)._
+_Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
 
 ClassPoints is a classroom-management web app for teachers. It tracks per-student behavior points, classroom totals, today/this-week roll-ups, seating charts, and per-user sound feedback. It is a client-only React SPA — there is no app server. The browser talks directly to Supabase Auth + Postgres + Realtime + RLS + RPCs.
 
 ## Snapshot
 
-| Attribute          | Value                                                                              |
-| ------------------ | ---------------------------------------------------------------------------------- |
-| Type               | Single-page web application, monolith                                              |
-| Architecture       | React SPA + Supabase BaaS                                                          |
-| Language           | TypeScript ~5.9.3, strict mode                                                     |
-| Framework          | React 18.3.1                                                                       |
-| Build              | Vite 6.4.2 (`base: '/ClassPoints/'`)                                               |
-| Styling            | Tailwind CSS 4.2.4 + `@tailwindcss/postcss` 4.2.4 (v4 syntax only)                 |
-| Server-state cache | TanStack Query 5.100.1 (devtools 5.100.1)                                          |
-| Backend            | `@supabase/supabase-js` 2.104.1                                                    |
-| Drag-and-drop      | `@dnd-kit/core` 6.3.1 + `@dnd-kit/utilities` 3.2.2                                 |
-| Icons              | `lucide-react` 1.9.0 (sole library — no Heroicons / FontAwesome)                   |
-| Tests              | Vitest 4.1.5 + jsdom 27.4.0 + Vitest backend integration + Playwright 1.59.1       |
-| Lint / Format      | ESLint 9.39.2 (flat config), Prettier 3.8.3                                        |
-| Hooks              | `simple-git-hooks` + `lint-staged` (pre-commit: eslint-fix + prettier + typecheck) |
-| Secrets            | `fnox` + age-encrypted `fnox.toml`                                                 |
-| Env loader         | mise (`mise.toml`)                                                                 |
-| Deploy             | GitHub Pages (`.github/workflows/deploy.yml`)                                      |
-| Local DB           | Supabase CLI 2.95.0 (`npx supabase start` / `npm run dev` lifecycle)               |
+| Attribute          | Value                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| Type               | Single-page web application, monolith                                                                   |
+| Architecture       | React SPA + Supabase BaaS                                                                               |
+| Language           | TypeScript ~5.9.3, strict mode                                                                          |
+| Runtime (Node)     | `>=25` (`package.json` engines; `.nvmrc` = 25; `@types/node` 25.6.0)                                    |
+| Framework          | React 18.3.1                                                                                            |
+| Build              | Vite 6.4.2 (`base: '/ClassPoints/'`)                                                                    |
+| Styling            | Tailwind CSS 4.2.4 + `@tailwindcss/postcss` 4.2.4 (v4 syntax only)                                      |
+| Server-state cache | TanStack Query 5.100.1 (devtools 5.100.1)                                                               |
+| Backend            | `@supabase/supabase-js` 2.104.1                                                                         |
+| Drag-and-drop      | `@dnd-kit/core` 6.3.1 + `@dnd-kit/utilities` 3.2.2                                                      |
+| Icons              | `lucide-react` 1.9.0 (sole library — no Heroicons / FontAwesome)                                        |
+| Tests              | Vitest 4.1.5 + jsdom 27.4.0 + Vitest backend integration + Playwright 1.59.1                            |
+| Lint / Format      | ESLint 9.39.2 (flat config), Prettier 3.8.3                                                             |
+| Hooks              | `simple-git-hooks` + `lint-staged` (pre-commit: eslint-fix + prettier + typecheck)                      |
+| Secrets            | `fnox` + age-encrypted `fnox.toml`                                                                      |
+| Env loader         | mise (`mise.toml`)                                                                                      |
+| Deploy             | GitHub Pages (`.github/workflows/deploy.yml`)                                                           |
+| Local DB           | Supabase CLI — brew-installed global, no longer an npm dep (`supabase start` / `npm run dev` lifecycle) |
 
-## Active branch
+## Current HEAD
 
-`redesign/editorial-engineering` included HEAD `4126a49` (`fix: align realtime delete payload contract`) when this scan started. This refresh also incorporates the AppContext disabled-query loading fix: classroom-scoped `useStudents` / `useTransactions` loading now uses `isLoading` so a brand-new browser with no active classroom does not stay on the dashboard loading screen.
+`main` at `cad3cfa` (`docs: drop seating-chart from realtime scope (3→2 domains)`). The `redesign/editorial-engineering` work has since merged to `main` via PR #86 (`6b06828` — editorial redesign + local-first dev flow + correctness fixes), along with the context-hook split (`react-refresh/only-export-components`), the Node-25 toolchain sync, the brew Supabase CLI switch, the database-linter-hardening migration, and the Insubordination default behavior. The AppContext disabled-query loading fix (classroom-scoped `useStudents` / `useTransactions` use `isLoading` so a brand-new browser with no active classroom does not stay on the dashboard loading screen) is also in.
 
 ## What's in motion
 
 - **TanStack migration**: `useClassrooms`, `useStudents`, `useTransactions`, `useBehaviors` are migrated. `useLayoutPresets` and `useSeatingChart` are legacy hand-rolled hooks scheduled for migration. `AppContext` is being dissolved (Phase 4).
-- **Editorial UI redesign**: terracotta accent, Instrument Serif + Geist + JetBrains Mono typography, semantic-token system. Cascade aliases retone hardcoded `bg-blue-*`/`from-indigo-*`/`from-purple-*` for free; hand-redesigned surfaces include Sidebar, ClassPointsBox, DashboardView, and parts of seating + settings.
-- **Local-first dev loop**: `npm run dev` is local-by-default; Docker daemon preflight + auto-managed Supabase stack lifecycle. Hosted-Supabase is `npm run dev:hosted` (explicit fnox).
+- **Editorial UI redesign** (landed via PR #86): terracotta accent, Instrument Serif + Geist + JetBrains Mono typography, semantic-token system. Cascade aliases retone hardcoded `bg-blue-*`/`from-indigo-*`/`from-purple-*` for free; hand-redesigned surfaces include Sidebar, ClassPointsBox, DashboardView, and parts of seating + settings. A few screens (SeatingChart\*, ImportStudentsModal, MigrationWizard, SyncStatus) are cascade-only by design.
+- **Local-first dev loop** (landed): `npm run dev` is local-by-default; Docker daemon preflight + auto-managed Supabase stack lifecycle, with brew-CLI stale-state recovery. Hosted-Supabase is `npm run dev:hosted` (explicit fnox).
 
 ## Quick reference
 
