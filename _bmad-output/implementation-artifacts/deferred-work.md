@@ -172,3 +172,47 @@ These are spec seeds for future `bmad-quick-dev` or story/spec generation. They 
 - **Why deferred:** Cannot tell from the diff whether the softening was deliberate or accidental. If deliberate, no action — the new wording matches direction of travel. If a side-effect of the markdown-cleanup pass, this is a substantive policy change buried in a "formatting" cleanup.
 - **Follow-up:** Confirm intent. If deliberate, leave as-is and consider explicitly framing it: `"Minimize prop drilling. For server data, call mutation/query hooks directly (per project-context.md). \`useApp()\` is a transitional facade for AppContext-managed state; do not add new server-data wrappers to it."`If accidental, restore the harder`"use \`useApp()\` instead"` form.
 - **RESOLVED in `07ea061`** — confirmed deliberate (the format pass dehyphenated/decapitalized all 16 rules consistently) but the prop-drilling rule was the only one whose meaning changed, and the new wording was underspecified. Tightened to explicit guidance matching `_bmad-output/project-context.md`: call mutation/query hooks (`useAwardPoints`, `useStudents`, `useBehaviors`) directly for server data; do not add new server-data fields or wrapper functions to `useApp()`. The old "use `useApp()` instead" form would have actively contradicted project-context.md's "MUST NOT add new fields/wrapper functions to AppContext" rule, so restoring it was rejected.
+
+## Migration completion roadmap (synthesis, 2026-05-31)
+
+Codebase-verified status + prioritization for finishing the TanStack migration. This does not introduce new work items — it tiers the existing entries (#10–#15 and the correctness items) against the actual goal: **be "done enough" that new feature work no longer falls into the legacy pattern.** Phase numbers reference `docs/modernization-plan.md:320-328`.
+
+### Verified phase status (HEAD `f492624`, 2026-05-31)
+
+| Phase | Scope                                                      | Status      | Evidence                                                                                                                                    |
+| ----- | ---------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | `QueryClientProvider` + devtools gate                      | DONE        | `src/main.tsx`, `src/components/DevtoolsGate.tsx`                                                                                           |
+| 1     | `useBehaviors`                                             | DONE        | `useBehaviors.ts` has `0` `useState/useEffect`                                                                                              |
+| 2     | `useTransactions`, `useClassrooms`, **`useLayoutPresets`** | PARTIAL     | first two `useState=0`; `useLayoutPresets` still hand-rolled (`useLayoutPresets.ts:23-25` 3×`useState`, `:56-75` legacy realtime) — see #11 |
+| 3     | `useStudents`                                              | DONE        | thin `useQuery` + realtime merge                                                                                                            |
+| 4     | slim `AppContext`                                          | NOT STARTED | `AppContext.tsx` 710 LOC; full server-data facade intact (`useApp.ts:17-85`) — see #10                                                      |
+| 5     | `useSeatingChart`                                          | NOT STARTED | 1118 LOC, `chart/loading/error` triple (`:79-81`), 5 manual rollback sites (`:340,526,669,813,871`) — see #12                               |
+| 6     | docs cleanup / rewrite `architecture.md`                   | PARTIAL     | —                                                                                                                                           |
+
+The target hook pattern is **proven 4×** (`useBehaviors`, `useClassrooms`, `useTransactions`, `useStudents` all show `useState=0`). The plan's "smallest-first to validate the pattern" rationale is therefore spent — no remaining item needs a warm-up.
+
+### Tier 1 — keystone (do this to be "done" for new features): Phase 4 / #10
+
+The single thing structurally trapping new code into the legacy pattern is the `useApp()` **server-data facade**. While `classrooms`/`students`/`awardPoints`/… hang off `useApp()` (`useApp.ts:23-84`), the path of least resistance for any new feature is `const { students, awardPoints } = useApp()` — exactly what `project-context.md` forbids. Dissolving the server-data surface removes the trap; the rest are isolated pockets or quality debt.
+
+- **Scope correction:** the plan estimated "~45 files" (`modernization-plan.md:326`). Actual `useApp()` UI consumers = **8**: `ClassSettingsView`, `TeacherDashboard`, `Sidebar`, `DashboardView`, `MultiAwardModal`, `AwardPointsModal`, `ProfileView`, `ClassAwardModal`. (`transforms.ts` match at `:72` is a comment; the rest are AppContext/test infra.)
+- **Mechanical part:** drop 6 data fields (`classrooms`/`behaviors`/`transactions`/`students`/`activeClassroom`/aggregate `loading`+`error`) and ~20 thin mutation wrappers; consumers swap to direct hooks (`useStudents()`, `useAwardPoints()`, …).
+- **Non-mechanical residual (where Phase 4 can balloon — budget for it):**
+  - Selectors `getStudentPoints` / `getClassPoints` / `getStudentTransactions` / `getClassroomTransactions` are derivations over cached data → move to `src/utils/` or inline cache reads.
+  - `getRecentUndoableAction` + `batchKindRef` (consumed by `DashboardView.tsx:30-34`) is genuinely UI/session state (the undo window). It **stays** (in `AppContext` or a `useUndoableAction` hook), refactored to read transactions from the TanStack cache instead of a context field. Entangled with #6 (1Hz poll, `DashboardView.tsx:61-63`) and #7 (`batch_kind` column). Do **not** take the "~150-line" target literally — this is the irreducible core.
+- **Keep Phase 4 behavior-preserving.** Migrate `ClassAwardModal`/`MultiAwardModal` onto direct/new hooks without changing behavior, then fix the silent-partial-failure orchestrators (`awardClassPoints`/`awardPointsToStudents`, anti-pattern cluster #2, `AppContext.tsx:347,393`) and the `resetBehaviorsToDefault` race (#1) as **separate, visible commits**. Folding a behavior change into a "mechanical migration" diff would hide it.
+
+### Tier 2 — isolated pockets, opportunistic
+
+- **#11 `useLayoutPresets` → TanStack.** Clean, self-contained (~166 LOC). `useQuery` + split mutations keyed by `queryKeys.layoutPresets.all`; **delete the legacy `layout_presets` realtime** (already a non-realtime domain). No longer a warm-up — slot it in anywhere.
+- **#12 `useSeatingChart` reshape.** The one genuine fork. Verified fully independent: no `useApp()` coupling, no realtime, isolated to the seating feature → blocks neither Phase 4 nor any non-seating feature. 1118 LOC / high risk. **Decision pending user input: do now only if seating features are imminent; otherwise leave as a self-contained legacy pocket and migrate when seating is next touched.**
+
+### Tier 3 — deferrable quality debt, fold into related work
+
+- **#13 collapse legacy `useRealtimeSubscription` callbacks** — unblocked once #11 lands and the `useStudents` `point_transactions` DELETE branch converts to `onChange`. The only two legacy-callback callers today are `useLayoutPresets` and that DELETE branch. Do immediately after Tier 2.
+- **#14 `unwrap()` Supabase error helper**, **#15 runtime validation for JSONB/realtime casts** — broad, non-blocking; incremental.
+- **#8** RPC fan-out batching, **#5/#2** paused-mutation `networkMode` UX — not blockers.
+
+### Definition of "done for new features"
+
+Tier 1 complete = `AppContext` exposes only UI/session state + the undo-window machinery; new features call hooks directly. At that point the migration is functionally finished for the purpose of building features; Tiers 2–3 can be burned down opportunistically without blocking anything.
