@@ -46,6 +46,7 @@ supabase/.temp/
 playwright-report/
 test-results/
 .playwright-mcp/
+.playwright-cli/
 _bmad/
 .auth/
 src.zip
