@@ -2,7 +2,7 @@
 title: 'TanStack Query migration — Phase 3 (`useStudents` + dissolve `refetchStudents` bridge + single-owner students realtime)'
 type: 'refactor'
 created: '2026-04-25'
-status: 'draft'
+status: 'done'
 baseline_commit: '9ecf4ad'
 context:
   - _bmad-output/planning-artifacts/prd.md

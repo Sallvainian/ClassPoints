@@ -2,7 +2,7 @@
 title: 'TanStack Query migration — Phase 2 (`useClassrooms` + `useTransactions` + first optimistic mutation)'
 type: 'refactor'
 created: '2026-04-24'
-status: 'ready'
+status: 'done'
 baseline_commit: 'f9d535e'
 context:
   - _bmad-output/planning-artifacts/prd.md
