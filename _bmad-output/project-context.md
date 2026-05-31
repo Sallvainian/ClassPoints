@@ -1,7 +1,7 @@
 ---
 project_name: ClassPoints
 user_name: Sallvain
-date: 2026-04-29
+date: 2026-05-31
 sections_completed:
   [
     'migration_status',
@@ -23,13 +23,13 @@ optimized_for_llm: true
 
 # Project Context for AI Agents
 
-_Critical rules and patterns AI agents must follow when implementing code in this project. Focus on unobvious details. Complement — do not duplicate — `CLAUDE.md`, `AGENTS.md`, and `.claude/rules/*`._
+_Critical rules and patterns AI agents must follow when implementing code in this project. Focus on unobvious details. Complement — do not duplicate — `CLAUDE.md` and `AGENTS.md`._
 
 ---
 
 ## Migration Status (READ FIRST)
 
-**Snapshot taken at HEAD `201c4ae` on branch `redesign/editorial-engineering` (2026-04-29).** If `git log --oneline -5` no longer matches the recent commit list (`201c4ae` → `52fb563` → `4126a49` → `1cca167` → `3057ade`), treat this section as stale and re-derive phase status from `_bmad-output/planning-artifacts/prd.md`, `docs/architecture.md`, and the actual hook code before trusting the claims below.
+**Snapshot taken at HEAD `48f3c01` on branch `main` (2026-05-31).** If `git log --oneline -5` no longer matches the recent commit list (`48f3c01` → `cad3cfa` → `93001d3` → `5bcc930` → `280fa10`), treat this section as stale and re-derive phase status from `_bmad-output/planning-artifacts/prd.md`, `docs/architecture.md`, and the actual hook code before trusting the claims below.
 
 **Phase 3 of the core TanStack Query migration is COMPLETE for the hooks below.** These hooks are TanStack `useQuery` / `useMutation` wrappers and return the target shape (`data`, `isLoading`, `isPending`, `error`, `mutate`, …):
 
@@ -49,7 +49,7 @@ _Critical rules and patterns AI agents must follow when implementing code in thi
 - `useLayoutPresets` — 166 LOC, legacy `presets/loading/error/refetch` shape, and still uses legacy realtime callbacks. **DO NOT clone its shape.** Target state is a thin TanStack hook with on-demand invalidation, not realtime.
 - `useSeatingChart` — 23-value return; deferred reshape per anti-pattern audit cluster #5. **DO NOT clone its shape.** Use the canonical templates above instead.
 
-**`AppContext` post-Phase-3** (`src/contexts/AppContext.tsx`, 797 LOC):
+**`AppContext` post-Phase-3** (`src/contexts/AppContext.tsx`, 710 LOC):
 
 - Holds UI/session state (`activeClassroomId`, modal flags, `batchKindRef`).
 - Holds thin imperative wrappers (`createClassroom`, `awardPoints`, `awardClassPoints`, `awardPointsToStudents`, `addBehavior` family, `clearStudentPoints`, `adjustStudentPoints`, `resetClassroomPoints`) that adapt the new mutation hooks to legacy callers. Each individual wrapper throws on Supabase failure (ADR-005 §2).
@@ -62,7 +62,7 @@ _Critical rules and patterns AI agents must follow when implementing code in thi
 **Wrapper-throw nuance — read both:**
 
 - The individual wrapper throws (`addBehavior`, `updateBehavior`, `awardPoints`, etc.).
-- BUT `awardClassPoints` and `awardPointsToStudents` orchestrate per-student `Promise.all` and SILENTLY filter rejected promises to nulls (`AppContext.tsx:419-422`, `:465-468`). The orchestrator returns the "successful" results; per-item failures vanish. This is anti-pattern audit cluster #2. **Do NOT infer a clean throw-on-failure contract at orchestrator call sites just because the inner wrapper throws.** Two source comments at `ClassAwardModal.tsx:64` and `MultiAwardModal.tsx:62` claim "wrapper throws on error with automatic rollback" — those comments are LIES, scheduled for deletion when cluster #2 is fixed.
+- BUT `awardClassPoints` and `awardPointsToStudents` orchestrate per-student `Promise.all` and SILENTLY filter rejected promises to nulls (`AppContext.tsx:347`, `:393`). The orchestrator returns the "successful" results; per-item failures vanish. This is anti-pattern audit cluster #2 (audit verdict: REAL, sev 5). **Do NOT infer a clean throw-on-failure contract at orchestrator call sites just because the inner wrapper throws.** The misleading "wrapper throws on error with automatic rollback" comments that once sat in the award modals have since been deleted (the modals now live under `src/components/points/`), but the silent-filter behavior itself is unchanged — cluster #2 remains open.
 
 **Authoritative sources — read before writing state/data code:**
 
@@ -97,10 +97,11 @@ MUST update ADR-005 §6 AND this section in the same commit. "Decide later" is n
 
 ## Technology Stack & Versions
 
-**Current snapshot:** HEAD `201c4ae` on branch `redesign/editorial-engineering` (2026-04-29). Re-check this section if HEAD moves.
+**Current snapshot:** HEAD `48f3c01` on branch `main` (2026-05-31). Re-check this section if HEAD moves.
 
 **Runtime / Build**
 
+- Node.js ≥25 required (`package.json` `engines.node: ">=25"`); toolchain synced to Node 25 in commit `07ea061`.
 - React 18.3.1 + React DOM 18.3.1. Use React 18 features only; do not use React 19 APIs.
 - TypeScript 5.9.3 with strict mode, `moduleResolution: "bundler"`, `isolatedModules`, `moduleDetection: "force"`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, and `noUncheckedSideEffectImports`.
 - Vite 6.4.2 with `@vitejs/plugin-react` 4.7.0 and `base: "/ClassPoints/"`.
@@ -125,7 +126,6 @@ MUST update ADR-005 §6 AND this section in the same commit. "Decide later" is n
 - Vitest 4.1.5 + jsdom 27.4.0 for unit tests.
 - Playwright 1.59.1 for Chromium E2E.
 - `@seontechnologies/playwright-utils` 4.3.0 provides E2E fixture helpers.
-- `tdd-guard-vitest` 0.2.0 is installed but not wired into `vitest.config.ts`.
 
 **Lint / Format**
 
@@ -165,7 +165,7 @@ MUST update ADR-005 §6 AND this section in the same commit. "Decide later" is n
 - Use `lucide-react` for new icons and route sounds through `SoundProvider` / `useSoundEffects`; do not instantiate `new Audio()` in components.
 - Keep lazy loading at the top-level view boundary. Bridge named exports with `.then((m) => ({ default: m.View }))` when using `React.lazy()`.
 
-**Known transition zones to avoid copying:** `AppContext` wrappers, `useLayoutPresets`, `useSeatingChart`, legacy realtime callbacks, `SoundSettingsModal` chrome, and any component still reading migrated server data through `useApp()`.
+**Known transition zones to avoid copying:** `AppContext` wrappers, `useLayoutPresets`, `useSeatingChart`, legacy realtime callbacks, and any component still reading migrated server data through `useApp()`.
 
 ### Supabase, Realtime & Data Access
 
@@ -230,7 +230,7 @@ Plain mutations (no `onMutate`) carry NO Phase 2 regression surface; the (a)–(
 
 **Devtools DCE pattern (NFR4) — non-negotiable**
 
-The pattern lives in `src/main.tsx:14-24`:
+The pattern lives in `src/components/DevtoolsGate.tsx` (rendered from `src/main.tsx`):
 
 ```tsx
 function DevtoolsGate() {
@@ -309,13 +309,14 @@ Three sites use `as T` on Supabase data with no runtime guarantees and need sche
 
 **Migration sequencing**
 
-- 11 migrations exist (`001_initial_schema.sql` → `011_add_student_point_totals.sql`). Zero-padded prefix.
-- Increment from the last file in `supabase/migrations/`. Don't reuse a number, even for renames.
-- Realtime enabled at `004_enable_realtime.sql`; `REPLICA IDENTITY FULL` at `005_replica_identity_full.sql`; `batch_id` at `006_add_batch_id.sql`; sound settings at `007`; seating charts at `008`; room element fixes at `009` / `010`; denormalized totals at `011`.
+- 13 migration files. The first 12 use a zero-padded sequential prefix (`001_initial_schema.sql` → `012_add_insubordination_behavior.sql`); the most recent uses the Supabase-CLI timestamp prefix (`20260429181608_harden_database_linter_findings.sql`).
+- **New migrations should be created via `supabase migration new <name>`**, which emits the timestamp-prefixed form — those sort after the legacy zero-padded set. Do not reuse or renumber an existing zero-padded prefix.
+- Realtime enabled at `004_enable_realtime.sql`; `REPLICA IDENTITY FULL` at `005_replica_identity_full.sql`; `batch_id` at `006_add_batch_id.sql`; sound settings at `007`; seating charts at `008`; room element fixes at `009` / `010`; denormalized totals at `011`; `Insubordination` default behavior at `012`.
+- **Security hardening (`20260429181608_harden_database_linter_findings.sql`):** drops the `pg_graphql` extension (the app uses supabase-js table queries, not GraphQL), creates a `private` schema for `SECURITY DEFINER` trigger helpers (revoked from `PUBLIC`/`anon`/`authenticated`), and recreates public trigger/RPC functions with an explicit `SET search_path = ''`. Do NOT re-enable `pg_graphql`; new `SECURITY DEFINER` helpers belong in `private`, and new functions must set an explicit `search_path`.
 
 **Service-role key handling (Node-side scripts/tests only)**
 
-- `scripts/seed-test-user.ts`, `scripts/seed-test-classroom.ts`, `scripts/seed-counter-data.ts`, `scripts/verify-undo-fix.ts`, and `tests/support/helpers/supabase-admin.ts` use `process.env.SUPABASE_SERVICE_ROLE_KEY` (Node-side only).
+- `scripts/seed-test-user.ts`, `scripts/seed-test-classroom.ts`, `scripts/seed-counter-data.ts`, `tests/support/helpers/supabase-admin.ts`, and `tests/e2e/global-setup.ts` use `process.env.SUPABASE_SERVICE_ROLE_KEY` (Node-side only). (`scripts/verify-undo-fix.ts` also uses it but is a gitignored local-only utility, not tracked.)
 - `npm run test:seed` runs local seeding from `.env.test`. Hosted/production credentials stay env-injected (for example through `fnox exec --`), never hardcoded.
 - A service-role import sneaking into `src/**` is a data-leak vulnerability — every code review should grep for `service_role` in the diff.
 
@@ -335,7 +336,6 @@ Three sites use `as T` on Supabase data with no runtime guarantees and need sche
 - E2E specs import `test`/`expect` from `tests/support/fixtures`, not directly from Playwright, so the merged `playwright-utils` fixtures stay consistent.
 - Shared `.auth/user.json` means parallel E2E specs use the same test user. Mutating specs must namespace data with helpers like `uniqueSlug()` and clean up through fixtures or `afterEach`/`afterAll`.
 - Do not add arbitrary sleeps. Use Playwright locators/expectations, Testing Library `findBy*`/`waitFor`, or `recurse` for polling eventual consistency.
-- `tdd-guard-vitest` is installed but not wired into `vitest.config.ts`; treat it as latent tooling until a PR adds reporters and a gate.
 - Current CI is split: `.github/workflows/test.yml` runs lint, typecheck, bundle check, sharded E2E, and E2E burn-in; `.github/workflows/deploy.yml` also runs `npm run test -- --run` before Pages build.
 - No coverage threshold is enforced today. Add focused tests based on risk, not a numeric target.
 
@@ -396,7 +396,7 @@ _Captures the editorial/engineering redesign that landed in commits `ae7a9a8` (P
 - `<Input>` (`src/components/ui/Input.tsx`) — `label` (mono uppercase, `text-[11px] tracking-[0.12em] text-ink-muted`) and `error` props. Auto-derives `id` from `label.toLowerCase().replace(/\s+/g, '-')` if `id` not provided. Hairline border + accent-500 focus ring; switches to red-500 border/ring when `error` is set.
 - `<Modal>` (`src/components/ui/Modal.tsx`) — title-and-body. ARIA: `role="dialog" aria-modal="true" aria-labelledby="modal-title"`. Built-in body-scroll-lock + escape-to-close + animated fade/scale entry. Use when the header is just a heading.
 - `<Dialog>` (`src/components/ui/Dialog.tsx`) — chrome-only (overlay + ARIA `aria-label` + scroll-lock + escape + entry animation). Body owner controls every pixel inside. Use when you need a custom header (avatar, multi-row meta). Same scroll-lock + escape semantics as `Modal`.
-- **Do not hand-roll modal markup.** `AwardPointsModal`, `ClassAwardModal`, `MultiAwardModal` were converted onto `<Dialog>` in commit `ae7a9a8`. `SoundSettingsModal` is the lone holdout still re-implementing chrome (also flagged in Code Quality / Modal chrome).
+- **Do not hand-roll modal markup.** `AwardPointsModal`, `ClassAwardModal`, `MultiAwardModal` (now under `src/components/points/`) were converted onto `<Dialog>` in commit `ae7a9a8`; `SoundSettingsModal` (`src/components/settings/SoundSettingsModal.tsx`) has since been converted to `<Dialog>` too. New modals always use `Modal` or `Dialog`, never hand-rolled chrome.
 
 **Card / tile pattern**
 
@@ -424,16 +424,16 @@ _Captures the editorial/engineering redesign that landed in commits `ae7a9a8` (P
 **Auth boot — graceful stale-JWT degrade (`src/contexts/AuthContext.tsx`)**
 
 - On boot the provider reads the cached session via `supabase.auth.getSession()`, then validates against the server with `supabase.auth.getUser()`. On any validateError (network, 401, refresh-token rejected), it calls `supabase.auth.signOut({ scope: 'local' })` and then iterates `localStorage`, removing every `sb-*` key, and clears local React state — routing the app to the login screen rather than letting the GoTrueClient's auto-refresh loop forever (`AuthContext.tsx:55-138`).
-- A 5-second `setTimeout` + `AbortController` is set up around the validation block; the abort `signal` is **not** currently passed to `supabase.auth.getUser()`, so it functions as scaffolding for a future hard timeout rather than enforcing one today. Treat the stale-JWT branch as "any error → purge `sb-*` and route to login," not "exactly 5 s."
-- The provider also gates `queryClient.clear()` on a real user-id transition — first event (`prev === undefined`) and `null → null` no-ops pass through; only `userA → userB` (or explicit `signOut`) clears the cache (`AuthContext.tsx:43, 146-158, 224-232`). Don't clear elsewhere on auth events; you'll race with this.
+- Validation is wall-clock-bounded by `Promise.race([getUser(), timeoutPromise])`, where `timeoutPromise` rejects after 5000 ms (`AuthContext.tsx:70-90`). `supabase.auth.getUser()` accepts no `AbortSignal` in `@supabase/auth-js` and its fetch has no default timeout, so this race is the ONLY thing keeping a dead `/auth/v1/user` from hanging boot — it genuinely enforces the 5 s bound (no `AbortController`). On timeout OR any validateError, the stale-JWT branch fires: `signOut({ scope: 'local' })` → `purgeAuthStorage()` (removes every `sb-*` key) → route to login (`:92-108`).
+- The provider also gates `queryClient.clear()` on a real user-id transition — first event (`prev === undefined`) and `null → null` no-ops pass through; only `userA → userB` clears the cache (`AuthContext.tsx:132-140`), plus a defense-in-depth clear on the explicit `signOut` path (`:217`). Don't clear elsewhere on auth events; you'll race with this.
 - **Don't bypass this flow.** New auth surfaces hook into `onAuthStateChange` and trust `loading` / `user` from `useAuth()`.
 
 **Local Supabase lifecycle (`scripts/dev.mjs` + `scripts/lib/supabase-host.mjs`)**
 
 - `npm run dev` is local-by-default. The script:
-  1. **Strips fnox-auto-injected `VITE_*` env vars** from the spawned `vite` child process so Vite reads `.env.test` instead of process.env (`dev.mjs:94-101`). The `mise-env-fnox` plugin in `mise.toml` injects them at the shell level — keep the plugin; the strip is local to the child.
+  1. **Strips fnox-auto-injected `VITE_*` env vars** from the spawned `vite` child process so Vite reads `.env.test` instead of process.env (`dev.mjs:104-110`). The `mise-env-fnox` plugin in `mise.toml` injects them at the shell level — keep the plugin; the strip is local to the child.
   2. Calls `ensureDockerRunning()` — starts OrbStack → Docker Desktop → Colima (in that preference order on macOS) if the daemon is dead, polls up to ~30 s. **Never stops Docker** (shared resource). On Linux, prints a hint to start `dockerd` via systemd rather than starting it itself.
-  3. Probes Supabase with `curl -s -o /dev/null -m 2 {url}/auth/v1/health`. **Do NOT use `npx supabase status`** — it exits 0 even when containers are missing (false-positive that previously caused the script to skip a needed start, then fail to clean up on exit; see `supabase-host.mjs:132-155` comment).
+  3. Probes Supabase with `curl -s -o /dev/null -m 2 {url}/auth/v1/health`. **Do NOT use `npx supabase status`** — it exits 0 even when containers are missing (false-positive that previously caused the script to skip a needed start, then fail to clean up on exit; see `supabase-host.mjs:159-172` comment).
   4. Starts the stack on launch if down; stops it on dev exit (signal handlers cover SIGINT/SIGTERM/SIGHUP). If the stack was already up before launch, leaves it alone on exit.
 - `shouldManageLocalStack()` decides whether to manage by parsing the URL hostname against `os.networkInterfaces()` + `tailscale ip` — loopback / RFC1918 LAN / Tailscale CGNAT count as local; remote hosts skip lifecycle.
 - `npm run dev:hosted` is the explicit `fnox exec -- vite` fallback for hosted-Supabase repro.
@@ -482,14 +482,14 @@ _Captures the editorial/engineering redesign that landed in commits `ae7a9a8` (P
 - `useSeatingChart`, `useLayoutPresets`, `AppContext` legacy wrappers, and the legacy `useRealtimeSubscription` callback shape are migration targets — don't imitate them. The canonical templates are `useBehaviors.ts` (thin query), `useTransactions.ts:useAwardPoints` (optimistic mutation), and `useStudents.ts` (realtime + cache merge).
 - Prefer the more restrictive option when in doubt.
 - If you encounter a pattern that contradicts this file, surface the conflict — don't silently break from the docs.
-- When this file's claims feel stale (HEAD has moved, file:line refs don't match), treat it as a snapshot and verify against the current code before acting on a specific rule. The Migration Status section's commit list (`201c4ae` → `52fb563` → `4126a49` → `1cca167` → `3057ade`) is the staleness check.
+- When this file's claims feel stale (HEAD has moved, file:line refs don't match), treat it as a snapshot and verify against the current code before acting on a specific rule. The Migration Status section's commit list (`48f3c01` → `cad3cfa` → `93001d3` → `5bcc930` → `280fa10`) is the staleness check.
 
 **For Humans**
 
-- Keep this file lean — it goes into every agent's context. Don't duplicate `CLAUDE.md` / `AGENTS.md` / `.claude/rules/*`; link.
+- Keep this file lean — it goes into every agent's context. Don't duplicate `CLAUDE.md` / `AGENTS.md`; link.
 - Update when the migration phase advances or architectural decisions change. When `useSeatingChart` is reshaped and the `AppContext` wrappers dissolve, flip the migration-status section accordingly.
 - Update the HEAD commit ref + recent-commits list at the top of "Migration Status (READ FIRST)" whenever you regenerate the file, so the staleness check stays useful.
 - Remove rules that become enforceable by tooling (e.g., when `unwrap()` lands and ESLint enforces it, the planned-fix paragraph collapses to one line).
 - Re-run the audit (`_bmad-output/anti-pattern-audit.md`) periodically to catch new clusters; cite verdicts (REAL / OVERSTATED / FALSE POSITIVE) in this file rather than re-litigating.
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-31_
