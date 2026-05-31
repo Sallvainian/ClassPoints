@@ -36,6 +36,7 @@ supabase/.temp/
 .agents/
 .air/
 .bmad/
+.codex/
 .claude/*
 !.claude/rules/
 .cursor/
