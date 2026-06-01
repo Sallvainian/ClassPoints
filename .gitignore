@@ -49,8 +49,13 @@ test-results/
 .playwright-mcp/
 .playwright-cli/
 _bmad/
+# BMAD output_folder (see _bmad/*/config.yaml output_folder) — generated
+# planning / spec / traceability / gate artifacts, regenerated every run.
+_bmad-output/
 .auth/
 src.zip
+# Skill-generated scratch (playwright-test / BMAD TEA gate outputs)
+skills/
 
 # Local one-off verification scripts (kept on disk but not tracked)
 scripts/verify-*.ts
