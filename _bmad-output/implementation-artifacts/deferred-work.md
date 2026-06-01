@@ -216,3 +216,27 @@ The single thing structurally trapping new code into the legacy pattern is the `
 ### Definition of "done for new features"
 
 Tier 1 complete = `AppContext` exposes only UI/session state + the undo-window machinery; new features call hooks directly. At that point the migration is functionally finished for the purpose of building features; Tiers 2–3 can be burned down opportunistically without blocking anything.
+
+## Architectural decisions resolved (2026-05-31)
+
+Three open questions surfaced by the `_bmad-output/specs/spec-*/SPEC.md` kernels are now decided. Recorded **here** (not only in the kernels) because `bmad-quick-dev` reads `deferred-work.md` and `project-context.md` as input but does **not** read the `SPEC.md` kernels — so a decision only reaches the implementer if it lands in this file's path. Each decision is also baked into the cited spec's constraints.
+
+### D1. `useSeatingChart` UI-state layer → local `useState`, no Zustand (item #12)
+
+- **Resolves:** the PRD's "Zustand Open Question #1" (`planning-artifacts/prd.md:552`) for item #12, and `spec-seating-chart-migration` CAP-3 / constraints.
+- **Decision:** drag / hover / selection / unsaved-edit state lives in local component `useState`, with `useRef` for the high-frequency pointer-move values held during an active drag. **No Zustand store is introduced.**
+- **Why:** a single drag canvas needs no cross-tree state sharing, and Zustand would be a new dependency the rest of the app does not use. Revisit a seating-scoped store only if that state later needs reading by components outside the canvas subtree (it does not, for editing one chart on one screen). This is the drag-layer reading of `prd.md:552`; the PRD's formal lean was option (a) "keep `AppContext` for UI state," which is the wrong vehicle for latency-sensitive drag state.
+
+### D2. Undo-window machinery → extract to a `useUndoableAction` hook (item #10)
+
+- **Resolves:** the open question in item #10 / `spec-appcontext-dissolve` CAP-4.
+- **Decision:** `getRecentUndoableAction` + `batchKindRef` move **out** of `AppContext` into a dedicated `useUndoableAction` hook (consumed by `DashboardView`), refactored to read transactions from the TanStack Query cache instead of a context data field. Undo-toast labeling and the 10-second window behave identically to pre-phase.
+- **Why:** `DashboardView` is the only consumer, so a focused hook is the natural home; leaving it in `AppContext` perpetuates the catch-all the phase exists to dissolve. The extracted hook is the clean seam to later land #6 (1Hz poll) and #7 (`batch_kind` column) without touching the context.
+- **Refines:** the Tier 1 note above ("`AppContext` exposes only UI/session state + the undo-window machinery") assumed the machinery stays in `AppContext`; this decision moves it to its own hook instead. "Done for new features" is unchanged in substance.
+
+### D3. Payload runtime validation → Zod (item #15)
+
+- **Resolves:** the open question in item #15 / `spec-payload-runtime-validation` CAP-1/CAP-2.
+- **Decision:** validate `layout_data` JSONB and realtime payloads at the query/subscription boundary with **Zod**; derive the static type via `z.infer` from the same schema that performs the runtime check, so type and check cannot drift. Replaces the unguarded `as T` / `as LayoutPresetData` casts at those boundaries; the existing `transform*` mapping layer is unchanged and validation is added alongside it.
+- **Why:** hand-rolled guards re-state the shape twice and rot; a schema library is the single source of truth. The validation surface is small (`layout_data` + the two realtime domains), so the bundle cost is negligible.
+- **Scope note:** Zod is a new runtime dependency. The PRD's "no new libraries beyond `@tanstack/react-query`" line (`planning-artifacts/prd.md:87`) was scoped to the migration phases (0–5); #15 is a separate quality item, so this is a conscious, scoped exception — not a precedent for the migration hooks.

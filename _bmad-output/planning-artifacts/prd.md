@@ -63,7 +63,7 @@ ClassPoints is a React + Supabase classroom-management SPA. The application work
 
 The current codebase reimplements, by hand, what `@tanstack/react-query` provides natively: ~2,400 lines of feature hooks each maintaining parallel `useState(data) / useState(loading) / useState(error)` buckets, an 849-line `AppContext` god-facade that re-exposes every hook's surface through a single `useApp()` object, a manually-applied 5-step optimistic-update contract repeated across every mutation site, and realtime subscriptions on every domain — including data nobody watches live. This pattern was codified as "architecture" in the original `CLAUDE.md`, turning an ad-hoc implementation choice into a trap every subsequent feature fell into.
 
-The initiative replaces that seam in place: server-state hooks become thin `useQuery` / `useMutation` wrappers; realtime scope contracts to two live-sync domains (students + point totals, point transactions); `AppContext` slims to UI/session state only; the database layer (RLS, `REPLICA IDENTITY FULL`, triggers, RPCs) and Supabase Realtime transport are unchanged. Components continue to consume data via `useApp()` during migration — 45 component files need zero mechanical edits — and convert to direct hook calls as part of phase-scoped work. Seating-chart was initially scoped as a third realtime domain for cross-device drag sync; that use case was dropped 2026-05-13 and seating-chart now uses on-demand invalidation alongside its eventual TanStack reshape.
+The initiative replaces that seam in place: server-state hooks become thin `useQuery` / `useMutation` wrappers; realtime scope contracts to two live-sync domains (students + point totals, point transactions); `AppContext` slims to UI/session state only; the database layer (RLS, `REPLICA IDENTITY FULL`, triggers, RPCs) and Supabase Realtime transport are unchanged. Components continue to consume data via `useApp()` during migration — ~~45~~ **8** component files need zero mechanical edits — and convert to direct hook calls as part of phase-scoped work. _(2026-05-31: verified **8** `useApp()` consumer files at HEAD — supersedes the ~45 estimate; see `implementation-artifacts/deferred-work.md` and `specs/spec-appcontext-dissolve/appcontext-surface.md`. Other "45" mentions below are the same superseded figure.)_ Seating-chart was initially scoped as a third realtime domain for cross-device drag sync; that use case was dropped 2026-05-13 and seating-chart now uses on-demand invalidation alongside its eventual TanStack reshape.
 
 ### Why Now
 
@@ -141,7 +141,7 @@ Each of the following is a concrete, greppable end-state condition:
 - Reducing realtime subscription surface to two domains
 - Rewriting `useRealtimeSubscription` callers to invalidate cache, not merge state
 - Splitting `useSeatingChart` server state from drag / in-flight UI state
-- Migrating 45 component files that consume data via `useApp()` — in-place, mechanical edits as part of phase-scoped work
+- Migrating ~~45~~ **8** component files that consume data via `useApp()` — in-place, mechanical edits as part of phase-scoped work
 - Documentation cleanup: rename or remove `docs/legacy/*` files as they become obsolete; rewrite `docs/architecture.md`
 
 ### Explicit Non-Goals
@@ -265,15 +265,15 @@ This section describes the **end-state shape** of the codebase. Sequencing and p
 ### Components
 
 - Components call `useQuery` wrappers directly: `const { data: students } = useStudents(classroomId);`
-- Conversion from `useApp()` to direct hook calls is mechanical — 45 files, no redesign
+- Conversion from `useApp()` to direct hook calls is mechanical — ~~45~~ **8** files, no redesign
 - Existing component rules from `docs/legacy/legacy-components.md` that remain correct: named exports, PascalCase filenames, hooks-before-early-returns, props interface above component, Tailwind over inline styles — all survive
 - The rule that dies: "always use `useApp()`, never read contexts directly" — the facade it protected no longer exists in the shape it was protecting
 
 ### `useSeatingChart` — Split
 
-- Server-state concerns (seat rows, groups, room elements, layout presets) become separate `useQuery` hooks, each with a realtime subscription wired to `invalidateQueries`
+- Server-state concerns (seat rows, groups, room elements, layout presets) become separate `useQuery` hooks, ~~each with a realtime subscription wired to `invalidateQueries`~~ with on-demand `invalidateQueries` after mutations _(2026-05-31: no realtime — the cross-device sync use case was dropped 2026-05-13; consistent with FR16/FR18 and `:399`)_
 - In-flight UI state (active drag position, hover targets, selection rectangle, unsaved seat-position edits) stays in local `useState` within the canvas component, or moves to a small client store if Zustand is adopted — the Zustand decision is open and handed to the architecture phase
-- The four manual `previous`-position captures for drag rollback collapse into `useMutation.onMutate` / `onError`
+- The ~~four~~ **five** manual `previous`-position captures for drag rollback collapse into `useMutation.onMutate` / `onError` _(2026-05-31: 5 capture sites in `useSeatingChart.ts` — group-move, seat-assignment revert, shuffle, room-element move, room-element resize; the original "four" omitted the seat-assignment revert.)_
 
 ### Type Mapping — Unchanged
 
@@ -371,9 +371,9 @@ This section describes the **end-state shape** of the codebase. Sequencing and p
 
 ### Phase 4 — Slim `AppContext` and Cut the Adapter Bridge
 
-**Scope:** Remove the adapter layer that kept `useApp()` returning legacy-shape data during Phases 1–3. Migrate the 45 component files that consume data via `useApp()` to call the relevant `useQuery` hooks directly. Delete the pass-through fields from `AppContext`. `AppContext` retains only UI/session state.
+**Scope:** Remove the adapter layer that kept `useApp()` returning legacy-shape data during Phases 1–3. Migrate the ~~45~~ **8** component files that consume data via `useApp()` to call the relevant `useQuery` hooks directly. Delete the pass-through fields from `AppContext`. `AppContext` retains only UI/session state.
 
-**Risk:** Medium. Mechanical per-file edit count is high (~45 files), but each edit is small and greppable; the risk is volume of change, not per-file complexity.
+**Risk:** Medium. ~~Mechanical per-file edit count is high (~45 files)~~ Mechanical per-file edit count is **8 files** (verified at HEAD 2026-05-31), but each edit is small and greppable; the risk is volume of change, not per-file complexity.
 
 **Acceptance criteria:**
 
@@ -394,11 +394,11 @@ This section describes the **end-state shape** of the codebase. Sequencing and p
 **Acceptance criteria:**
 
 - `src/hooks/useSeatingChart.ts` and its siblings collectively contain **zero** `useState(loading)`, **zero** `useState(error)`, and **zero** manual `const previous = ...` rollback captures for server state
-- The four rollback-capture sites present in the legacy `useSeatingChart` are replaced by `useMutation.onMutate` / `onError` pairs operating on the TanStack Query cache
+- The ~~four~~ **five** rollback-capture sites present in the legacy `useSeatingChart` are replaced by `useMutation.onMutate` / `onError` pairs operating on the TanStack Query cache
 - Drag state (active drag position, hover targets, selection rectangle, unsaved position edits) is cleanly separated from server state — either in local component `useState` or in a dedicated client store; the separation is greppable (no drag state lives in a `useQuery` cache entry)
 - No realtime subscriptions are added to `seats`, `seating_groups`, `room_elements`, or `seating_charts`. Seating-chart was previously scoped for realtime; the cross-device drag-sync use case was dropped 2026-05-13 and seating-chart now uses on-demand `invalidateQueries` after mutations
 - All existing unit and E2E tests pass unchanged
-- Manual smoke: drag a seat to a new position; drag a seat that a realtime event arrives for mid-drag; cancel an in-flight drag; save a layout preset mid-rearrangement — all behave without regression
+- Manual smoke: drag a seat to a new position; ~~drag a seat that a realtime event arrives for mid-drag;~~ cancel an in-flight drag; save a layout preset mid-rearrangement — all behave without regression _(2026-05-31: dropped the mid-drag realtime case — seating is non-realtime per FR18/`:399`)_
 
 ### Phase 6 — Documentation Cleanup
 
