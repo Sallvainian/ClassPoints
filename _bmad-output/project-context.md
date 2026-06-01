@@ -42,7 +42,7 @@ _Critical rules and patterns AI agents must follow when implementing code in thi
 
 - Thin TanStack query hook → `src/hooks/useBehaviors.ts`
 - Optimistic mutation → `src/hooks/useTransactions.ts:useAwardPoints` (ADR-005 §4 (a)–(e) compliance comments inline at lines 86-95)
-- Realtime + cache merge → `src/hooks/useStudents.ts:44-179`
+- Realtime invalidate-not-merge → `src/hooks/useStudents.ts:40-51` (the single `students` `useRealtimeSubscription`)
 
 **Still hand-rolled (`useState` + `useEffect`):**
 
@@ -74,14 +74,14 @@ _Critical rules and patterns AI agents must follow when implementing code in thi
 
 **Target realtime scope — exactly 2 domains (ADR-005 §6, PRD FR5):**
 
-| Domain                           | Backing tables       | Why realtime                                            |
-| -------------------------------- | -------------------- | ------------------------------------------------------- |
-| `students` (point + time totals) | `students`           | Smartboard reflects phone awards within ~1s             |
-| `point_transactions`             | `point_transactions` | Cross-device undo; DELETE branch decrements time totals |
+| Domain                           | Backing tables       | Why realtime                                |
+| -------------------------------- | -------------------- | ------------------------------------------- |
+| `students` (point + time totals) | `students`           | Smartboard reflects phone awards within ~1s |
+| `point_transactions`             | `point_transactions` | Award/undo events propagate cross-device    |
 
 **Non-realtime domains (explicit, NOT default-by-omission):** `classrooms`, `behaviors`, `layout_presets`, `seating-chart`, user settings. They use `refetchOnWindowFocus: false` defaults + on-demand `invalidateQueries` after mutations. Seating-chart was previously a target realtime domain for cross-device drag sync; that use case was dropped (2026-05-13) and seating-chart now stays in the non-realtime bucket alongside its eventual TanStack migration.
 
-**Current HEAD drift from target:** actual subscriptions today are `useStudents` (`students` + `point_transactions`), `useTransactions` (`point_transactions`), and legacy `useLayoutPresets` (`layout_presets`). `useSeatingChart` is still hand-rolled and has no realtime subscription — that matches target now. Treat `layout_presets` realtime as legacy drift to remove when that hook migrates. Do not copy that shape.
+**Current HEAD drift from target:** actual subscriptions today are `useStudents` (`students` only), `useTransactions` (`point_transactions`), and legacy `useLayoutPresets` (`layout_presets`). `useSeatingChart` is still hand-rolled and has no realtime subscription — that matches target now. Treat `layout_presets` realtime as legacy drift to remove when that hook migrates. Do not copy that shape.
 
 **The "exactly 2" count is load-bearing on PRD FR5, Phase 2 mutation race handling, and adapter-bridge memoization assumptions.** A PR that does any of:
 
@@ -91,7 +91,7 @@ _Critical rules and patterns AI agents must follow when implementing code in thi
 
 MUST update ADR-005 §6 AND this section in the same commit. "Decide later" is not acceptable. Adding a 3rd realtime channel without that update is a PR-review block.
 
-**Cross-cutting realtime DELETE rule:** ANY table receiving realtime DELETE events MUST have `ALTER TABLE x REPLICA IDENTITY FULL` in its migration. Without it, DELETE payloads arrive empty and `payload.old` is unusable. See `supabase/migrations/005_replica_identity_full.sql` for the canonical pattern (`point_transactions` is currently the only DELETE-watching domain; `students` realtime is INSERT/UPDATE-only).
+**Cross-cutting realtime DELETE rule:** ANY table receiving realtime DELETE events MUST have `ALTER TABLE x REPLICA IDENTITY FULL` in its migration. This is a DB-level requirement: migration `005_replica_identity_full.sql` remains required for filtered-DELETE event delivery. Note the client framing changed — the live-sync callbacks are now invalidate-only, so the client no longer reads `payload.old`'s extra columns for `point_transactions` (the `useStudents` local-decrement that consumed `payload.old` has been removed). `useTransactions` owns the `point_transactions` subscription (any event) and invalidates its keys.
 
 ---
 
@@ -158,7 +158,7 @@ MUST update ADR-005 §6 AND this section in the same commit. "Decide later" is n
 - Server state from Supabase belongs in TanStack Query hooks using `queryKeys`. UI/session state stays local or in `AppContext` when it is truly cross-cutting.
 - New components should call query/mutation hooks directly. Do not add new server-data fields or wrapper functions to `AppContext`.
 - `useLayoutPresets` and `useSeatingChart` are still hand-rolled `useState`/`useEffect` hooks. They are migration targets, not templates.
-- `useBehaviors`, `useStudents`, and `useTransactions.useAwardPoints` are the current hook templates for thin queries, realtime cache merge, and optimistic mutation.
+- `useBehaviors`, `useStudents`, and `useTransactions.useAwardPoints` are the current hook templates for thin queries, realtime invalidate, and optimistic mutation.
 - Hooks run before conditional returns. Keep hook order stable, then define handlers, then return early if needed.
 - Default event handlers to plain functions. Use `useCallback` only for memoized child props or dependency arrays; DOM elements do not benefit from callback identity stability.
 - Use shared UI primitives (`Button`, `Input`, `Modal`, `Dialog`) and Tailwind v4 utilities. Do not hand-roll modal chrome for new UI.
@@ -174,7 +174,7 @@ MUST update ADR-005 §6 AND this section in the same commit. "Decide later" is n
 - NEVER construct query keys inline at call sites. Import builders: `queryKeys.students.byClassroom(id)`, `queryKeys.classrooms.all`, `queryKeys.transactions.list(classroomId)`, `queryKeys.behaviors.all`, `queryKeys.layoutPresets.all`, `queryKeys.seatingChart.metaByClassroom(id)`.
 - Read paths and invalidation paths use the SAME builder so they cannot drift.
 - When adding a domain: add the entry to `queryKeys` first, then the hook. PR review should reject inline keys.
-- The `useStudents` `byClassroom` cache holds **students-table columns + RPC time-totals merged into one payload** (per `queryKeys.ts:13-15` comment); a prior `timeTotalsByClassroom` separate-key shape was dropped — don't reintroduce it.
+- The `useStudents` `byClassroom` cache holds **students-table columns + RPC time-totals merged into one payload in `useStudents.queryFn`** (per `queryKeys.ts:13-15` comment); a prior `timeTotalsByClassroom` separate-key shape was dropped — don't reintroduce it. The payload is refreshed wholesale by invalidate-and-refetch on any students-table realtime event (no realtime merge-on-update).
 
 **QueryClient defaults are deliberate (ADR-005 §1) — do NOT override per-hook**
 
@@ -192,13 +192,13 @@ If you need different behavior for a specific hook, **read ADR-005 first** and d
 
 **Canonical hook patterns — copy these, NOT `useSeatingChart` / `useLayoutPresets`**
 
-| Pattern                        | Reference                                                                             | Notes                                                                                                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Thin query (`useQuery`)        | `src/hooks/useBehaviors.ts:17-30`                                                     | Sort in queryFn, transform via `dbToBehavior`, no realtime                                                                                               |
-| Realtime + cache merge         | `src/hooks/useStudents.ts:44-179`                                                     | Two `useRealtimeSubscription` calls (students UPDATE/INSERT/DELETE + point_transactions DELETE), `qc.setQueryData` merge logic, visibilitychange handler |
-| Optimistic mutation            | `src/hooks/useTransactions.ts:useAwardPoints` (`:97-235`)                             | All 5 ADR-005 §4 (a)–(e) AC met with inline comments mapping each to its line                                                                            |
-| Plain mutation (no `onMutate`) | `src/hooks/useBehaviors.ts:useAddBehavior` (`:32-42`)                                 | `mutationFn` + `onSettled: invalidateQueries` only — Phase 2 §4 AC does NOT apply                                                                        |
-| Split mutations per CRUD op    | `useClassrooms.ts` `useCreateClassroom` / `useUpdateClassroom` / `useDeleteClassroom` | Each is its own hook returning `useMutation`                                                                                                             |
+| Pattern                        | Reference                                                                             | Notes                                                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Thin query (`useQuery`)        | `src/hooks/useBehaviors.ts:17-30`                                                     | Sort in queryFn, transform via `dbToBehavior`, no realtime                                                                                 |
+| Realtime invalidate-not-merge  | `src/hooks/useStudents.ts:40-51` (the single `students` `useRealtimeSubscription`)    | `onChange`/`onReconnect` invalidate `students.byClassroom` + `classrooms.all` (no `setQueryData`); `visibilitychange` day-boundary refetch |
+| Optimistic mutation            | `src/hooks/useTransactions.ts:useAwardPoints` (`:97-235`)                             | All 5 ADR-005 §4 (a)–(e) AC met with inline comments mapping each to its line                                                              |
+| Plain mutation (no `onMutate`) | `src/hooks/useBehaviors.ts:useAddBehavior` (`:32-42`)                                 | `mutationFn` + `onSettled: invalidateQueries` only — Phase 2 §4 AC does NOT apply                                                          |
+| Split mutations per CRUD op    | `useClassrooms.ts` `useCreateClassroom` / `useUpdateClassroom` / `useDeleteClassroom` | Each is its own hook returning `useMutation`                                                                                               |
 
 **Standard mutation shape (canonical):**
 
@@ -255,19 +255,20 @@ function DevtoolsGate() {
 
 - Target policy: realtime attaches ONLY to the two live-sync domains (see Migration Status section §6). Current HEAD still has `layout_presets` legacy realtime in `useLayoutPresets`; do not add more, and remove it when migrating that hook. Do NOT add realtime to classrooms, behaviors, seating-chart, or user settings.
 - Use `useRealtimeSubscription<DbType>({ table, filter, enabled, onChange })` — the hook owns channel lifecycle (cleanup, reconnect, status transitions).
-- **Preferred callback:** the single `onChange` form (`(payload) => …`). The handler routes by `payload.eventType` and either `qc.setQueryData(...)` patches the cache (preferred for hot paths — see `useStudents.ts:48-102` INSERT/UPDATE/DELETE merge) OR `qc.invalidateQueries(...)` (for low-frequency events — see `useTransactions.ts:61-66`).
-- **Legacy callbacks** (`onInsert` / `onUpdate` / `onDelete`) — still supported, dev-mode warning fires when supplied alongside `onChange`. Current legacy consumers are `useLayoutPresets` and the `useStudents` `point_transactions` DELETE branch. Do NOT add new callers of the legacy fields.
+- **Preferred callback:** the single `onChange` form (`(payload) => …`). For the live-sync domains the handler is **invalidate-not-merge** — it calls ONLY `qc.invalidateQueries(...)`, never a `setQueryData` hand-merge (see `useStudents.ts` students-table `onChange` and `useTransactions.ts:61-66`). A refetch re-reads authoritative columns + re-runs `get_student_time_totals`, so all counters refresh identically (ADR-005 §7).
+- **Legacy callbacks** (`onInsert` / `onUpdate` / `onDelete`) — still supported, dev-mode warning fires when supplied alongside `onChange`. The only current legacy consumer is `useLayoutPresets` (the `useStudents` `point_transactions` DELETE branch has been removed). Do NOT add new callers of the legacy fields.
 - Filter syntax is PostgREST: `` `classroom_id=eq.${classroomId}` ``. Pass `undefined` to subscribe to everything RLS allows.
-- **Realtime DELETE on `point_transactions` is the cross-device undo time-totals decrement path** — `useStudents.ts:111-162`. Relies on `REPLICA IDENTITY FULL` (migration `005_replica_identity_full.sql`) to receive the deleted row's data; without it, `payload.old` is empty. With RLS enabled, Supabase Realtime may still filter `payload.old` down to insufficient fields, so keep the fallback `invalidateQueries(...)` path.
+- **Cross-device undo / award totals propagate via the `students`-table realtime UPDATE → invalidate-and-refetch path.** The DB trigger (`011:45-47`) emits a `students` UPDATE on every `point_transactions` INSERT/DELETE; `useStudents`' students-table `onChange` invalidates `students.byClassroom`, so the refetch re-reads all-time columns + re-runs `get_student_time_totals`. The `useStudents` `point_transactions` DELETE local-decrement subscription has been removed; `useTransactions` owns the `point_transactions` channel. `REPLICA IDENTITY FULL` (migration `005`) is still required at the DB level for filtered-DELETE event delivery.
 - Hand-rolled channels (outside `useRealtimeSubscription`): cleanup in `useEffect` return is MANDATORY — `return () => supabase.removeChannel(channel)`. Prefer the helper.
 
 **Time-totals nuance in `useStudents`**
 
-- `today_total` / `this_week_total` come from the `get_student_time_totals` RPC inside `queryFn` (`useStudents.ts:194-211`).
-- They are **PRESERVED across realtime UPDATE events** (`useStudents.ts:67-92`) — the DB trigger bumps lifetime totals on every point award; if we re-fetched the RPC on every event, it'd fire per tap. Time totals refresh via:
-  1. `point_transactions` DELETE realtime → local decrement (`:111-162`)
-  2. `visibilitychange` handler → invalidate + refetch (day-boundary safety, `:167-179`)
+- `today_total` / `this_week_total` come from the `get_student_time_totals` RPC inside `queryFn`.
+- They now refresh by **invalidate-and-refetch on any students-table realtime event** (the DB trigger `011:45-47` emits a `students` UPDATE on every `point_transactions` INSERT/DELETE), so all-time/today/week refresh identically and the prior preserve-today/week hand-merge drift is gone. Time totals refresh via:
+  1. `students`-table realtime `onChange` → `invalidateQueries(students.byClassroom)` → refetch re-runs the RPC (covers cross-device award AND undo)
+  2. `visibilitychange` handler → invalidate + refetch (day-boundary safety)
   3. Mutation `onSettled` invalidations (undo / clear / adjust / reset)
+- The per-tap `get_student_time_totals` refetch cost is accepted (ADR-005 §7 + deferred #8). This reverses the earlier preserve-today/week decision.
 
 **Denormalized totals — READ, DON'T COMPUTE**
 
@@ -479,7 +480,7 @@ _Captures the editorial/engineering redesign that landed in commits `ae7a9a8` (P
 
 - Read this file before implementing code in `src/**` or `supabase/migrations/**`.
 - Before clicking "this is the project's pattern" off a single example: cross-check against `_bmad-output/anti-pattern-audit.md` — the audit tags REAL / OVERSTATED / FALSE POSITIVE so you don't re-raise rejected concerns.
-- `useSeatingChart`, `useLayoutPresets`, `AppContext` legacy wrappers, and the legacy `useRealtimeSubscription` callback shape are migration targets — don't imitate them. The canonical templates are `useBehaviors.ts` (thin query), `useTransactions.ts:useAwardPoints` (optimistic mutation), and `useStudents.ts` (realtime + cache merge).
+- `useSeatingChart`, `useLayoutPresets`, `AppContext` legacy wrappers, and the legacy `useRealtimeSubscription` callback shape are migration targets — don't imitate them. The canonical templates are `useBehaviors.ts` (thin query), `useTransactions.ts:useAwardPoints` (optimistic mutation), and `useStudents.ts` (realtime invalidate-not-merge).
 - Prefer the more restrictive option when in doubt.
 - If you encounter a pattern that contradicts this file, surface the conflict — don't silently break from the docs.
 - When this file's claims feel stale (HEAD has moved, file:line refs don't match), treat it as a snapshot and verify against the current code before acting on a specific rule. The Migration Status section's commit list (`48f3c01` → `cad3cfa` → `93001d3` → `5bcc930` → `280fa10`) is the staleness check.
