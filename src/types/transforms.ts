@@ -7,7 +7,7 @@ import type {
   PointTransaction as DbPointTransaction,
   Student as DbStudent,
 } from './database';
-import type { Behavior as AppBehavior } from './index';
+import type { Behavior as AppBehavior, AppClassroom, AppStudent } from './index';
 
 export function dbToBehavior(row: DbBehavior): AppBehavior {
   return {
@@ -101,5 +101,72 @@ export function dbToStudent(
     negative_total: row.negative_total ?? 0,
     today_total: timeTotals.today_total,
     this_week_total: timeTotals.this_week_total,
+  };
+}
+
+// App-shape (camelCase) transforms for the Phase 4 facade dissolve. Relocated
+// verbatim from AppContext.tsx's `mappedStudents` (:636-647) and
+// `mappedClassrooms` (:589-631) maps so consumers see byte-identical shapes.
+// Thin and transitional — removed by the casing-normalization follow-up that
+// converts the hook caches to camelCase directly.
+
+export function dbStudentToApp(s: StudentWithPoints): AppStudent {
+  return {
+    id: s.id,
+    name: s.name,
+    avatarColor: s.avatar_color || undefined,
+    pointTotal: s.point_total,
+    positiveTotal: s.positive_total,
+    negativeTotal: s.negative_total,
+    todayTotal: s.today_total,
+    thisWeekTotal: s.this_week_total,
+  };
+}
+
+// Maps a classroom aggregate row to the app shape. `activeStudents` is the live
+// useStudents roster for the *active* classroom only; when supplied AND its rows
+// belong to this classroom, today/week totals are summed from it (the
+// classroom-aggregate query does not carry time totals). Otherwise today/week
+// stay `undefined` — preserving AppContext.tsx:608-616 verbatim. The `students`
+// array is always the precomputed `student_summaries`; the active classroom's
+// live roster is swapped in by `useActiveClassroom`, mirroring the prior
+// `mappedClassrooms` → `activeClassroom` two-step.
+export function dbClassroomToApp(
+  c: ClassroomWithCount,
+  activeStudents?: StudentWithPoints[]
+): AppClassroom {
+  const summaryStudents: AppStudent[] = c.student_summaries.map((s) => ({
+    id: s.id,
+    name: s.name,
+    avatarColor: s.avatar_color || undefined,
+    pointTotal: s.point_total,
+    positiveTotal: s.positive_total,
+    negativeTotal: s.negative_total,
+    todayTotal: s.today_total,
+    thisWeekTotal: s.this_week_total,
+  }));
+
+  let todayTotal: number | undefined;
+  let thisWeekTotal: number | undefined;
+
+  const studentsMatchClassroom =
+    !!activeStudents && activeStudents.length > 0 && activeStudents[0]?.classroom_id === c.id;
+
+  if (studentsMatchClassroom && activeStudents) {
+    todayTotal = activeStudents.reduce((sum, s) => sum + s.today_total, 0);
+    thisWeekTotal = activeStudents.reduce((sum, s) => sum + s.this_week_total, 0);
+  }
+
+  return {
+    id: c.id,
+    name: c.name,
+    students: summaryStudents,
+    createdAt: new Date(c.created_at).getTime(),
+    updatedAt: new Date(c.updated_at).getTime(),
+    pointTotal: c.point_total,
+    positiveTotal: c.positive_total,
+    negativeTotal: c.negative_total,
+    todayTotal,
+    thisWeekTotal,
   };
 }

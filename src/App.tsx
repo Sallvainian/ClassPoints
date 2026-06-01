@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { SoundProvider } from './contexts/SoundContext';
 import { AppProvider } from './contexts/AppContext';
 import { useApp } from './contexts/useApp';
+import { useAppClassrooms } from './hooks/useAppClassrooms';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthGuard } from './components/auth/AuthGuard';
 import { SyncStatus } from './components/common/SyncStatus';
@@ -39,7 +40,8 @@ const VIEW_STORAGE_KEY = 'app:view';
 const PERSISTED_VIEWS: View[] = ['home', 'dashboard', 'settings', 'profile'];
 
 function AppContent() {
-  const { classrooms, setActiveClassroom } = useApp();
+  const { setActiveClassroom } = useApp();
+  const { classrooms } = useAppClassrooms();
   const [view, setView] = useState<View>(() => {
     // Migration wizard takes precedence (one-time flow, not persisted).
     if (hasLocalStorageData()) return 'migration';

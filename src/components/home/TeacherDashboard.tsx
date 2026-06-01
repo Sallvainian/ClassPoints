@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useApp } from '../../contexts/useApp';
+import { useAppClassrooms, useActiveClassroom } from '../../hooks/useAppClassrooms';
+import { useCreateClassroom } from '../../hooks/useClassrooms';
 import { useAuth } from '../../contexts/useAuth';
 import { ClassroomCard } from './ClassroomCard';
 import { LeaderboardCard } from './LeaderboardCard';
@@ -11,7 +13,14 @@ interface TeacherDashboardProps {
 }
 
 export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
-  const { classrooms, createClassroom, loading, error } = useApp();
+  const { activeClassroomId, setActiveClassroom } = useApp();
+  const { classrooms, isLoading: loading, error } = useAppClassrooms();
+  // The classroom-list hook carries no time totals (no roster threaded), so the
+  // home "Points Today" stat reads the active classroom's live today total —
+  // reproducing the pre-dissolve behavior where only the active classroom's
+  // todayTotal was populated.
+  const { activeClassroom } = useActiveClassroom(activeClassroomId);
+  const createClassroomMutation = useCreateClassroom();
   const [createError, setCreateError] = useState<string | null>(null);
   const { user } = useAuth();
 
@@ -24,9 +33,9 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
   const stats = useMemo(() => {
     const totalPoints = classrooms.reduce((sum, c) => sum + (c.pointTotal ?? 0), 0);
     const totalStudents = allStudents.length;
-    const todayPoints = classrooms.reduce((sum, c) => sum + (c.todayTotal ?? 0), 0);
+    const todayPoints = activeClassroom?.todayTotal ?? 0;
     return { totalPoints, totalStudents, todayPoints };
-  }, [classrooms, allStudents]);
+  }, [classrooms, allStudents, activeClassroom]);
 
   const handleClassroomClick = useCallback(
     (classroomId: string) => {
@@ -38,14 +47,16 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
   const handleCreateClassroom = useCallback(async () => {
     setCreateError(null);
     try {
-      const result = await createClassroom('New Classroom');
+      const result = await createClassroomMutation.mutateAsync({ name: 'New Classroom' });
       if (!result) {
         setCreateError('Failed to create classroom. Please try again.');
+      } else {
+        setActiveClassroom(result.id);
       }
     } catch {
       setCreateError('Failed to create classroom. Please try again.');
     }
-  }, [createClassroom]);
+  }, [createClassroomMutation, setActiveClassroom]);
 
   if (loading) {
     return (

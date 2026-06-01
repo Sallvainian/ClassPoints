@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import type { Behavior, Student } from '../../types';
-import { useApp } from '../../contexts/useApp';
+import { useBehaviors } from '../../hooks/useBehaviors';
+import { useBatchAward } from '../../hooks/useBatchAward';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
@@ -20,7 +21,8 @@ export function MultiAwardModal({
   selectedStudents,
   classroomId,
 }: MultiAwardModalProps) {
-  const { behaviors, awardPointsToStudents } = useApp();
+  const { data: behaviors = [] } = useBehaviors();
+  const { awardSubset } = useBatchAward(classroomId);
   const { playPositive, playNegative } = useSoundEffects();
   const [isAwarding, setIsAwarding] = useState(false);
   const [awardError, setAwardError] = useState<string | null>(null);
@@ -41,10 +43,9 @@ export function MultiAwardModal({
 
       try {
         const studentIds = selectedStudents.map((s) => s.id);
-        await awardPointsToStudents(
-          classroomId,
+        await awardSubset(
           studentIds,
-          behavior.id,
+          behavior,
           `Multi-select award (${selectedStudents.length} students)`
         );
 
@@ -61,15 +62,7 @@ export function MultiAwardModal({
         setIsAwarding(false);
       }
     },
-    [
-      classroomId,
-      selectedStudents,
-      isAwarding,
-      awardPointsToStudents,
-      playPositive,
-      playNegative,
-      onClose,
-    ]
+    [selectedStudents, isAwarding, awardSubset, playPositive, playNegative, onClose]
   );
 
   if (!isOpen || selectedStudents.length === 0) return null;

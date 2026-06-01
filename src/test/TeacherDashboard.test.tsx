@@ -22,23 +22,38 @@ import { ThemeProvider } from '../contexts/ThemeContext';
 const render = (ui: ReactElement, options?: RenderOptions) =>
   rtlRender(ui, { wrapper: ThemeProvider, ...options });
 
-// Mock the contexts
-const mockUseApp = vi.fn();
+// Phase 4: TeacherDashboard reads server data through the direct TanStack
+// wrappers (useAppClassrooms + useCreateClassroom) instead of the dissolved
+// useApp() facade. The mock layer moves accordingly; the assertions are
+// preserved (the one exception — the create-call arg shape — is noted inline).
+const mockUseAppClassrooms = vi.fn();
+const mockUseActiveClassroom = vi.fn();
+const mockCreateClassroom = vi.fn();
+const mockSetActiveClassroom = vi.fn();
 const mockUseAuth = vi.fn();
 
+vi.mock('../hooks/useAppClassrooms', () => ({
+  useAppClassrooms: () => mockUseAppClassrooms(),
+  useActiveClassroom: () => mockUseActiveClassroom(),
+}));
+
+vi.mock('../hooks/useClassrooms', () => ({
+  useCreateClassroom: () => ({ mutateAsync: mockCreateClassroom }),
+}));
+
 vi.mock('../contexts/useApp', () => ({
-  useApp: () => mockUseApp(),
+  useApp: () => ({ setActiveClassroom: mockSetActiveClassroom }),
 }));
 
 vi.mock('../contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-// Default mock implementations
-const defaultAppContext = {
+// Default mock implementations — `useAppClassrooms` returns the camelCase
+// app-shaped data TeacherDashboard expects (`{ classrooms, isLoading, error }`).
+const defaultAppClassrooms = {
   classrooms: [],
-  createClassroom: vi.fn(),
-  loading: false,
+  isLoading: false,
   error: null,
 };
 
@@ -49,13 +64,15 @@ const defaultAuthContext = {
 describe('TeacherDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseApp.mockReturnValue(defaultAppContext);
+    mockUseAppClassrooms.mockReturnValue(defaultAppClassrooms);
+    mockUseActiveClassroom.mockReturnValue({ activeClassroom: null });
+    mockCreateClassroom.mockResolvedValue({ id: '1' });
     mockUseAuth.mockReturnValue(defaultAuthContext);
   });
 
   describe('Loading State', () => {
     it('should show loading spinner while data is loading', () => {
-      mockUseApp.mockReturnValue({ ...defaultAppContext, loading: true });
+      mockUseAppClassrooms.mockReturnValue({ ...defaultAppClassrooms, isLoading: true });
 
       render(<TeacherDashboard onSelectClassroom={vi.fn()} />);
 
@@ -65,8 +82,8 @@ describe('TeacherDashboard', () => {
 
   describe('Error State', () => {
     it('should show error state when useApp() has error', () => {
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
+      mockUseAppClassrooms.mockReturnValue({
+        ...defaultAppClassrooms,
         error: new Error('Failed to fetch data'),
       });
 
@@ -78,8 +95,8 @@ describe('TeacherDashboard', () => {
     });
 
     it('should show generic error message when error has no message', () => {
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
+      mockUseAppClassrooms.mockReturnValue({
+        ...defaultAppClassrooms,
         error: new Error(),
       });
 
@@ -91,7 +108,7 @@ describe('TeacherDashboard', () => {
 
   describe('Empty State', () => {
     it('should show welcome screen when no classrooms exist', () => {
-      mockUseApp.mockReturnValue({ ...defaultAppContext, classrooms: [] });
+      mockUseAppClassrooms.mockReturnValue({ ...defaultAppClassrooms, classrooms: [] });
 
       render(<TeacherDashboard onSelectClassroom={vi.fn()} />);
 
@@ -102,27 +119,21 @@ describe('TeacherDashboard', () => {
     });
 
     it('should call createClassroom when create button is clicked', async () => {
-      const createClassroom = vi.fn().mockResolvedValue({ id: '1' });
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
-        classrooms: [],
-        createClassroom,
-      });
+      mockCreateClassroom.mockResolvedValue({ id: '1' });
+      mockUseAppClassrooms.mockReturnValue({ ...defaultAppClassrooms, classrooms: [] });
 
       render(<TeacherDashboard onSelectClassroom={vi.fn()} />);
 
       await userEvent.click(screen.getByRole('button', { name: /Create Your First Classroom/i }));
 
-      expect(createClassroom).toHaveBeenCalledWith('New Classroom');
+      // Phase 4: TeacherDashboard now calls useCreateClassroom().mutateAsync,
+      // whose input is `{ name }` (vs the old `createClassroom(name)` string arg).
+      expect(mockCreateClassroom).toHaveBeenCalledWith({ name: 'New Classroom' });
     });
 
     it('should show error when createClassroom fails', async () => {
-      const createClassroom = vi.fn().mockResolvedValue(null);
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
-        classrooms: [],
-        createClassroom,
-      });
+      mockCreateClassroom.mockResolvedValue(null);
+      mockUseAppClassrooms.mockReturnValue({ ...defaultAppClassrooms, classrooms: [] });
 
       render(<TeacherDashboard onSelectClassroom={vi.fn()} />);
 
@@ -186,8 +197,8 @@ describe('TeacherDashboard', () => {
     ];
 
     it('should display welcome message with teacher name', () => {
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
+      mockUseAppClassrooms.mockReturnValue({
+        ...defaultAppClassrooms,
         classrooms: classroomsWithData,
       });
 
@@ -197,10 +208,13 @@ describe('TeacherDashboard', () => {
     });
 
     it('should calculate and display correct aggregate statistics', () => {
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
+      mockUseAppClassrooms.mockReturnValue({
+        ...defaultAppClassrooms,
         classrooms: classroomsWithData,
       });
+      // "Points Today" reads the active classroom's live todayTotal (only the
+      // active classroom ever carried time totals, pre- and post-dissolve).
+      mockUseActiveClassroom.mockReturnValue({ activeClassroom: { todayTotal: 15 } });
 
       render(<TeacherDashboard onSelectClassroom={vi.fn()} />);
 
@@ -211,13 +225,13 @@ describe('TeacherDashboard', () => {
       expect(screen.getByText('3')).toBeInTheDocument();
       expect(screen.getByText('across 2 classes')).toBeInTheDocument();
 
-      // Today points: 15 + 0 = 15
+      // Today points: active classroom's todayTotal = 15
       expect(screen.getByText('+15')).toBeInTheDocument();
     });
 
     it('should display classroom cards', () => {
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
+      mockUseAppClassrooms.mockReturnValue({
+        ...defaultAppClassrooms,
         classrooms: classroomsWithData,
       });
 
@@ -229,8 +243,8 @@ describe('TeacherDashboard', () => {
 
     it('should call onSelectClassroom when classroom card is clicked', async () => {
       const onSelectClassroom = vi.fn();
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
+      mockUseAppClassrooms.mockReturnValue({
+        ...defaultAppClassrooms,
         classrooms: classroomsWithData,
       });
 
@@ -249,8 +263,8 @@ describe('TeacherDashboard', () => {
       mockUseAuth.mockReturnValue({
         user: { email: 'test@example.com', user_metadata: { name: 'John Doe' } },
       });
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
+      mockUseAppClassrooms.mockReturnValue({
+        ...defaultAppClassrooms,
         classrooms: [{ id: '1', name: 'Test', students: [], createdAt: 0, updatedAt: 0 }],
       });
 
@@ -263,8 +277,8 @@ describe('TeacherDashboard', () => {
       mockUseAuth.mockReturnValue({
         user: { email: 'teacher@school.edu', user_metadata: {} },
       });
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
+      mockUseAppClassrooms.mockReturnValue({
+        ...defaultAppClassrooms,
         classrooms: [{ id: '1', name: 'Test', students: [], createdAt: 0, updatedAt: 0 }],
       });
 
@@ -275,8 +289,8 @@ describe('TeacherDashboard', () => {
 
     it('should fallback to "Teacher" if no user info', () => {
       mockUseAuth.mockReturnValue({ user: null });
-      mockUseApp.mockReturnValue({
-        ...defaultAppContext,
+      mockUseAppClassrooms.mockReturnValue({
+        ...defaultAppClassrooms,
         classrooms: [{ id: '1', name: 'Test', students: [], createdAt: 0, updatedAt: 0 }],
       });
 

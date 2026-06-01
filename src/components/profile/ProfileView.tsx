@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/useAuth';
 import { useApp } from '../../contexts/useApp';
+import { useAppClassrooms } from '../../hooks/useAppClassrooms';
+import { useDeleteClassroom } from '../../hooks/useClassrooms';
 import { supabase } from '../../lib/supabase';
 import { Button, Input } from '../ui';
 import { DeleteClassroomModal } from './DeleteClassroomModal';
@@ -25,7 +27,9 @@ function SectionLabel({ children, count }: { children: React.ReactNode; count?: 
 
 export function ProfileView({ onClose }: ProfileViewProps) {
   const { user, updatePassword } = useAuth();
-  const { classrooms, deleteClassroom, activeClassroomId, setActiveClassroom } = useApp();
+  const { activeClassroomId, setActiveClassroom } = useApp();
+  const { classrooms } = useAppClassrooms();
+  const deleteClassroomMutation = useDeleteClassroom();
 
   const [displayName, setDisplayName] = useState(
     user?.user_metadata?.name || user?.email?.split('@')[0] || ''
@@ -115,7 +119,7 @@ export function ProfileView({ onClose }: ProfileViewProps) {
     if (classroomId === activeClassroomId) {
       setActiveClassroom(null);
     }
-    deleteClassroom(classroomId);
+    deleteClassroomMutation.mutate(classroomId);
     setClassroomToDelete(null);
   };
 

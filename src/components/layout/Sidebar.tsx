@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Moon, Sun, Plus, LayoutDashboard, LogOut, User } from 'lucide-react';
 import { useApp } from '../../contexts/useApp';
+import { useAppClassrooms } from '../../hooks/useAppClassrooms';
+import { useCreateClassroom } from '../../hooks/useClassrooms';
 import { useAuth } from '../../contexts/useAuth';
 import { useTheme } from '../../contexts/useTheme';
 import { Button, Input, Modal } from '../ui';
@@ -20,7 +22,9 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function Sidebar({ onNavigateHome, onNavigateProfile, onSelectClassroom }: SidebarProps) {
-  const { classrooms, activeClassroomId, setActiveClassroom, createClassroom } = useApp();
+  const { activeClassroomId, setActiveClassroom } = useApp();
+  const { classrooms } = useAppClassrooms();
+  const createClassroomMutation = useCreateClassroom();
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -31,7 +35,12 @@ export function Sidebar({ onNavigateHome, onNavigateProfile, onSelectClassroom }
 
   const handleCreateClassroom = () => {
     if (newClassroomName.trim()) {
-      createClassroom(newClassroomName.trim());
+      // Fire-and-forget like the original wrapper: close modal + clear input
+      // synchronously; select the new classroom once the insert resolves.
+      createClassroomMutation.mutate(
+        { name: newClassroomName.trim() },
+        { onSuccess: (classroom) => setActiveClassroom(classroom.id) }
+      );
       setNewClassroomName('');
       setIsCreateModalOpen(false);
     }

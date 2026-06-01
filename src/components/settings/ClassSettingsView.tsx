@@ -1,5 +1,19 @@
 import { useState } from 'react';
 import { useApp } from '../../contexts/useApp';
+import { useActiveClassroom } from '../../hooks/useAppClassrooms';
+import { useUpdateClassroom, useDeleteClassroom } from '../../hooks/useClassrooms';
+import {
+  useAddStudent,
+  useAddStudents,
+  useUpdateStudent,
+  useRemoveStudent,
+} from '../../hooks/useStudents';
+import {
+  useAdjustStudentPoints,
+  useResetClassroomPoints,
+  AdjustNoOpError,
+} from '../../hooks/useTransactions';
+import * as batchKindStore from '../../lib/batchKindStore';
 import { useTheme } from '../../contexts/useTheme';
 import { resolveAvatarDisplay } from '../../hooks';
 import { getAvatarColorForName } from '../../utils';
@@ -26,18 +40,16 @@ function SectionLabel({ children, count }: { children: React.ReactNode; count?: 
 export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const {
-    activeClassroom,
-    updateClassroom,
-    deleteClassroom,
-    addStudent,
-    addStudents,
-    removeStudent,
-    updateStudent,
-    setActiveClassroom,
-    adjustStudentPoints,
-    resetClassroomPoints,
-  } = useApp();
+  const { activeClassroomId, setActiveClassroom } = useApp();
+  const { activeClassroom } = useActiveClassroom(activeClassroomId);
+  const updateClassroomMutation = useUpdateClassroom();
+  const deleteClassroomMutation = useDeleteClassroom();
+  const addStudentMutation = useAddStudent();
+  const addStudentsMutation = useAddStudents();
+  const updateStudentMutation = useUpdateStudent();
+  const removeStudentMutation = useRemoveStudent();
+  const adjustStudentPointsMutation = useAdjustStudentPoints();
+  const resetClassroomPointsMutation = useResetClassroomPoints();
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -72,23 +84,26 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
 
   const handleAddStudent = () => {
     if (newStudentName.trim()) {
-      addStudent(activeClassroom.id, newStudentName.trim());
+      addStudentMutation.mutate({ classroomId: activeClassroom.id, name: newStudentName.trim() });
       setNewStudentName('');
     }
   };
 
   const handleImportStudents = (names: string[]) => {
-    addStudents(activeClassroom.id, names);
+    addStudentsMutation.mutate({ classroomId: activeClassroom.id, names });
   };
 
   const handleUpdateClassroomName = () => {
     if (classroomName.trim() && classroomName !== activeClassroom.name) {
-      updateClassroom(activeClassroom.id, { name: classroomName.trim() });
+      updateClassroomMutation.mutate({
+        id: activeClassroom.id,
+        updates: { name: classroomName.trim() },
+      });
     }
   };
 
   const handleDeleteClassroom = () => {
-    deleteClassroom(activeClassroom.id);
+    deleteClassroomMutation.mutate(activeClassroom.id);
     setActiveClassroom(null);
     setIsDeleteConfirmOpen(false);
     onClose();
@@ -101,7 +116,10 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
 
   const handleSaveStudentEdit = () => {
     if (editingStudentId && editingStudentName.trim()) {
-      updateStudent(activeClassroom.id, editingStudentId, { name: editingStudentName.trim() });
+      updateStudentMutation.mutate({
+        id: editingStudentId,
+        updates: { name: editingStudentName.trim() },
+      });
     }
     setEditingStudentId(null);
     setEditingStudentName('');
@@ -277,7 +295,7 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
                               Adjust
                             </button>
                             <button
-                              onClick={() => removeStudent(activeClassroom.id, student.id)}
+                              onClick={() => removeStudentMutation.mutate(student.id)}
                               className="px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-red-600 dark:text-red-400 hover:bg-red-500/10 rounded transition-colors"
                             >
                               Remove
@@ -359,7 +377,21 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
         isOpen={studentToAdjust !== null}
         onClose={() => setStudentToAdjust(null)}
         onConfirm={async (studentId, targetPoints, note) => {
-          await adjustStudentPoints(activeClassroom.id, studentId, targetPoints, note);
+          const currentPointTotal =
+            activeClassroom.students.find((s) => s.id === studentId)?.pointTotal ?? 0;
+          try {
+            await adjustStudentPointsMutation.mutateAsync({
+              classroomId: activeClassroom.id,
+              studentId,
+              targetPoints,
+              currentPointTotal,
+              note: note ?? null,
+            });
+          } catch (err) {
+            // Legacy contract: a no-op (delta=0) resolves silently, not throws.
+            if (err instanceof AdjustNoOpError) return;
+            throw err;
+          }
         }}
       />
 
@@ -368,7 +400,9 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
         isOpen={isResetModalOpen}
         onClose={() => setIsResetModalOpen(false)}
         onConfirm={async (classroomId) => {
-          await resetClassroomPoints(classroomId);
+          await resetClassroomPointsMutation.mutateAsync({ classroomId });
+          // Reset wipes every transaction in the classroom; all batch_ids are now stale.
+          batchKindStore.clear();
         }}
       />
     </div>

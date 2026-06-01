@@ -3,6 +3,14 @@ import { Settings as SettingsIcon } from 'lucide-react';
 import type { Student, PointTransaction } from '../../types';
 import type { CardSize } from '../../hooks/useDisplaySettings';
 import { useApp } from '../../contexts/useApp';
+import { useActiveClassroom } from '../../hooks/useAppClassrooms';
+import {
+  useTransactions,
+  useUndoTransaction,
+  useUndoBatchTransaction,
+} from '../../hooks/useTransactions';
+import { useUndoableAction } from '../../hooks/useUndoableAction';
+import { classroomTransactions } from '../../utils/pointSelectors';
 import { useDisplaySettings } from '../../hooks/useDisplaySettings';
 import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { StudentGrid } from '../students/StudentGrid';
@@ -25,15 +33,19 @@ interface DashboardViewProps {
 const CARD_SIZES: CardSize[] = ['small', 'medium', 'large'];
 
 export function DashboardView({ onOpenSettings }: DashboardViewProps) {
+  const { activeClassroomId } = useApp();
   const {
     activeClassroom,
-    getClassroomTransactions,
-    getRecentUndoableAction,
-    undoTransaction,
-    undoBatchTransaction,
-    loading,
-    error,
-  } = useApp();
+    isLoading: classroomLoading,
+    error: classroomError,
+  } = useActiveClassroom(activeClassroomId);
+  const transactionsQuery = useTransactions(activeClassroomId);
+  const { getRecentUndoableAction, forget: forgetBatchKind } = useUndoableAction(activeClassroomId);
+  const undoTransactionMutation = useUndoTransaction();
+  const undoBatchTransactionMutation = useUndoBatchTransaction();
+
+  const loading = classroomLoading || transactionsQuery.isLoading;
+  const error = classroomError || transactionsQuery.error;
 
   const { settings, setCardSize, toggleShowPointTotals, setViewMode } = useDisplaySettings();
 
@@ -50,9 +62,10 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const handleDismissError = useCallback(() => setOperationError(null), []);
 
   // Derived undoable action.
-  // `getRecentUndoableAction` is a useCallback over context state, so it
-  // updates immediately when transactions/students change — no setTimeout
-  // dance needed in close handlers. The 1s tick re-evaluates the wall-clock
+  // `getRecentUndoableAction` is a useCallback over the TanStack-cached
+  // transactions/students (via useUndoableAction), so it updates immediately
+  // when they change — no setTimeout dance needed in close handlers. The 1s tick
+  // re-evaluates the wall-clock
   // UNDO_WINDOW_MS so the toast disappears when the window expires even
   // without a state change. `dismissedTxnRef` hides the toast for one render
   // after the user presses undo, in case the cache update lags.
@@ -135,9 +148,10 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
       try {
         if (actionToUndo.isBatch && actionToUndo.batchId) {
-          await undoBatchTransaction(actionToUndo.batchId);
+          await undoBatchTransactionMutation.mutateAsync({ batchId: actionToUndo.batchId });
+          forgetBatchKind(actionToUndo.batchId);
         } else {
-          await undoTransaction(transactionId);
+          await undoTransactionMutation.mutateAsync(transactionId);
         }
         // Hide the toast immediately; the next derivation pass will see
         // either a different recent action or null once the cache catches up.
@@ -148,12 +162,16 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
         setOperationError(ERROR_MESSAGES.UNDO);
       }
     },
-    [undoTransaction, undoBatchTransaction, undoableAction]
+    [undoTransactionMutation, undoBatchTransactionMutation, forgetBatchKind, undoableAction]
   );
 
   const transactions: PointTransaction[] = useMemo(() => {
     if (!activeClassroom) return [];
-    const dbTransactions = getClassroomTransactions(activeClassroom.id, 20);
+    const dbTransactions = classroomTransactions(
+      transactionsQuery.data ?? [],
+      activeClassroom.id,
+      20
+    );
     return dbTransactions.map((t) => ({
       id: t.id,
       studentId: t.student_id,
@@ -165,7 +183,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       timestamp: new Date(t.created_at).getTime(),
       note: t.note || undefined,
     }));
-  }, [activeClassroom, getClassroomTransactions]);
+  }, [activeClassroom, transactionsQuery.data]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Loading / error / empty states

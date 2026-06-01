@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import type { Student, Behavior } from '../../types';
-import { useApp } from '../../contexts/useApp';
+import { useBehaviors } from '../../hooks/useBehaviors';
+import { useAwardPoints } from '../../hooks/useTransactions';
+import { studentPoints } from '../../utils/pointSelectors';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { useAvatarColor } from '../../hooks';
 import { getAvatarColorForName } from '../../utils';
@@ -17,7 +19,8 @@ interface AwardPointsModalProps {
 }
 
 export function AwardPointsModal({ isOpen, onClose, student, classroomId }: AwardPointsModalProps) {
-  const { behaviors, awardPoints, getStudentPoints } = useApp();
+  const { data: behaviors = [] } = useBehaviors();
+  const awardPointsMutation = useAwardPoints();
   const { playPositive, playNegative } = useSoundEffects();
   const [isAwarding, setIsAwarding] = useState(false);
   const [awardError, setAwardError] = useState<string | null>(null);
@@ -38,7 +41,13 @@ export function AwardPointsModal({ isOpen, onClose, student, classroomId }: Awar
       setAwardError(null);
 
       try {
-        await awardPoints(classroomId, student.id, behavior.id);
+        await awardPointsMutation.mutateAsync({
+          studentId: student.id,
+          classroomId,
+          behavior,
+          note: null,
+          timestamp: Date.now(),
+        });
         if (behavior.category === 'positive') {
           playPositive();
         } else {
@@ -50,7 +59,7 @@ export function AwardPointsModal({ isOpen, onClose, student, classroomId }: Awar
         setIsAwarding(false);
       }
     },
-    [classroomId, student, isAwarding, awardPoints, playPositive, playNegative, onClose]
+    [classroomId, student, isAwarding, awardPointsMutation, playPositive, playNegative, onClose]
   );
 
   const rawColor = student ? student.avatarColor || getAvatarColorForName(student.name) : '#6b7280';
@@ -58,7 +67,11 @@ export function AwardPointsModal({ isOpen, onClose, student, classroomId }: Awar
 
   if (!isOpen || !student) return null;
 
-  const points = getStudentPoints(student.id);
+  // Read the selected student's stored totals straight from the prop (already an
+  // AppStudent with totals). Do NOT mount useAppStudents here — a second
+  // useStudents(classroomId) mount opens a duplicate point_transactions DELETE
+  // realtime channel, double-decrementing today/week totals on cross-device undo.
+  const points = studentPoints(student);
   const isPositive = points.total >= 0;
 
   return (

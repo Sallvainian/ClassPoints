@@ -1,7 +1,8 @@
 import { useEffect, useCallback, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Behavior, StudentPoints } from '../../types';
-import { useApp } from '../../contexts/useApp';
+import { useBehaviors } from '../../hooks/useBehaviors';
+import { useBatchAward } from '../../hooks/useBatchAward';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
 import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
@@ -24,7 +25,8 @@ export function ClassAwardModal({
   studentCount,
   classPoints,
 }: ClassAwardModalProps) {
-  const { behaviors, awardClassPoints } = useApp();
+  const { data: behaviors = [] } = useBehaviors();
+  const { awardClass } = useBatchAward(classroomId);
   const { playPositive, playNegative } = useSoundEffects();
   const [isAwarding, setIsAwarding] = useState(false);
   const [awardError, setAwardError] = useState<string | null>(null);
@@ -44,7 +46,7 @@ export function ClassAwardModal({
       setAwardError(null);
 
       try {
-        await awardClassPoints(classroomId, behavior.id);
+        await awardClass(behavior);
         if (behavior.category === 'positive') {
           playPositive();
         } else {
@@ -57,7 +59,7 @@ export function ClassAwardModal({
         setIsAwarding(false);
       }
     },
-    [classroomId, isAwarding, awardClassPoints, playPositive, playNegative, onClose]
+    [isAwarding, awardClass, playPositive, playNegative, onClose]
   );
 
   if (!isOpen) return null;
