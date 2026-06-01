@@ -12,7 +12,8 @@ export const queryKeys = {
     // Phase 3: keyed payload merges students-table columns + get_student_time_totals RPC
     // results in `useStudents.queryFn`. The prior `timeTotalsByClassroom` separate-key
     // shape was never used at a call site and is dropped — time totals live inside the
-    // `byClassroom` cache and are preserved across realtime UPDATE via merge-on-update.
+    // `byClassroom` cache and are refreshed wholesale by invalidate-and-refetch on any
+    // students-table realtime event (ADR-005 §7).
     byClassroom: (classroomId: string | null) => ['students', classroomId] as const,
   },
   transactions: {

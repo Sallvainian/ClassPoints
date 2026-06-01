@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { useStudents } from '../useStudents';
 import { queryKeys } from '../../lib/queryKeys';
-import type { StudentWithPoints } from '../../types/transforms';
 
 type MockPostgresPayload = {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE';
@@ -63,7 +62,6 @@ vi.mock('../../lib/supabase', () => ({
 }));
 
 const CLASSROOM_ID = 'classroom-1';
-const STUDENT_ID = 'student-1';
 
 function makeClient(): QueryClient {
   return new QueryClient({
@@ -79,7 +77,7 @@ function makeWrapper(qc: QueryClient) {
     createElement(QueryClientProvider, { client: qc }, children);
 }
 
-describe('useStudents point_transactions realtime fallback', () => {
+describe('useStudents students-table realtime invalidate-not-merge', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     globalThis.__useStudentsRealtimeHandlers = {};
@@ -88,106 +86,38 @@ describe('useStudents point_transactions realtime fallback', () => {
     mockRpc.mockResolvedValue({ data: [], error: null });
   });
 
-  it('[P0][HIST.01-INT-02] invalidates students when point_transactions DELETE payload.old is primary-key only', async () => {
-    const qc = makeClient();
-    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+  it.each(['INSERT', 'UPDATE', 'DELETE'] as const)(
+    '[P0][HIST.01-INT-02] invalidates students.byClassroom + classrooms.all and never setQueryData on %s',
+    async (eventType) => {
+      const qc = makeClient();
+      const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+      const setQueryDataSpy = vi.spyOn(qc, 'setQueryData');
 
-    renderHook(() => useStudents(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
+      renderHook(() => useStudents(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
 
-    await waitFor(() => {
-      expect(globalThis.__useStudentsRealtimeHandlers.point_transactions).toBeDefined();
-    });
-
-    expect(globalThis.__useStudentsRealtimeConfigs.point_transactions?.event).toBe('DELETE');
-    invalidateSpy.mockClear();
-
-    act(() => {
-      globalThis.__useStudentsRealtimeHandlers.point_transactions?.({
-        eventType: 'DELETE',
-        new: null,
-        old: { id: 'transaction-1' },
+      await waitFor(() => {
+        expect(globalThis.__useStudentsRealtimeHandlers.students).toBeDefined();
       });
-    });
 
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: queryKeys.students.byClassroom(CLASSROOM_ID),
-    });
-  });
+      invalidateSpy.mockClear();
+      setQueryDataSpy.mockClear();
 
-  it('[P0][HIST.01-INT-02] invalidates students when point_transactions DELETE payload.old lacks created_at', async () => {
-    const qc = makeClient();
-    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
-
-    renderHook(() => useStudents(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
-
-    await waitFor(() => {
-      expect(globalThis.__useStudentsRealtimeHandlers.point_transactions).toBeDefined();
-    });
-
-    expect(globalThis.__useStudentsRealtimeConfigs.point_transactions?.event).toBe('DELETE');
-    invalidateSpy.mockClear();
-
-    act(() => {
-      globalThis.__useStudentsRealtimeHandlers.point_transactions?.({
-        eventType: 'DELETE',
-        new: null,
-        old: { id: 'transaction-1', student_id: 'student-1', points: 2 },
+      act(() => {
+        globalThis.__useStudentsRealtimeHandlers.students?.({
+          eventType,
+          new: eventType === 'DELETE' ? null : { id: 'student-1', classroom_id: CLASSROOM_ID },
+          old: eventType === 'INSERT' ? null : { id: 'student-1' },
+        });
       });
-    });
 
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: queryKeys.students.byClassroom(CLASSROOM_ID),
-    });
-  });
-
-  it('[P0][HIST.01-INT-02] locally decrements totals when point_transactions DELETE payload.old has required fields', async () => {
-    const qc = makeClient();
-    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
-
-    renderHook(() => useStudents(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
-
-    await waitFor(() => {
-      expect(globalThis.__useStudentsRealtimeHandlers.point_transactions).toBeDefined();
-    });
-
-    const listKey = queryKeys.students.byClassroom(CLASSROOM_ID);
-    qc.setQueryData<StudentWithPoints[]>(listKey, [
-      {
-        id: STUDENT_ID,
-        classroom_id: CLASSROOM_ID,
-        name: 'Aaliyah',
-        avatar_color: null,
-        created_at: '2026-04-29T00:00:00.000Z',
-        point_total: 5,
-        positive_total: 5,
-        negative_total: 0,
-        today_total: 5,
-        this_week_total: 5,
-      },
-    ]);
-
-    invalidateSpy.mockClear();
-
-    act(() => {
-      globalThis.__useStudentsRealtimeHandlers.point_transactions?.({
-        eventType: 'DELETE',
-        new: null,
-        old: {
-          id: 'transaction-1',
-          student_id: STUDENT_ID,
-          points: 2,
-          created_at: new Date().toISOString(),
-        },
+      // The one rule: live-sync callbacks only invalidate — never hand-merge a payload.
+      expect(setQueryDataSpy).not.toHaveBeenCalled();
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: queryKeys.students.byClassroom(CLASSROOM_ID),
       });
-    });
-
-    expect(qc.getQueryData<StudentWithPoints[]>(listKey)?.[0]).toMatchObject({
-      point_total: 3,
-      positive_total: 3,
-      negative_total: 0,
-      today_total: 3,
-      this_week_total: 3,
-    });
-    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: listKey });
-  });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: queryKeys.classrooms.all,
+      });
+    }
+  );
 });

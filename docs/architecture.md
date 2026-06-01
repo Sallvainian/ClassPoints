@@ -80,16 +80,16 @@ See `docs/data-models.md` for full schema. Highlights:
 
 ADR-005 §6 specifies the realtime scope as exactly 2 domains:
 
-| Domain                             | Tables               | Why                                                     |
-| ---------------------------------- | -------------------- | ------------------------------------------------------- |
-| `students` (lifetime point totals) | `students`           | Cross-device student-row changes update stored totals   |
-| `point_transactions`               | `point_transactions` | Cross-device undo; DELETE branch decrements time totals |
+| Domain                             | Tables               | Why                                                                     |
+| ---------------------------------- | -------------------- | ----------------------------------------------------------------------- |
+| `students` (lifetime point totals) | `students`           | Cross-device student-row changes refetch stored + time totals           |
+| `point_transactions`               | `point_transactions` | Cross-device award / undo events propagate (owned by `useTransactions`) |
 
 Non-realtime (explicit, NOT default-by-omission): `classrooms`, `behaviors`, `layout_presets`, `seating-chart`, `user_sound_settings` (the last is realtime-enabled in the migration but only used for cross-device settings sync, which doesn't fit the 2-domain count). They use `refetchOnWindowFocus: false` defaults + on-demand `invalidateQueries` after mutations. Seating-chart was previously a target realtime domain for cross-device drag sync; that use case was dropped 2026-05-13.
 
-**Current HEAD drift from target**: `useStudents` subscribes to `students` + `point_transactions` (DELETE), `useTransactions` subscribes to `point_transactions` (any event), and legacy `useLayoutPresets` still subscribes to `layout_presets`. `useSeatingChart` is hand-rolled and has no realtime subscription — that matches the post-2026-05-13 target. Cross-device `point_transactions` INSERTs do not immediately refresh `today_total` / `this_week_total`; those time totals refresh through own-device optimism, DELETE realtime undo handling, visibility/refetch paths, or reload. Treat `layout_presets` realtime as legacy drift to remove when that hook migrates.
+**Realtime callback strategy — invalidate-not-merge** (now aligned with the migration target, ADR-005 §7): the live-sync callbacks call ONLY `invalidateQueries`. `useStudents` subscribes to `students` and, on any INSERT/UPDATE/DELETE, invalidates `students.byClassroom` (refetch re-reads authoritative columns + re-runs `get_student_time_totals`, so all-time/today/week refresh identically) plus `classrooms.all`. `useStudents` no longer owns a `point_transactions` subscription — `useTransactions` owns `point_transactions` (any event) and invalidates its own keys. Legacy `useLayoutPresets` still subscribes to `layout_presets` (drift to remove when that hook migrates). `useSeatingChart` is hand-rolled and has no realtime subscription — that matches the post-2026-05-13 target. Cross-device `point_transactions` INSERT/DELETE now refresh `today_total` / `this_week_total` via the DB trigger's `students` UPDATE event (`011:45-47`) → refetch; the day-boundary case still relies on the visibility-change handler.
 
-**Cross-cutting realtime DELETE rule**: any table receiving realtime DELETE events MUST have `ALTER TABLE x REPLICA IDENTITY FULL` in its migration. Without it, DELETE payloads arrive empty and `payload.old` is unusable. Currently `point_transactions`, `students`, and `user_sound_settings` have it.
+**Cross-cutting realtime DELETE rule**: any table receiving realtime DELETE events MUST have `ALTER TABLE x REPLICA IDENTITY FULL` in its migration (DB-level requirement; migration `005` is still required for filtered-DELETE event delivery). Without it, DELETE payloads arrive empty. Note the client no longer reads `payload.old`'s extra columns for `point_transactions` — the invalidate-not-merge callbacks ignore the payload body. Currently `point_transactions`, `students`, and `user_sound_settings` have `REPLICA IDENTITY FULL`.
 
 ### Type-system boundaries
 

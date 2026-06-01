@@ -107,6 +107,20 @@ ClassPoints adopts the same split deliberately; the simpler architecture is not 
 
 must update this section in the same commit that makes the code change. "Decide later" is not acceptable — the realtime count is load-bearing on PRD FR5 (exactly 2 channels), Phase 2 mutation race handling, and adapter bridge memoization assumptions.
 
+### 7. Realtime callback strategy: invalidate-not-merge for live-sync domains
+
+The realtime callbacks for the two live-sync domains (`students`, `point_transactions`) call **only** `qc.invalidateQueries(...)`. Hand-merging the realtime payload into the cache with `setQueryData` is retired.
+
+**Rationale.** A single refetch reads the authoritative `students` columns (`point_total` / `positive_total` / `negative_total`) AND re-runs `get_student_time_totals`, so all-time, today, and this-week refresh identically. This eliminates the prior preserve-today/week drift, where the `students`-table UPDATE handler copied the all-time columns from the payload but deliberately preserved today/this-week — so the one realtime event that already refreshed all-time cross-device was intentionally skipping the time totals. Aligns with `modernization-plan.md:61` (callbacks "invalidate the relevant query key") and `prd.md:123` ("Surviving realtime callbacks invoke **only** `queryClient.invalidateQueries` or `queryClient.setQueryData`. No manual `onInsert` / `onUpdate` / `onDelete` state-merging logic remains"). §7 tightens that permission for the live-sync domains specifically — they invalidate only; the PRD's broader `setQueryData` allowance still applies elsewhere (e.g. optimistic mutation `onMutate`).
+
+**Cost.** Watching (non-awarding) screens do ~1 `get_student_time_totals` refetch per remote award (0 → 1). The awarding device already invalidates `students.byClassroom` via `useAwardPoints.onSettled` (`useTransactions.ts:231`), so it pays ~0 extra — the realtime echo dedupes against that refetch.
+
+For **bulk operations** the multiplier is higher: `useResetClassroomPoints` / `useClearStudentPoints` (delete N transaction rows) and `useBatchAward` (insert N rows, one per student) drive the trigger `FOR EACH ROW`, so a watching device sees up to O(class size) `students`-table realtime events and refetches. TanStack Query coalesces concurrent invalidations of the same key, which dampens this, but does not eliminate it when the events span more than a single refetch duration (each settled refetch can be re-triggered by the next event). The mitigation lever remains deferred **#8** (batch the `get_student_time_totals` RPC) — pull it if bulk-operation RPC load on watchers becomes painful.
+
+**Dependency.** If runtime RPC load under rapid-award bursts is painful (1-per-award per watcher), batch the RPC via deferred **#8** — that is the lever, and this decision accepts the cost until it bites.
+
+This **replaces** the informal preserve-today/week decision that was previously documented only in `project-context.md` and a `useStudents.ts` code comment; it was never recorded in §1 above.
+
 ## Consequences
 
 - `refetchOnWindowFocus: false` eliminates cross-tab sync on focus. For tables covered by a realtime channel (see Decision §6 Realtime Domains table), realtime fills the gap. For non-realtime tables (§6 Non-Realtime Domains table — `behaviors`, `classrooms`, `layout_presets`), a user editing in tab A will not see the change in tab B until tab B triggers a refetch through another action. Acceptable **by policy** (§6) — reference-product verification confirmed ClassDojo operates the same way; single-teacher-per-classroom is the default; adding a realtime channel to a non-realtime domain requires updating §6 in the same commit.
