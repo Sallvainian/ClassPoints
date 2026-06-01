@@ -20,6 +20,9 @@ type MockConfig = {
 declare global {
   var __useStudentsRealtimeHandlers: Record<string, MockHandler | undefined>;
   var __useStudentsRealtimeConfigs: Record<string, MockConfig | undefined>;
+  // The subscribe-status callback for the active channel — lets a test drive the
+  // CLOSED → SUBSCRIBED transition that useRealtimeSubscription gates onReconnect on.
+  var __useStudentsRealtimeStatusCb: ((status: string) => void) | undefined;
 }
 
 const mockStudentsOrder = vi.hoisted(() =>
@@ -51,6 +54,7 @@ vi.mock('../../lib/supabase', () => ({
           return channel;
         }),
         subscribe: vi.fn((callback?: (status: string) => void) => {
+          globalThis.__useStudentsRealtimeStatusCb = callback;
           setTimeout(() => callback?.('SUBSCRIBED'), 0);
           return channel;
         }),
@@ -82,6 +86,7 @@ describe('useStudents students-table realtime invalidate-not-merge', () => {
     vi.clearAllMocks();
     globalThis.__useStudentsRealtimeHandlers = {};
     globalThis.__useStudentsRealtimeConfigs = {};
+    globalThis.__useStudentsRealtimeStatusCb = undefined;
     mockStudentsOrder.mockResolvedValue({ data: [], error: null });
     mockRpc.mockResolvedValue({ data: [], error: null });
   });
@@ -120,4 +125,36 @@ describe('useStudents students-table realtime invalidate-not-merge', () => {
       });
     }
   );
+
+  it('[P0][HIST.01-INT-02] onReconnect runs the same refresh contract (invalidate, never setQueryData)', async () => {
+    const qc = makeClient();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const setQueryDataSpy = vi.spyOn(qc, 'setQueryData');
+
+    renderHook(() => useStudents(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
+
+    await waitFor(() => {
+      expect(globalThis.__useStudentsRealtimeStatusCb).toBeDefined();
+    });
+
+    invalidateSpy.mockClear();
+    setQueryDataSpy.mockClear();
+
+    // useStudents wires `onReconnect: refresh` (same reference as onChange), but
+    // useRealtimeSubscription only fires onReconnect on SUBSCRIBED *after* a drop
+    // (CHANNEL_ERROR / TIMED_OUT / CLOSED). Drive CLOSED → SUBSCRIBED to satisfy
+    // that gate and prove the catch-up refetch follows the invalidate-not-merge rule.
+    act(() => {
+      globalThis.__useStudentsRealtimeStatusCb?.('CLOSED');
+      globalThis.__useStudentsRealtimeStatusCb?.('SUBSCRIBED');
+    });
+
+    expect(setQueryDataSpy).not.toHaveBeenCalled();
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: queryKeys.students.byClassroom(CLASSROOM_ID),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: queryKeys.classrooms.all,
+    });
+  });
 });
