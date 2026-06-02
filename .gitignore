@@ -52,6 +52,8 @@ _bmad/
 # BMAD output_folder (see _bmad/*/config.yaml output_folder) — generated
 # planning / spec / traceability / gate artifacts, regenerated every run.
 _bmad-output/
+# BMad document-project state-file snapshots — kept on local disk, never tracked.
+docs/.archive/
 .auth/
 src.zip
 # Skill-generated scratch (playwright-test / BMAD TEA gate outputs)
