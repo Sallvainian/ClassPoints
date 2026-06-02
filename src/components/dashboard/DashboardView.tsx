@@ -10,7 +10,9 @@ import {
   useUndoBatchTransaction,
 } from '../../hooks/useTransactions';
 import { useUndoableAction } from '../../hooks/useUndoableAction';
+import { useFailedBatches } from '../../hooks/useFailedBatches';
 import { classroomTransactions } from '../../utils/pointSelectors';
+import { mergeFailedIntoFeed } from '../../utils/activityFeed';
 import { useDisplaySettings } from '../../hooks/useDisplaySettings';
 import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { StudentGrid } from '../students/StudentGrid';
@@ -40,6 +42,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     error: classroomError,
   } = useActiveClassroom(activeClassroomId);
   const transactionsQuery = useTransactions(activeClassroomId);
+  const failedBatches = useFailedBatches(activeClassroomId);
   const { getRecentUndoableAction, forget: forgetBatchKind } = useUndoableAction(activeClassroomId);
   const undoTransactionMutation = useUndoTransaction();
   const undoBatchTransactionMutation = useUndoBatchTransaction();
@@ -171,12 +174,9 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
   const transactions: PointTransaction[] = useMemo(() => {
     if (!activeClassroom) return [];
-    const dbTransactions = classroomTransactions(
-      transactionsQuery.data ?? [],
-      activeClassroom.id,
-      20
-    );
-    return dbTransactions.map((t) => ({
+    const dbRows = transactionsQuery.data ?? [];
+    const dbTransactions = classroomTransactions(dbRows, activeClassroom.id, 20);
+    const real: PointTransaction[] = dbTransactions.map((t) => ({
       id: t.id,
       studentId: t.student_id,
       classroomId: t.classroom_id,
@@ -187,7 +187,10 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       timestamp: new Date(t.created_at).getTime(),
       note: t.note || undefined,
     }));
-  }, [activeClassroom, transactionsQuery.data]);
+    // CAP-3 synthetic failed-batch entries + CAP-6 late-confirm suppression are
+    // handled by mergeFailedIntoFeed (see its doc comment for the contract).
+    return mergeFailedIntoFeed(real, failedBatches, dbRows);
+  }, [activeClassroom, transactionsQuery.data, failedBatches]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Loading / error / empty states

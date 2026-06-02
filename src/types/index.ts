@@ -30,6 +30,10 @@ export interface PointTransaction {
   points: number;
   timestamp: number;
   note?: string;
+  // Synthetic, session-ephemeral "batch award failed" marker. Set only on
+  // client-side rows injected by DashboardView from failedBatchStore — never on a
+  // real DB transaction. Renders as a distinct FAILED entry in TodaySummary.
+  failed?: boolean;
 }
 
 // Student entity with point totals

@@ -5,15 +5,27 @@ import { createElement, type ReactNode } from 'react';
 import { useBatchAward } from '../useBatchAward';
 import { queryKeys } from '../../lib/queryKeys';
 import * as batchKindStore from '../../lib/batchKindStore';
+import * as failedBatchStore from '../../lib/failedBatchStore';
 import type { StudentWithPoints } from '../../types/transforms';
 import type { Behavior } from '../../types';
 
-// useBatchAward fans out over the cached roster by calling useAwardPoints per
-// student. Mock the mutation so nothing hits Supabase; the hook reads the roster
-// from the seeded query cache via qc.getQueryData (no second subscription).
-const mockMutateAsync = vi.fn();
+// useBatchAward fires ONE atomic bulk insert via useAwardPointsBatch. Mock that
+// mutation so nothing hits Supabase; the hook reads the roster from the seeded
+// query cache (no second subscription). On failure the hook runs §3 recovery
+// re-queries against `supabase` — mock the `.from(...).select('id').eq(...)` chain.
+const { mockMutateAsync, eqMock } = vi.hoisted(() => ({
+  mockMutateAsync: vi.fn(),
+  eqMock: vi.fn(),
+}));
+
 vi.mock('../useTransactions', () => ({
-  useAwardPoints: () => ({ mutateAsync: mockMutateAsync }),
+  useAwardPointsBatch: () => ({ mutateAsync: mockMutateAsync }),
+}));
+
+// Recovery reads chain `.from(t).select('id').eq(c, v).abortSignal(sig)`; the
+// terminal `.abortSignal` is the awaited thenable, so eqMock resolves there.
+vi.mock('../../lib/supabase', () => ({
+  supabase: { from: () => ({ select: () => ({ eq: () => ({ abortSignal: eqMock }) }) }) },
 }));
 
 const CLASSROOM_ID = 'classroom-1';
@@ -59,29 +71,43 @@ function seedRoster(qc: QueryClient, students: StudentWithPoints[]) {
   qc.setQueryData(queryKeys.students.byClassroom(CLASSROOM_ID), students);
 }
 
+// A server-reached failure: PostgrestError carries a SQLSTATE `.code`.
+function pgError(code: string, message = 'postgrest error') {
+  return Object.assign(new Error(message), { code });
+}
+
 describe('useBatchAward', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     batchKindStore.clear();
-    mockMutateAsync.mockImplementation((input: { studentId: string; batchId: string }) =>
-      Promise.resolve({ id: `tx-${input.studentId}`, batch_id: input.batchId })
+    failedBatchStore.clear();
+    mockMutateAsync.mockReset();
+    // Default: the bulk insert succeeds, returning one row per targeted id.
+    mockMutateAsync.mockImplementation((input: { studentIds: string[]; batchId: string }) =>
+      Promise.resolve(input.studentIds.map((id) => ({ id: `tx-${id}`, batch_id: input.batchId })))
     );
+    eqMock.mockReset();
+    eqMock.mockResolvedValue({ data: [], error: null });
   });
 
-  afterEach(() => batchKindStore.clear());
+  afterEach(() => {
+    batchKindStore.clear();
+    failedBatchStore.clear();
+  });
 
-  it('awardClass fans out over the full roster under one shared batchId and tags "class"', async () => {
+  // ── Success / guard paths ────────────────────────────────────────────────
+
+  it('awardClass fires one atomic batch over the full roster and tags "class"', async () => {
     const qc = makeClient();
     seedRoster(qc, [student({ id: 's1' }), student({ id: 's2', name: 'Bo' })]);
     const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
 
     const txns = await result.current.awardClass(BEHAVIOR);
 
-    expect(mockMutateAsync).toHaveBeenCalledTimes(2);
-    const batchIds = mockMutateAsync.mock.calls.map((c) => c[0].batchId);
-    expect(new Set(batchIds).size).toBe(1); // single shared batch_id for the cluster
+    expect(mockMutateAsync).toHaveBeenCalledTimes(1); // ONE bulk insert, not N
+    const input = mockMutateAsync.mock.calls[0][0];
+    expect(input.studentIds).toEqual(['s1', 's2']);
     expect(txns).toHaveLength(2);
-    expect(batchKindStore.get(batchIds[0])).toBe('class');
+    expect(batchKindStore.get(input.batchId)).toBe('class');
   });
 
   it('awardClass with an empty roster awards nothing and tags nothing (no leak)', async () => {
@@ -95,17 +121,18 @@ describe('useBatchAward', () => {
     expect(mockMutateAsync).not.toHaveBeenCalled(); // guard returns before tagging
   });
 
-  it('awardSubset awards only the selected ids and tags "subset"', async () => {
+  it('awardSubset awards only the selected ids in one batch and tags "subset"', async () => {
     const qc = makeClient();
     seedRoster(qc, [student({ id: 's1' }), student({ id: 's2' }), student({ id: 's3' })]);
     const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
 
     const txns = await result.current.awardSubset(['s1', 's3'], BEHAVIOR, 'note');
 
-    expect(mockMutateAsync).toHaveBeenCalledTimes(2);
-    expect(mockMutateAsync.mock.calls.map((c) => c[0].studentId).sort()).toEqual(['s1', 's3']);
+    expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+    const input = mockMutateAsync.mock.calls[0][0];
+    expect([...input.studentIds].sort()).toEqual(['s1', 's3']);
     expect(txns).toHaveLength(2);
-    expect(batchKindStore.get(mockMutateAsync.mock.calls[0][0].batchId)).toBe('subset');
+    expect(batchKindStore.get(input.batchId)).toBe('subset');
   });
 
   it('awardSubset with no valid ids awards nothing', async () => {
@@ -117,35 +144,82 @@ describe('useBatchAward', () => {
     expect(mockMutateAsync).not.toHaveBeenCalled();
   });
 
-  it('silently filters a per-student failure but keeps the successes', async () => {
+  // ── Failure paths (rewritten from the old silent-filter assertions) ───────
+
+  it('awardClass rejects all-or-nothing on a batch failure — no partial list returned', async () => {
     const qc = makeClient();
-    seedRoster(qc, [student({ id: 's1' }), student({ id: 's2' })]);
-    mockMutateAsync.mockImplementation((input: { studentId: string; batchId: string }) =>
-      input.studentId === 's2'
-        ? Promise.reject(new Error('boom'))
-        : Promise.resolve({ id: 'tx-s1', batch_id: input.batchId })
-    );
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    seedRoster(qc, [student({ id: 's1' }), student({ id: 's2', name: 'Bo' })]);
+    mockMutateAsync.mockRejectedValue(pgError('23503', 'foreign key violation'));
+    eqMock.mockResolvedValueOnce({ data: [{ id: 's1' }], error: null }); // fresh roster: s2 gone
     const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
 
-    const txns = await result.current.awardClass(BEHAVIOR);
-
-    expect(txns).toHaveLength(1); // the rejected s2 row is filtered to null and dropped
-    errSpy.mockRestore();
+    await expect(result.current.awardClass(BEHAVIOR)).rejects.toThrow();
   });
 
-  it('forgets the batch tag when every award fails (no batchKindStore leak)', async () => {
+  it('forgets the batch tag when the batch fails (no batchKindStore leak)', async () => {
     const qc = makeClient();
     seedRoster(qc, [student({ id: 's1' })]);
-    mockMutateAsync.mockRejectedValue(new Error('boom'));
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockMutateAsync.mockRejectedValue(pgError('42501', 'rls denied'));
+    eqMock.mockResolvedValueOnce({ data: [{ id: 's1' }], error: null }); // s1 still present → ambient
     const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
 
-    const txns = await result.current.awardClass(BEHAVIOR);
-
-    expect(txns).toEqual([]);
+    await expect(result.current.awardClass(BEHAVIOR)).rejects.toThrow();
     const batchId = mockMutateAsync.mock.calls[0][0].batchId;
     expect(batchKindStore.get(batchId)).toBeUndefined(); // tagged then forgotten
-    errSpy.mockRestore();
+  });
+
+  // ── §3 recovery (net-new coverage) ───────────────────────────────────────
+
+  it('names the concurrently-deleted student via the fresh roster diff (per-row)', async () => {
+    const qc = makeClient();
+    seedRoster(qc, [student({ id: 's1', name: 'Ada' }), student({ id: 's2', name: 'Bo' })]);
+    mockMutateAsync.mockRejectedValue(pgError('23503'));
+    eqMock.mockResolvedValueOnce({ data: [{ id: 's1' }], error: null }); // s2 deleted remotely
+    const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
+
+    await expect(result.current.awardClass(BEHAVIOR)).rejects.toThrow(/Bo/);
+    const notices = failedBatchStore.getByClassroom(CLASSROOM_ID);
+    expect(notices).toHaveLength(1);
+    expect(notices[0].classification).toBe('per-row');
+    expect(notices[0].failedStudentNames).toEqual(['Bo']);
+  });
+
+  it('classifies an ambient server failure as "the batch" (no false student name)', async () => {
+    const qc = makeClient();
+    seedRoster(qc, [student({ id: 's1', name: 'Ada' })]);
+    mockMutateAsync.mockRejectedValue(pgError('42501'));
+    eqMock.mockResolvedValueOnce({ data: [{ id: 's1' }], error: null }); // all present → ambient
+    const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
+
+    await expect(result.current.awardClass(BEHAVIOR)).rejects.toThrow(/class/);
+    const notices = failedBatchStore.getByClassroom(CLASSROOM_ID);
+    expect(notices[0].classification).toBe('ambient');
+    expect(notices[0].failedStudentNames).toBeUndefined();
+  });
+
+  it('suppresses a lost-ack failure as success when the rows actually committed (CAP-6)', async () => {
+    const qc = makeClient();
+    seedRoster(qc, [student({ id: 's1' }), student({ id: 's2' })]);
+    mockMutateAsync.mockRejectedValue(new TypeError('Failed to fetch')); // network-class, no .code
+    eqMock.mockResolvedValueOnce({ data: [{ id: 'tx-1' }, { id: 'tx-2' }], error: null }); // batch present
+    const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
+
+    const txns = await result.current.awardClass(BEHAVIOR); // does NOT throw
+    expect(txns).toEqual([]);
+    const batchId = mockMutateAsync.mock.calls[0][0].batchId;
+    expect(batchKindStore.get(batchId)).toBe('class'); // tag kept — undo may apply
+    expect(failedBatchStore.getByClassroom(CLASSROOM_ID)).toHaveLength(0); // not recorded as failure
+  });
+
+  it('reports "could not confirm" when the recovery re-query also fails (indeterminate)', async () => {
+    const qc = makeClient();
+    seedRoster(qc, [student({ id: 's1' })]);
+    mockMutateAsync.mockRejectedValue(new TypeError('Failed to fetch')); // network-class
+    eqMock.mockResolvedValueOnce({ data: null, error: { message: 'still offline' } }); // recovery read fails
+    const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
+
+    await expect(result.current.awardClass(BEHAVIOR)).rejects.toThrow(/confirm/);
+    const notices = failedBatchStore.getByClassroom(CLASSROOM_ID);
+    expect(notices[0].classification).toBe('indeterminate');
   });
 });
