@@ -42,11 +42,13 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      // react-hooks 7's recommended preset enables the React Compiler ruleset as
-      // errors. The compiler is not enabled here (see vite.config.ts), and
-      // set-state-in-effect fires on idiomatic, correct patterns (prop-reset
-      // effects, timer-driven toasts) plus fetch-in-effect hooks slated for the
-      // TanStack Query migration. Track as warnings rather than churn working code.
+      // react-hooks 7's recommended preset enables the React Compiler ruleset.
+      // The compiler is not enabled here (see vite.config.ts), so set-state-in-effect
+      // also fires on correct, idiomatic patterns (prop-reset effects, timer-driven
+      // toasts, external-system init). Keep it at 'error' (the recommended default)
+      // and disable per-site with a justification: permanent escape hatches where the
+      // effect is genuinely correct, or TEMP notes where a refactor is still pending
+      // (e.g. the TanStack migration of the fetch-in-effect hooks).
       'react-hooks/set-state-in-effect': 'error',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
