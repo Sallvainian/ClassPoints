@@ -1,6 +1,6 @@
 # Source Tree Analysis
 
-_Generated 2026-06-02 (exhaustive full rescan; HEAD `c9ca66f` on `main`)._
+_Generated 2026-06-02 (exhaustive full rescan; HEAD `134a1ef` on `main`)._
 
 ClassPoints is a single-part monolith — one React SPA backed by Supabase. The repo's interesting structure lives in `src/`, `supabase/`, `tests/`, `scripts/`, and `.github/workflows/`; everything else is config or generated output.
 
@@ -8,7 +8,7 @@ ClassPoints is a single-part monolith — one React SPA backed by Supabase. The 
 
 ```text
 ClassPoints/
-├── src/                        # React app source (126 .ts/.tsx/.css files; 107 non-test .ts/.tsx)
+├── src/                        # React app source (134 .ts/.tsx/.css files; 111 non-test .ts/.tsx)
 ├── supabase/                   # Local Supabase config + 13 migrations
 ├── tests/                      # Playwright E2E, Vitest backend integration, support helpers
 ├── scripts/                    # Node-side dev/CI/seed scripts (tsx + .mjs)
@@ -90,13 +90,14 @@ src/
 │   ├── ThemeContext.tsx        # light/dark, prefers-color-scheme + localStorage
 │   └── useTheme.ts             # Theme + ThemeContextValue + ThemeContext + useTheme()
 │
-├── hooks/                      # 15 hook implementation files + index barrel + hook tests (__tests__/)
+├── hooks/                      # 16 hook implementation files + index barrel + hook tests (__tests__/)
 │   ├── index.ts                # Hook barrel export
 │   ├── useClassrooms.ts        # TanStack ✅ (Phase 2) — no realtime; cross-hook invalidation
 │   ├── useStudents.ts          # TanStack ✅ (Phase 3) — SOLE owner of students realtime (invalidate-not-merge)
 │   ├── useTransactions.ts      # TanStack ✅ (Phase 2) — owns point_transactions realtime; useAwardPoints is THE optimistic mutation showcase
 │   ├── useBehaviors.ts         # TanStack ✅ (Phase 1)
-│   ├── useBatchAward.ts        # Phase 4 bridge — awardClass/awardSubset fan-out over useAwardPoints (silent per-item filter, cluster #2)
+│   ├── useBatchAward.ts        # Atomic batch orchestrator — awardClass/awardSubset fire ONE atomic insert via useAwardPointsBatch, THROW BatchAwardError (cluster #2 FIXED, 30da564)
+│   ├── useFailedBatches.ts     # useSyncExternalStore read of failedBatchStore notices (cluster #2); sole consumer DashboardView
 │   ├── useUndoableAction.ts    # Phase 4 bridge — 10s undo window (getRecentUndoableAction) relocated from AppContext
 │   ├── useAppClassrooms.ts     # Phase 4 bridge — camelCase useAppClassrooms/useActiveClassroom over useClassrooms/useStudents
 │   ├── useLayoutPresets.ts     # ❌ Legacy hand-rolled (170 LOC, presets/loading/error/refetch shape) — DO NOT clone
@@ -113,6 +114,7 @@ src/
 │   ├── queryClient.ts          # ADR-005 defaults: staleTime 30s, gcTime 10min, refetchOnWindowFocus false
 │   ├── queryKeys.ts            # Single source of truth for query keys (use BOTH for read AND invalidate)
 │   ├── batchKindStore.ts       # Phase 4 — module-level Map<batchId, 'class'|'subset'>; written by useBatchAward, read by useUndoableAction
+│   ├── failedBatchStore.ts     # Cluster #2 — module-level FAILED-batch notices keyed by classroomId; useSyncExternalStore source
 │   └── manualAdjustmentConstants.ts
 │
 ├── services/
@@ -126,6 +128,7 @@ src/
 │
 └── utils/
     ├── index.ts                # Re-exports
+    ├── activityFeed.ts         # Cluster #2 — mergeFailedIntoFeed: inject synthetic FAILED feed rows + CAP-6 late-confirm suppression
     ├── dateUtils.ts            # getDateBoundaries (start of today, start of week)
     ├── defaults.ts             # Default behaviors (createDefaultBehaviors, 15) + sounds
     ├── errorMessages.ts        # ERROR_MESSAGES dictionary
@@ -191,7 +194,7 @@ tests/
     └── page-objects/           # .gitkeep placeholder (no page objects yet)
 ```
 
-There are also 17 Vitest unit/component test files under `src/` (`find src -name '*.test.ts*'` → 17):
+There are also 22 Vitest unit/component test files under `src/` (`find src -name '*.test.ts*'` → 22):
 
 ```text
 src/test/
@@ -201,6 +204,8 @@ src/test/
 ├── TeacherDashboard.test.tsx
 ├── useRotatingCategory.test.ts
 ├── AwardPointsModal.test.tsx                 # Phase 4 — single-award modal via useAwardPoints
+├── batchAwardModals.test.tsx                 # Cluster #2 — ClassAwardModal/MultiAwardModal named-error surfacing
+├── TodaySummary.test.tsx                     # Cluster #2 — synthetic FAILED feed-entry rendering
 └── dashboard-students-mount.regression.test.tsx  # asserts exactly one useStudents subscription per dashboard mount
 
 src/contexts/
@@ -208,6 +213,7 @@ src/contexts/
 
 src/hooks/__tests__/
 ├── useAwardPoints.test.ts
+├── useAwardPointsBatch.test.ts # Cluster #2 — atomic batch insert + optimistic lifecycle + whole-batch rollback
 ├── useRealtimeSubscription.test.ts
 ├── useStudents.test.ts         # students onReconnect refresh contract
 ├── useBehaviors.test.ts        # Phase 4
@@ -215,10 +221,14 @@ src/hooks/__tests__/
 ├── useAppClassrooms.test.ts    # Phase 4
 └── useUndoableAction.test.ts   # Phase 4
 
+src/lib/__tests__/
+└── failedBatchStore.test.ts    # Cluster #2 — record / getByClassroom / stable-ref (useSyncExternalStore) semantics
+
 src/types/
 └── transforms.test.ts          # Phase 4 — DB↔app transforms
 
 src/utils/
+├── __tests__/activityFeed.test.ts  # Cluster #2 — mergeFailedIntoFeed synthetic rows + CAP-6 suppression
 ├── __tests__/studentParser.test.ts
 └── pointSelectors.test.ts      # Phase 4 — point/transaction selectors
 ```

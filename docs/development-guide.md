@@ -1,6 +1,6 @@
 # Development Guide
 
-_Generated 2026-06-02 (exhaustive full rescan; HEAD `c9ca66f` on `main`)._
+_Generated 2026-06-02 (exhaustive full rescan; HEAD `134a1ef` on `main`)._
 
 ## Prerequisites
 
@@ -94,7 +94,7 @@ cp .env.test.example .env.test
 ### Unit (Vitest)
 
 - Config: `vitest.config.ts`. jsdom environment, globals on, setup file at `src/test/setup.ts`.
-- Tests live next to source under `src/test/`, `src/hooks/__tests__/`, `src/utils/` (+ `__tests__/`), `src/types/`, and `src/contexts/`. 17 unit/component test files today.
+- Tests live next to source under `src/test/`, `src/hooks/__tests__/`, `src/utils/` (+ `__tests__/`), `src/types/`, and `src/contexts/`. 22 unit/component test files today.
 - New Phase-4 unit tests use a real `QueryClientProvider` with a fresh test-local `QueryClient` (retries disabled) and mock Supabase at the module boundary — do NOT mock TanStack Query itself (`useBatchAward.test.ts`, `useUndoableAction.test.ts`, `useAppClassrooms.test.ts`).
 - Vitest **4** API — older v1 patterns may not apply; check existing tests under `src/test/**`.
 - (`tdd-guard-vitest` was removed in `280fa10` to close Dependabot alerts — it is no longer a dependency.)

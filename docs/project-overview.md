@@ -1,6 +1,6 @@
 # Project Overview
 
-_Generated 2026-06-02 (exhaustive full rescan; HEAD `c9ca66f` on `main`)._
+_Generated 2026-06-02 (exhaustive full rescan; HEAD `134a1ef` on `main`)._
 
 ClassPoints is a classroom-management web app for teachers. It tracks per-student behavior points, classroom totals, today/this-week roll-ups, seating charts, and per-user sound feedback. It is a client-only React SPA — there is no app server. The browser talks directly to Supabase Auth + Postgres + Realtime + RLS + RPCs.
 
@@ -10,7 +10,7 @@ ClassPoints is a classroom-management web app for teachers. It tracks per-studen
 | ------------------ | ------------------------------------------------------------------------------------------------------- |
 | Type               | Single-page web application, monolith                                                                   |
 | Architecture       | React SPA + Supabase BaaS                                                                               |
-| Language           | TypeScript ~5.9.3, strict mode                                                                          |
+| Language           | TypeScript ~6.0.3, strict mode                                                                          |
 | Runtime (Node)     | `>=25` (`package.json` engines; `.nvmrc` = 25; `@types/node` 25.9.1)                                    |
 | Framework          | React 19.2.7 (React Compiler NOT enabled)                                                               |
 | Build              | Vite 8.0.16 + `@vitejs/plugin-react` 6.0.2 (`base: '/ClassPoints/'`)                                    |
@@ -29,7 +29,7 @@ ClassPoints is a classroom-management web app for teachers. It tracks per-studen
 
 ## Current HEAD
 
-`main` at `c9ca66f` (`docs(lint): fix stale set-state-in-effect rationale comment`). Since the prior scan's `cad3cfa`, the major changes are: **Phase 4 dissolved the `AppContext` server-data facade** (`d8cde26` — `AppContext.tsx` 710→33 LOC, now UI/session state only); the **invalidate-not-merge cross-device totals refactor** (`ea9f406`); the **React 19 + Vite 8** dependency bump (`e9ae285`); the **ESLint 10 ecosystem** adoption (`2e28130`) and enforcement of **`react-hooks/set-state-in-effect` as `'error'`** (`749b9d2`); plus dependabot GitHub Actions bumps (`supabase/setup-cli` v2, `upload-pages-artifact` v5, `mise-action` v4). The earlier editorial UI redesign (PR #86, `6b06828`), context-hook split, Node-25 sync, brew Supabase CLI, database-linter-hardening migration, and Insubordination default behavior all remain in place.
+`main` at `134a1ef` (`docs(adr): repoint ADR-005 Supersedes at live queryClient.ts`). Since the previous generated-docs commit at `c9ca66f`, the changes are: the **atomic batch-award fix** (`30da564`, #106) — `useBatchAward` + the new `useAwardPointsBatch` fire ONE atomic multi-row insert and throw `BatchAwardError` instead of silently filtering per-student failures, closing anti-pattern cluster #2 and adding `failedBatchStore` / `useFailedBatches` / `activityFeed`; **TypeScript `~5.9.3` → `~6.0.3`** (`2ae19ee`, #105); **lint-staged 16 → 17** (`421d6bd`, #104); and the ADR-005 supersedes repoint (`134a1ef`). The earlier **Phase 4 facade dissolution** (`d8cde26` — `AppContext.tsx` 710→33 LOC), **invalidate-not-merge totals refactor** (`ea9f406`), **React 19 + Vite 8** (`e9ae285`), **ESLint 10 + `react-hooks/set-state-in-effect`** (`2e28130`/`749b9d2`), editorial UI redesign, Node-25 sync, brew Supabase CLI, database-linter-hardening migration, and Insubordination default behavior all remain in place.
 
 ## What's in motion
 
@@ -74,4 +74,3 @@ npm run supabase:down
 - [ADR-005 QueryClient Defaults](./adr/ADR-005-queryclient-defaults.md) — authoritative §1-§6
 - [Modernization Plan](./modernization-plan.md) — TanStack migration strategy
 - [`_bmad-output/project-context.md`](../_bmad-output/project-context.md) — LLM-optimized rule digest
-- [`_bmad-output/planning-artifacts/prd.md`](../_bmad-output/planning-artifacts/prd.md) — migration PRD

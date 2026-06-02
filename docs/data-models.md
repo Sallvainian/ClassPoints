@@ -1,8 +1,8 @@
 # Data Models
 
-_Generated 2026-06-02 (exhaustive full rescan; HEAD `c9ca66f` on `main`)._
+_Generated 2026-06-02 (exhaustive full rescan; HEAD `134a1ef` on `main`)._
 
-_Schema unchanged since the prior scan: `supabase/migrations/` had zero changes in `cad3cfa..c9ca66f`, so the table/enum/trigger/RLS content below is preserved. This refresh updates only the TypeScript-side references (transforms, behavior-defaults constants, realtime subscriptions) that the Phase 4 dissolution moved._
+_Schema unchanged since the prior scan: `supabase/migrations/` had zero changes in `c9ca66f..134a1ef`, so the table/enum/trigger/RLS content below is preserved. This refresh updates only the TypeScript-side references touched by the atomic batch-award fix (`30da564`, #106) — chiefly the synthetic `failed?` marker added to the `PointTransaction` app type._
 
 ## Overview
 
@@ -266,7 +266,7 @@ Function schemas reflect the harden migration (`20260429181608_*`): trigger-only
 ## Type-system overview
 
 - `src/types/database.ts` — auto-generated Postgres types. Pattern: `Database['public']['Tables']['X']['Row' | 'Insert' | 'Update']`. Convenience aliases: `Classroom`, `NewClassroom`, `UpdateClassroom`, etc. Function aliases: `Database['public']['Functions']['get_student_time_totals']['Args' | 'Returns']`.
-- `src/types/index.ts` — camelCase app shapes (`Behavior`, `Student`, `Classroom`, `PointTransaction`, `AppState`, `StudentPoints`, `UndoableAction`). Re-exports `*` from `./seatingChart` (cleanup target; the explicit-export rule applies to new code).
+- `src/types/index.ts` — camelCase app shapes (`Behavior`, `Student`, `Classroom`, `PointTransaction`, `AppState`, `StudentPoints`, `UndoableAction`). `PointTransaction` carries a synthetic, session-ephemeral `failed?` marker (`:36`) set ONLY on client-side rows injected by `DashboardView` from `failedBatchStore` — never on a real DB transaction. Re-exports `*` from `./seatingChart` (cleanup target; the explicit-export rule applies to new code).
 - `src/types/seatingChart.ts` — DB types, app types, AND transforms colocated in one file (predates the boundary-separation pattern; left as-is for that domain).
 - `src/types/transforms.ts` — forward `dbToBehavior`, `dbToClassroom` (with `ClassroomAggregate` payload), `dbToStudent` (with `timeTotals` payload), `dbToPointTransaction` (passthrough — the Db shape leaks intentionally; consumers read `DbPointTransaction` directly via `useTransactions`), plus the Phase-4 app-shape (camelCase) transforms `dbStudentToApp` (`:113`) and `dbClassroomToApp` (`:134`), relocated from the dissolved AppContext `mapped*` bridges (consumed by `useAppClassrooms`/`useActiveClassroom`; thin and transitional).
 

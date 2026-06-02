@@ -1,6 +1,6 @@
 # ClassPoints Documentation
 
-_Last generated: 2026-06-02 via BMad document-project full rescan, exhaustive scan (HEAD `c9ca66f` on `main`)._
+_Last generated: 2026-06-02 via BMad document-project full rescan, exhaustive scan (HEAD `134a1ef` on `main`)._
 
 ClassPoints is a React classroom-management app for teachers to track behavior points, classroom totals, today/this-week roll-ups, seating charts, and per-user sound feedback. It is a client-only SPA backed by Supabase Auth, Postgres, Realtime, RLS, and RPCs.
 
@@ -8,7 +8,7 @@ ClassPoints is a React classroom-management app for teachers to track behavior p
 | ------------ | ------------------------------------- |
 | Type         | Single-page web application, monolith |
 | Architecture | React SPA + Supabase BaaS             |
-| Language     | TypeScript ~5.9.3, strict             |
+| Language     | TypeScript ~6.0.3, strict             |
 | Framework    | React 19.2.7                          |
 | Build        | Vite 8.0.16, base `/ClassPoints/`     |
 | Styling      | Tailwind CSS 4.3.0 (v4 syntax)        |
@@ -78,8 +78,6 @@ The remaining `legacy-*.md` files describe patterns being reversed during the Ta
 ## BMAD artifacts
 
 - [`_bmad-output/project-context.md`](../_bmad-output/project-context.md) — LLM-optimized critical-rules digest
-- [`_bmad-output/planning-artifacts/prd.md`](../_bmad-output/planning-artifacts/prd.md) — TanStack migration PRD (scope, phases, AC)
-- [`_bmad-output/planning-artifacts/architecture.md`](../_bmad-output/planning-artifacts/architecture.md) — architecture planning artifact
 - [`_bmad-output/planning-artifacts/ux-design-specification.md`](../_bmad-output/planning-artifacts/ux-design-specification.md) — reverse-engineered UX design spec
 - [`_bmad-output/anti-pattern-audit.md`](../_bmad-output/anti-pattern-audit.md) — 2026-04-25 audit (10 clusters, REAL/OVERSTATED/FALSE-POSITIVE verdicts)
 - [`_bmad-output/implementation-artifacts/spec-tanstack-phase-3.md`](../_bmad-output/implementation-artifacts/spec-tanstack-phase-3.md)

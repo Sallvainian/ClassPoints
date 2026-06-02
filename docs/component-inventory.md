@@ -1,6 +1,6 @@
 # Component Inventory
 
-_Generated 2026-06-02 (exhaustive full rescan; HEAD `c9ca66f` on `main`)._
+_Generated 2026-06-02 (exhaustive full rescan; HEAD `134a1ef` on `main`)._
 
 47 React component files under `src/components/`, organized by feature folder, plus one top-level file — `DevtoolsGate.tsx` (see Lazy loading). Twelve component folders have historical sibling `index.ts` barrels (`auth`, `behaviors`, `classes`, `dashboard`, `home`, `layout`, `points`, `profile`, `seating`, `settings`, `students`, `ui`); `common` and `migration` do not. Components MUST use named exports (HMR stability under `react-refresh/only-export-components`). The single exception is `App.tsx` (default export); do NOT add new default exports.
 
@@ -84,14 +84,14 @@ A file exporting a component should export ONLY components — `allowConstantExp
 
 `src/components/points/`
 
-| Component          | Purpose                                                                                                                                                                                                                                                                                |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AwardPointsModal` | Award points to a single student. Picks behavior via `BehaviorPicker`, supports note, calls `useAwardPoints().mutateAsync` directly (`:48`) and reads the student's stored totals via `studentPoints` from `pointSelectors` (`:78`).                                                   |
-| `ClassAwardModal`  | Award points to the entire class. Calls `useBatchAward(classroomId).awardClass` (`:29`/`:53`), which silently filters per-student failures — see anti-pattern audit cluster #2 (still open, in `useBatchAward`).                                                                       |
-| `MultiAwardModal`  | Award points to a multi-select subset of students. Calls `useBatchAward(classroomId).awardSubset` (`:25`/`:50`).                                                                                                                                                                       |
-| `ClassPointsBox`   | **NEW (commit 350c7c9)** — Class-total card promoted to its own surface. Tap to open `ClassAwardModal`. Displays total + breakdown (positive / negative) + today + this-week chips. Editorial design: Instrument Serif heading, JetBrains Mono numerics, hairline divider.             |
-| `TodaySummary`     | Today's-points summary panel.                                                                                                                                                                                                                                                          |
-| `UndoToast`        | 10-second undo toast. Receives the current undoable `action` as a prop from `DashboardView` (`DashboardView.tsx:473`), which derives it from `useUndoableAction` via `useMemo` + a 1s tick (no longer polled inside the toast). Shows different copy for batch vs single-student undo. |
+| Component          | Purpose                                                                                                                                                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AwardPointsModal` | Award points to a single student. Picks behavior via `BehaviorPicker`, supports note, calls `useAwardPoints().mutateAsync` directly (`:48`) and reads the student's stored totals via `studentPoints` from `pointSelectors` (`:78`).                                                             |
+| `ClassAwardModal`  | Award points to the entire class. `await`s `useBatchAward(classroomId).awardClass` (`:29`/`:53`); the award is now atomic (cluster #2 FIXED in `30da564`), so a failure throws `BatchAwardError` and the modal stays open with a named error — it no longer silently drops per-student failures. |
+| `MultiAwardModal`  | Award points to a multi-select subset of students. `await`s `useBatchAward(classroomId).awardSubset` (`:25`/`:50`) — same atomic all-or-none throw contract as `ClassAwardModal`.                                                                                                                |
+| `ClassPointsBox`   | **NEW (commit 350c7c9)** — Class-total card promoted to its own surface. Tap to open `ClassAwardModal`. Displays total + breakdown (positive / negative) + today + this-week chips. Editorial design: Instrument Serif heading, JetBrains Mono numerics, hairline divider.                       |
+| `TodaySummary`     | Today's-points activity feed. Renders the most recent transactions; a synthetic `failed`-flagged entry (injected by `mergeFailedIntoFeed`) renders a distinct red **FAILED** badge instead of a signed point delta (cluster #2 surfacing, `:52-75`).                                             |
+| `UndoToast`        | 10-second undo toast. Receives the current undoable `action` as a prop from `DashboardView` (`DashboardView.tsx:476`), which derives it from `useUndoableAction` via `useMemo` + a 1s tick (no longer polled inside the toast). Shows different copy for batch vs single-student undo.           |
 
 ## Profile
 

@@ -1,45 +1,45 @@
 {
   "workflow_version": "1.2.0",
   "timestamps": {
-    "started": "2026-06-02T05:19:55Z",
-    "last_updated": "2026-06-02T05:36:45Z",
-    "completed": "2026-06-02T05:36:45Z"
+    "started": "2026-06-02T18:47:26Z",
+    "last_updated": "2026-06-02T18:47:26Z",
+    "completed": "2026-06-02T18:47:26Z"
   },
   "mode": "full_rescan",
   "scan_level": "exhaustive",
   "project_root": "/Users/sallvain/Projects/ClassPoints",
   "project_knowledge": "/Users/sallvain/Projects/ClassPoints/docs",
-  "strategy": "Diff-driven surgical refresh: the diff cad3cfa..c9ca66f (the previous scan ref cad3cfa documented by the May 31 run) was the staleness map. The major in-range change is the Phase 4 AppContext server-data facade dissolution (d8cde26, AppContext 710->33 LOC) plus the invalidate-not-merge cross-device-totals refactor (ea9f406), the React 19 / Vite 8 / ESLint 10 dependency ecosystem bumps (e9ae285, 2e28130), react-hooks/set-state-in-effect enforcement (749b9d2/c9ca66f), and dependabot GitHub Actions bumps. supabase/migrations was UNCHANGED in range, so data-models schema content was preserved and the refresh there collapsed to the transforms.ts app-shape additions, the behavior-defaults constant relocation, and the realtime-subscription correction. Every doc claim touching a file changed in cad3cfa..c9ca66f was re-verified against current source; every count was re-derived via shell; resolved dependency versions were re-derived from package-lock.json (NOT from project-context.md). Accurate content was preserved, not regenerated blank-slate.",
+  "strategy": "Diff-driven surgical refresh: the diff c9ca66f..134a1ef (the prior scan's documented HEAD c9ca66f → current HEAD 134a1ef, 6 commits) was the staleness map. The major in-range source change is the atomic batch-award fix (30da564, #106): useBatchAward dropped the per-student Promise.all + silent .catch(() => null) filter and now fires ONE atomic multi-row insert via the new useAwardPointsBatch (useTransactions.ts:262), throwing BatchAwardError on any failure; cluster #2 (audit REAL sev 5) is CLOSED. Three new modules landed — failedBatchStore.ts (66), useFailedBatches.ts (18), activityFeed.ts (40) — plus a synthetic failed? marker on the PointTransaction app type (src/types/index.ts:36) and FAILED-entry rendering in TodaySummary. Config drift: TypeScript ~5.9.3 → ~6.0.3 (2ae19ee, #105) and lint-staged 16 → 17 (421d6bd, #104). supabase/migrations was UNCHANGED in c9ca66f..134a1ef, so data-models schema content was preserved and the refresh there collapsed to the failed? marker note. Every doc claim touching a file changed in range was re-verified against current source; every count was re-derived via shell; resolved dependency versions were re-derived from package-lock.json (NOT from project-context.md). The actively-WRONG silent-partial-failure-STILL-OPEN claims (architecture.md, state-management.md, component-inventory.md, source-tree-analysis.md) were replaced with the atomic/FIXED narrative; accurate content was preserved, not regenerated blank-slate.",
   "completed_steps": [
     {
       "step": "step_0",
       "status": "completed",
-      "timestamp": "2026-06-02T05:19:55Z",
-      "outputs": ["docs/.archive/project-scan-report-20260602T051955Z.json"],
-      "summary": "Archived the completed 2026-05-31 exhaustive full_rescan state (documented HEAD cad3cfa) before starting a fresh exhaustive full_rescan against HEAD c9ca66f."
+      "timestamp": "2026-06-02T18:47:26Z",
+      "outputs": ["docs/.archive/project-scan-report-20260602T184726Z.json"],
+      "summary": "Archived the completed 2026-06-02 exhaustive full_rescan state (documented HEAD c9ca66f) before finalizing a fresh exhaustive full_rescan against HEAD 134a1ef."
     },
     {
       "step": "step_1",
       "status": "completed",
-      "timestamp": "2026-06-02T05:20:00Z",
+      "timestamp": "2026-06-02T18:47:26Z",
       "summary": "Classification unchanged: single-part web monolith, React SPA + Supabase BaaS, TypeScript strict. project_type_id=web."
     },
     {
       "step": "step_3",
       "status": "completed",
-      "timestamp": "2026-06-02T05:22:00Z",
-      "summary": "Re-derived installed stack from package-lock.json (lockfileVersion 3): React 19.2.7, react-dom 19.2.7, TS 5.9.3, Vite 8.0.16, @vitejs/plugin-react 6.0.2, Tailwind 4.3.0, supabase-js 2.106.2, TanStack Query 5.100.14 (+devtools), Vitest 4.1.8, jsdom 29.1.1, Playwright 1.60.0, ESLint 10.4.1, @eslint/js 10.0.1, typescript-eslint 8.60.1, eslint-plugin-react-hooks 7.1.1, lucide-react 1.17.0, @types/node 25.9.1. React Compiler NOT enabled."
+      "timestamp": "2026-06-02T18:47:26Z",
+      "summary": "Re-derived installed stack from package-lock.json (lockfileVersion 3): TypeScript 6.0.3 (was 5.9.3), lint-staged 17.0.7 (was 16.4.0). Unchanged: React 19.2.7, react-dom 19.2.7, Vite 8.0.16, Tailwind 4.3.0, supabase-js 2.106.2, TanStack Query 5.100.14 (+devtools), Vitest 4.1.8, jsdom 29.1.1, Playwright 1.60.0, ESLint 10.4.1, eslint-plugin-react-hooks 7.1.1, lucide-react 1.17.0. React Compiler NOT enabled."
     },
     {
       "step": "step_4",
       "status": "completed",
-      "timestamp": "2026-06-02T05:30:00Z",
-      "summary": "Verified the Phase 4 dissolution against source: AppContext.tsx 33 LOC (UI/session only), useApp.ts 21 LOC; new modules useBatchAward (122), useUndoableAction (95), useAppClassrooms (60), batchKindStore (33), pointSelectors (74); transforms.ts gained dbStudentToApp (:113)/dbClassroomToApp (:134). useStudents is invalidate-not-merge, sole students-table subscriber (no more point_transactions DELETE local-decrement). Counts re-derived: 126 src .ts/.tsx/.css (107 non-test), 47 components, 16 hook files incl index, 9 context files, 17 unit/component tests, 4 integration, 3 e2e, 13 migrations, exactly 3 realtime subs (students/point_transactions/legacy layout_presets), 63 from('...') literals, 14 set-state-in-effect disables across 12 files, 16 new Error(error.message) sites. DEFAULT_BEHAVIORS/resetBehaviorsToDefault deleted (grep=0); only createDefaultBehaviors (defaults.ts:33, 15 entries) remains."
+      "timestamp": "2026-06-02T18:47:26Z",
+      "summary": "Verified the cluster #2 atomic batch-award fix (30da564) against source: useBatchAward.ts now 252 LOC (was 122) — awardClass (:227)/awardSubset (:236) fire ONE atomic insert via useAwardPointsBatch (useTransactions.ts:262, bare .select() :281, throw error :282) and THROW BatchAwardError (:27/:217); classifyAndRecover (:68) bounded by AbortSignal.timeout(2000) (:61). New modules failedBatchStore.ts (66, keyed by classroomId, useSyncExternalStore source), useFailedBatches.ts (18), activityFeed.ts (40, mergeFailedIntoFeed :18, CAP-6 suppresses on dbRows.batch_id). PointTransaction gained synthetic failed? marker (src/types/index.ts:36); TodaySummary renders FAILED entries (:52-75); DashboardView wires useFailedBatches + mergeFailedIntoFeed. Counts re-derived: 134 src .ts/.tsx/.css (111 non-test), 47 components, 17 hook files incl index (was 16), 9 context files, 22 unit/component tests (was 17), 5 integration (was 4), 3 e2e, 13 migrations, exactly 3 realtime subs (students/point_transactions/legacy layout_presets), 66 from('...') literals (was 63), 14 set-state-in-effect disables across 12 files, 17 new Error(error.message) sites (was 16) + 1 throw error (useTransactions.ts:282)."
     },
     {
       "step": "step_5_9",
       "status": "completed",
-      "timestamp": "2026-06-02T05:35:00Z",
+      "timestamp": "2026-06-02T18:47:26Z",
       "outputs": [
         "state-management.md",
         "architecture.md",
@@ -50,26 +50,26 @@
         "project-overview.md",
         "index.md"
       ],
-      "summary": "Refreshed all 8 generated docs. state-management: full rewrite of the AppContext section (facade -> 33 LOC), useStudents invalidate-not-merge realtime, new Phase-4 transitional-modules table, undo derivation relocated to useUndoableAction/DashboardView, adapter contracts corrected to 16 new Error(error.message) sites + 2 throw-original. architecture: header/HEAD, exec summary (Phase 4 done), React 19/Vite 8/ESLint 10 constraints, fixed the line-32 vs line-90 realtime contradiction, state-mgmt section, testing counts (17 unit/3 e2e). data-models: schema preserved (migrations unchanged); fixed behavior-defaults drift (now single createDefaultBehaviors), transforms list, realtime subscriptions, migration-create guidance. component-inventory: modal award calls (useAwardPoints/useBatchAward), UndoToast prop line :473. source-tree: all counts, new hook/lib/util files, AppContext 33 LOC, eslint 10, 17-file test tree, e2e realtime spec. development-guide: setup-cli@v2, ESLint 10/react-hooks 7 set-state-in-effect, React 19 gotcha, migration-create guidance. project-overview + index: version tables + Current HEAD + entry points."
+      "summary": "Refreshed all 8 generated docs. state-management: replaced the silent-partial-failure STILL-OPEN section with the cluster #2 FIXED/atomic narrative + failure-surfacing infra table (failedBatchStore/useFailedBatches/activityFeed); useBatchAward row 122->252 LOC; added useAwardPointsBatch to useTransactions mutations; corrected useAwardPoints line cites (:96->:110 etc. after +14 shift); adapter contracts 16->17 new Error + added useTransactions:282 throw-original. architecture: cluster #2 bullet :114 -> atomic/FIXED; exec summary HEAD + useAwardPointsBatch mention; testing counts 17->22 unit, 4->5 integration. component-inventory: ClassAwardModal/MultiAwardModal silent-filter -> atomic throw + named error; TodaySummary FAILED rendering. source-tree: counts 126->134 src/16->17 hooks/17->22 tests; useBatchAward annotation -> atomic; added failedBatchStore.ts/useFailedBatches.ts/activityFeed.ts + 5 new test files incl new src/lib/__tests__/. data-models: range note c9ca66f..134a1ef, failed? marker on PointTransaction. development-guide: 17->22 test files. project-overview + index: TS ~5.9.3 -> ~6.0.3, Current HEAD anchor + changes-since narrative. All 8 headers re-anchored to HEAD 134a1ef."
     },
     {
       "step": "step_10",
       "status": "completed",
-      "timestamp": "2026-06-02T05:35:30Z",
+      "timestamp": "2026-06-02T18:47:26Z",
       "outputs": ["index.md"],
-      "summary": "Master index version table + last-generated date + HEAD anchor updated; AppContext entry-point line reframed. All 8 generated docs present, zero incomplete markers."
+      "summary": "Master index last-generated line + HEAD anchor updated to 134a1ef; version table TS -> ~6.0.3. All 8 generated docs present, zero incomplete markers."
     },
     {
       "step": "step_11",
       "status": "completed",
-      "timestamp": "2026-06-02T05:36:30Z",
-      "summary": "Validated: residual-staleness grep sweep clean (no stale React 18 / Vite 6 / 2.104 / 710 LOC / ESLint 9 / 5.100.1 / dissolution-target / useApp().transactions claims remain; the only matches are intentional dissolution descriptions and stale-code-comment callouts). prettier --write then --check clean across the 8 docs + JSON. JSON valid (python json.tool). 50/50 relative markdown links resolve. git diff --check clean. Zero incomplete-documentation markers."
+      "timestamp": "2026-06-02T18:47:26Z",
+      "summary": "Validated: residual-staleness grep sweep clean (no stale c9ca66f-as-HEAD, 5.9.3, STILL OPEN, silent-filter-as-current, lint-staged 16, or 17/4 test-count claims remain; the only c9ca66f/5.9.3/lint-staged-16/silent matches are intentional diff-range bounds and past-tense transition descriptions). prettier --check clean across the 8 docs + JSON (state-management.md + component-inventory.md reflowed via --write). JSON valid (python json.tool). git diff --check whitespace clean. All relative markdown links resolve (47/47). Link resolution initially found 3 dead instances pointing at _bmad-output/planning-artifacts/{prd,architecture}.md — those planning docs had been archived to .archive/ as dated snapshots (prd-2026-06-02.md, architecture-decisions-2026-06-02.md) with no live working copy. The dead links were PRE-EXISTING (present in c9ca66f's committed index.md/project-overview.md) and concerned _bmad-output reorganization OUTSIDE the c9ca66f..134a1ef source-drift scope, so they were surfaced to the user, who chose to REMOVE the stale pointers from the BMAD-artifacts lists in index.md + project-overview.md (the ux-design-spec / anti-pattern-audit / implementation-artifacts links were retained). Zero incomplete-documentation markers."
     },
     {
       "step": "step_12",
       "status": "completed",
-      "timestamp": "2026-06-02T05:36:45Z",
-      "summary": "Workflow complete; surgical exhaustive full_rescan finalized at HEAD c9ca66f."
+      "timestamp": "2026-06-02T18:47:26Z",
+      "summary": "Workflow complete; surgical exhaustive full_rescan finalized at HEAD 134a1ef."
     }
   ],
   "current_step": "completed",
@@ -80,38 +80,39 @@
       "primary_language": "TypeScript",
       "architecture_type": "React SPA plus Supabase BaaS"
     },
-    "head_snapshot": "c9ca66f on main (prior scan documented cad3cfa on main)",
+    "head_snapshot": "134a1ef on main (prior scan documented c9ca66f on main)",
     "technology_stack": [
       {
         "part_id": "classpoints",
-        "tech_summary": "React 19.2.7, TypeScript 5.9.3 strict, Node >=25, Vite 8.0.16, Tailwind CSS 4.3.0, Supabase JS 2.106.2, TanStack Query 5.100.14, Vitest 4.1.8, Playwright 1.60.0, ESLint 10.4.1 (react-hooks 7)."
+        "tech_summary": "React 19.2.7, TypeScript 6.0.3 strict, Node >=25, Vite 8.0.16, Tailwind CSS 4.3.0, Supabase JS 2.106.2, TanStack Query 5.100.14, Vitest 4.1.8, Playwright 1.60.0, ESLint 10.4.1 (react-hooks 7), lint-staged 17.0.7."
       }
     ],
     "current_counts": {
-      "src_ts_tsx_css": 126,
-      "src_non_test_ts_tsx": 107,
+      "src_ts_tsx_css": 134,
+      "src_non_test_ts_tsx": 111,
       "component_tsx": 47,
-      "hook_files_incl_index": 16,
+      "hook_files_incl_index": 17,
       "context_files": 9,
-      "unit_component_test_files": 17,
-      "integration_test_files": 4,
+      "unit_component_test_files": 22,
+      "integration_test_files": 5,
       "active_e2e_specs": 3,
       "migrations": 13,
       "realtime_subscriptions_src_hooks": 3,
-      "from_literal_sites": 63,
+      "from_literal_sites": 66,
       "set_state_in_effect_disables": 14,
       "set_state_in_effect_files": 12,
-      "new_error_message_sites": 16,
+      "new_error_message_sites": 17,
+      "throw_original_sites": 1,
       "appcontext_loc": 33
     },
     "key_drift_since_prior_scan": [
-      "Phase 4 dissolved the AppContext server-data facade (d8cde26): AppContext.tsx 710 -> 33 LOC, UI/session state only. Wrappers/selectors/undo machinery relocated to useBatchAward, useUndoableAction, useAppClassrooms, pointSelectors, batchKindStore + transforms.ts app-shape transforms.",
-      "useStudents realtime refactored to invalidate-not-merge (ea9f406); the prior students merge-on-update and point_transactions DELETE local-decrement subscriptions were removed. useStudents is the sole students-table subscriber; cross-device award+undo flow via the DB trigger students UPDATE.",
-      "Dependency ecosystem bumps: React 18.3.1 -> 19.2.7 + Vite 6.4.2 -> 8.0.16 (e9ae285); ESLint 9 -> 10.4.1 ecosystem + react-hooks 5 -> 7 (2e28130); supabase-js 2.104.1 -> 2.106.2; TanStack Query 5.100.1 -> 5.100.14; lucide-react 1.9 -> 1.17.0; jsdom -> 29.1.1; Playwright 1.59.1 -> 1.60.0.",
-      "react-hooks/set-state-in-effect enforced as 'error' (749b9d2); 14 per-site disables across 12 files. React Compiler still NOT enabled.",
-      "Behavior-defaults: AppContext.DEFAULT_BEHAVIORS (14) and resetBehaviorsToDefault deleted; only createDefaultBehaviors (defaults.ts, 15 incl Insubordination) remains. The prior 14-vs-15 drift is gone.",
-      "Dependabot GitHub Actions bumps: supabase/setup-cli v1 -> v2 (CLI still pinned 2.95.0), upload-pages-artifact 4 -> 5, mise-action 3 -> 4. e2e specs 2 -> 3 (added realtime-cross-device-totals.spec.ts).",
-      "supabase/migrations UNCHANGED in cad3cfa..c9ca66f (13 migrations) — data-models schema content preserved verbatim."
+      "Atomic batch-award fix (30da564, #106): cluster #2 (audit REAL sev 5) CLOSED. useBatchAward.ts 122 -> 252 LOC; awardClass (:227)/awardSubset (:236) fire ONE atomic multi-row insert via the new useAwardPointsBatch (useTransactions.ts:262, throw error :282) and THROW BatchAwardError (:27/:217). The prior per-student Promise.all + silent .catch(() => null) filter is gone; batch call sites now rely on a clean throw contract.",
+      "Three new failure-surfacing modules: failedBatchStore.ts (66, module-level notices keyed by classroomId, frozen-EMPTY stable ref for useSyncExternalStore), useFailedBatches.ts (18, useSyncExternalStore read, sole consumer DashboardView), activityFeed.ts (40, mergeFailedIntoFeed injects synthetic FAILED rows + CAP-6 late-confirm suppression keyed on dbRows.batch_id).",
+      "PointTransaction app type gained a synthetic, session-ephemeral failed? marker (src/types/index.ts:36), never set on a real DB row; TodaySummary renders a distinct red FAILED badge for failed-flagged rows (:52-75); DashboardView wires useFailedBatches + mergeFailedIntoFeed into its transactions useMemo.",
+      "TypeScript ~5.9.3 -> ~6.0.3 (2ae19ee, #105); lint-staged ^16.4.0 -> ^17.0.7 (421d6bd, #104). All other resolved dependency versions unchanged from the prior scan.",
+      "Counts that moved: unit/component tests 17 -> 22 (added useAwardPointsBatch.test.ts, failedBatchStore.test.ts, activityFeed.test.ts, TodaySummary.test.tsx, batchAwardModals.test.tsx); integration 4 -> 5 (added batch-award-atomicity.test.ts); hook files 16 -> 17 (useFailedBatches.ts); src .ts/.tsx/.css 126 -> 134; from('...') literals 63 -> 66; new Error(error.message) sites 16 -> 17.",
+      "supabase/migrations UNCHANGED in c9ca66f..134a1ef (13 migrations) — data-models schema content preserved verbatim.",
+      "ADR-005 supersedes pointer repointed at the live src/lib/queryClient.ts (134a1ef) — docs/adr/ADR-005-queryclient-defaults.md, not a generated doc."
     ]
   },
   "project_types": [
@@ -123,7 +124,7 @@
   ],
   "outputs_generated": [
     "project-scan-report.json",
-    "docs/.archive/project-scan-report-20260602T051955Z.json",
+    "docs/.archive/project-scan-report-20260602T184726Z.json",
     "index.md",
     "project-overview.md",
     "architecture.md",
@@ -133,26 +134,24 @@
     "source-tree-analysis.md",
     "development-guide.md"
   ],
-  "resume_instructions": "Workflow completed at HEAD c9ca66f. Start a new full rescan if this state becomes stale (HEAD moves materially past c9ca66f).",
+  "resume_instructions": "Workflow completed at HEAD 134a1ef. Start a new full rescan if this state becomes stale (HEAD moves materially past 134a1ef).",
   "out_of_scope_observations": [
-    "Stale in-code comments FIXED at user request (comment-only, no behavior change), with coupled doc callouts updated in the same pass: useStudents.ts:173 + useClassrooms.ts:124 dropped the stale 'supabase-js 2.104' version label (now just 'per supabase-js RejectExcessProperties'); useRealtimeSubscription.ts:101 dropped 'React 18' ('under StrictMode dev double-mount'); useTransactions.ts §4(d) comments (:92, :211) now say errors surface via the caller's mutation state instead of the dissolved 'AppContext.error'. Doc callouts that had described these as stale (architecture.md:135, state-management.md §useAwardPoints + §channel-naming) were rewritten to match.",
-    "_bmad-output/project-context.md (owned by bmad-generate-project-context, NOT this workflow) is current at c9ca66f and was used only as a where-to-look pointer; every doc claim was independently re-verified against primary source per the verbatim-grounding requirement."
+    "The actively-WRONG silent-partial-failure-STILL-OPEN claims were the primary damage: architecture.md:114, state-management.md (useBatchAward table row + dedicated section), component-inventory.md:90, and source-tree-analysis.md:99 all described the removed per-student Promise.all + silent .catch(() => null) filter as current behavior. All were replaced with the atomic/FIXED narrative before adding new-feature coverage.",
+    "_bmad-output/project-context.md (owned by bmad-generate-project-context, NOT this workflow) was already current at 134a1ef and documented the same #106 changes; it was used only as a where-to-look pointer. Every doc claim was independently re-verified against primary source per the verbatim-grounding requirement (e.g. 17 new Error(error.message) sites re-derived excluding tests; useBatchAward 252 LOC via wc -l; useAwardPoints line cites re-read from useTransactions.ts)."
   ],
   "validation_status": {
-    "last_validated": "2026-06-02T05:40:00Z",
+    "last_validated": "2026-06-02T18:47:26Z",
     "validation_errors": [],
     "validation_commands": [
-      "node package-lock.json resolved-version extractor across 29 packages",
-      "git diff --name-only cad3cfa..c9ca66f -- supabase/migrations (empty = unchanged)",
-      "shell count derivations (find/grep/wc) for all cited counts",
-      "residual-staleness grep sweep across the 8 generated docs",
-      "facade-framing grep sweep (imperative wrapper / adapter bridge / AppContext holds-survives-provides / mapped*) — only intentional past-tense relocation mentions remain",
-      "npx prettier --write then --check on the 8 generated docs + project-scan-report.json (All matched files use Prettier code style)",
+      "node package-lock.json resolved-version extractor (typescript 6.0.3, lint-staged 17.0.7, + 8 unchanged)",
+      "git diff --name-status c9ca66f..134a1ef (38 files; supabase/migrations empty = unchanged)",
+      "shell count derivations (find/grep/wc) for all cited counts, with --include globs quoted for zsh",
+      "new Error(error.message) re-derived excluding tests = 17; throw error = 1 (useTransactions.ts:282)",
+      "residual-staleness grep sweep across the 8 generated docs (zsh loop; remaining c9ca66f/5.9.3/lint-staged-16/silent matches confirmed as intentional range bounds + past-tense transitions)",
+      "npx prettier --check on the 8 generated docs + project-scan-report.json",
       "python3 -m json.tool docs/project-scan-report.json",
-      "custom node relative-link resolver across the 8 generated docs (50 links, 0 broken)",
-      "git diff --check -- docs (clean)",
+      "relative-link resolution across the 8 generated docs (47/47 resolve after the user opted to remove 3 pre-existing dead links to archived _bmad-output planning artifacts)",
       "incomplete-documentation marker scan (none)"
-    ],
-    "adversarial_review_pass": "A second reviewer pass read the two largest unread changed files (ClassSettingsView.tsx +74, SoundContext.tsx +44). Found and fixed one stale prose claim: component-inventory.md said ClassSettingsView manages 'behaviors, sound, layout presets' — it manages only the student roster + per-student adjust + classroom-points reset + classroom rename/delete (verified imports: only student/classroom/points hooks; behavior-mutation hooks have zero component consumers; SoundSettings is rendered by DashboardView). Confirmed accurate (no change): SoundContext.updateSettings is still optimistic-update + revert-on-error (:164-184); the architecture.md facade narrative is fully past-tense."
+    ]
   }
 }
