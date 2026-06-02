@@ -40,11 +40,18 @@ export function SoundProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<SoundSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isAudioReady, setIsAudioReady] = useState(false);
 
-  // Audio context and buffers (refs to persist across renders)
+  // AudioContext guard ref (read only in the lazy-init guard and interaction handler)
   const audioContextRef = useRef<AudioContext | null>(null);
-  const soundBuffersRef = useRef<Map<SoundId, AudioBuffer>>(new Map());
+  // Audio readiness is an all-or-nothing invariant: when `ready` is true, both
+  // `context` and `buffers` are populated. Keeping them in one state object makes
+  // that invariant explicit and the transition atomic. Exposed via state (not
+  // refs) so consumers re-render when audio becomes ready.
+  const [audioState, setAudioState] = useState<{
+    context: AudioContext | null;
+    buffers: Map<SoundId, AudioBuffer>;
+    ready: boolean;
+  }>(() => ({ context: null, buffers: new Map(), ready: false }));
 
   // Initialize AudioContext and preload sounds
   const initializeAudio = useCallback(() => {
@@ -55,16 +62,18 @@ export function SoundProvider({ children }: { children: ReactNode }) {
       if (!AudioContextClass) {
         throw new Error('AudioContext not supported');
       }
-      audioContextRef.current = new AudioContextClass();
+      const ctx = new AudioContextClass();
 
-      // Synthesize all sounds
-      const ctx = audioContextRef.current;
+      // Synthesize all sounds into a fresh map, then commit via state
+      const buffers = new Map<SoundId, AudioBuffer>();
       for (const [id, definition] of Object.entries(SOUND_DEFINITIONS)) {
-        const buffer = synthesizeSound(ctx, definition);
-        soundBuffersRef.current.set(id as SoundId, buffer);
+        buffers.set(id as SoundId, synthesizeSound(ctx, definition));
       }
 
-      setIsAudioReady(true);
+      // Commit the guard ref only after synthesis succeeds, so a mid-init throw
+      // leaves the ref unset and a later interaction can retry.
+      audioContextRef.current = ctx;
+      setAudioState({ context: ctx, buffers, ready: true });
     } catch (err) {
       console.warn('Failed to initialize audio:', err);
       setError('Audio initialization failed');
@@ -171,9 +180,9 @@ export function SoundProvider({ children }: { children: ReactNode }) {
     isLoading,
     error,
     updateSettings,
-    audioContext: audioContextRef.current,
-    soundBuffers: soundBuffersRef.current,
-    isAudioReady,
+    audioContext: audioState.context,
+    soundBuffers: audioState.buffers,
+    isAudioReady: audioState.ready,
   };
 
   return <SoundContext.Provider value={value}>{children}</SoundContext.Provider>;
