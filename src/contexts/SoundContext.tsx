@@ -40,14 +40,18 @@ export function SoundProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<SoundSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isAudioReady, setIsAudioReady] = useState(false);
 
   // AudioContext guard ref (read only in the lazy-init guard and interaction handler)
   const audioContextRef = useRef<AudioContext | null>(null);
-  // State mirrors of the context-exposed audio values, so consumers re-render
-  // when audio becomes ready (refs don't trigger re-renders).
-  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
-  const [soundBuffers, setSoundBuffers] = useState<Map<SoundId, AudioBuffer>>(() => new Map());
+  // Audio readiness is an all-or-nothing invariant: when `ready` is true, both
+  // `context` and `buffers` are populated. Keeping them in one state object makes
+  // that invariant explicit and the transition atomic. Exposed via state (not
+  // refs) so consumers re-render when audio becomes ready.
+  const [audioState, setAudioState] = useState<{
+    context: AudioContext | null;
+    buffers: Map<SoundId, AudioBuffer>;
+    ready: boolean;
+  }>(() => ({ context: null, buffers: new Map(), ready: false }));
 
   // Initialize AudioContext and preload sounds
   const initializeAudio = useCallback(() => {
@@ -67,9 +71,7 @@ export function SoundProvider({ children }: { children: ReactNode }) {
         buffers.set(id as SoundId, synthesizeSound(ctx, definition));
       }
 
-      setAudioContext(ctx);
-      setSoundBuffers(buffers);
-      setIsAudioReady(true);
+      setAudioState({ context: ctx, buffers, ready: true });
     } catch (err) {
       console.warn('Failed to initialize audio:', err);
       setError('Audio initialization failed');
@@ -176,9 +178,9 @@ export function SoundProvider({ children }: { children: ReactNode }) {
     isLoading,
     error,
     updateSettings,
-    audioContext,
-    soundBuffers,
-    isAudioReady,
+    audioContext: audioState.context,
+    soundBuffers: audioState.buffers,
+    isAudioReady: audioState.ready,
   };
 
   return <SoundContext.Provider value={value}>{children}</SoundContext.Provider>;
