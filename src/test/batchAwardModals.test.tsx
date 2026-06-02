@@ -50,6 +50,17 @@ const negativeBehavior: Behavior = {
   createdAt: 1746057600000,
 };
 
+// useBatchAward.ts loads the real supabase client at module init (via
+// useTransactions -> ../lib/supabase), and the importOriginal() of useBatchAward
+// below evaluates that real module. supabase.ts THROWS "Missing Supabase environment
+// variables" when no creds are present — exactly CI's Unit Tests step (no `fnox exec`,
+// no .env.test in the checkout). The modal's data path is fully driven through the
+// mocked useBatchAward hook, so a bare client stub keeps the import graph loading
+// without creds. Mirrors AwardPointsModal.test.tsx.
+vi.mock('../lib/supabase', () => ({
+  supabase: { from: vi.fn(), channel: vi.fn(), removeChannel: vi.fn() },
+}));
+
 vi.mock('../hooks/useSoundEffects', () => ({
   useSoundEffects: () => ({
     playPositive: mockPlayPositive,
