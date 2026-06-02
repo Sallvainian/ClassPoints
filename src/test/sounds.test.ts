@@ -310,7 +310,7 @@ describe('validateAudioUrl', () => {
     const { validateAudioUrl } = await import('../utils/validateAudioUrl');
 
     // Mock fetch to simulate a server response with wrong content type
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: {
         get: (name: string) => (name === 'content-type' ? 'text/plain' : null),
@@ -327,7 +327,7 @@ describe('validateAudioUrl', () => {
     const { validateAudioUrl } = await import('../utils/validateAudioUrl');
 
     // Mock fetch for valid audio
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: {
         get: (name: string) => (name === 'content-type' ? 'audio/mpeg' : null),

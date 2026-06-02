@@ -81,7 +81,7 @@ describe('useRotatingCategory', () => {
   });
 
   it('should cleanup interval on unmount', () => {
-    const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
 
     const { unmount } = renderHook(() => useRotatingCategory({ categories, intervalMs: 1000 }));
 
