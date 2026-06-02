@@ -42,9 +42,12 @@ export function SoundProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isAudioReady, setIsAudioReady] = useState(false);
 
-  // Audio context and buffers (refs to persist across renders)
+  // AudioContext guard ref (read only in the lazy-init guard and interaction handler)
   const audioContextRef = useRef<AudioContext | null>(null);
-  const soundBuffersRef = useRef<Map<SoundId, AudioBuffer>>(new Map());
+  // State mirrors of the context-exposed audio values, so consumers re-render
+  // when audio becomes ready (refs don't trigger re-renders).
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [soundBuffers, setSoundBuffers] = useState<Map<SoundId, AudioBuffer>>(() => new Map());
 
   // Initialize AudioContext and preload sounds
   const initializeAudio = useCallback(() => {
@@ -55,15 +58,17 @@ export function SoundProvider({ children }: { children: ReactNode }) {
       if (!AudioContextClass) {
         throw new Error('AudioContext not supported');
       }
-      audioContextRef.current = new AudioContextClass();
+      const ctx = new AudioContextClass();
+      audioContextRef.current = ctx;
 
-      // Synthesize all sounds
-      const ctx = audioContextRef.current;
+      // Synthesize all sounds into a fresh map, then commit via state
+      const buffers = new Map<SoundId, AudioBuffer>();
       for (const [id, definition] of Object.entries(SOUND_DEFINITIONS)) {
-        const buffer = synthesizeSound(ctx, definition);
-        soundBuffersRef.current.set(id as SoundId, buffer);
+        buffers.set(id as SoundId, synthesizeSound(ctx, definition));
       }
 
+      setAudioContext(ctx);
+      setSoundBuffers(buffers);
       setIsAudioReady(true);
     } catch (err) {
       console.warn('Failed to initialize audio:', err);
@@ -171,8 +176,8 @@ export function SoundProvider({ children }: { children: ReactNode }) {
     isLoading,
     error,
     updateSettings,
-    audioContext: audioContextRef.current,
-    soundBuffers: soundBuffersRef.current,
+    audioContext,
+    soundBuffers,
     isAudioReady,
   };
 

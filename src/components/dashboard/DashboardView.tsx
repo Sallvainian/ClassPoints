@@ -78,6 +78,10 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const undoableAction = useMemo(() => {
     void tick;
     const action = getRecentUndoableAction();
+    // dismissedTxnRef intentionally read here to hide the toast for one render
+    // after undo until the cache update propagates (see comment above). Promoting
+    // it to state would change the post-undo re-render timing.
+    // eslint-disable-next-line react-hooks/refs
     if (action && action.transactionId === dismissedTxnRef.current) return null;
     return action;
   }, [getRecentUndoableAction, tick]);
