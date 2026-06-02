@@ -6,7 +6,7 @@ ClassPoints is a single-part monolith — one React SPA backed by Supabase. The 
 
 ## Top-level layout
 
-```
+```text
 ClassPoints/
 ├── src/                        # React app source (126 .ts/.tsx/.css files; 107 non-test .ts/.tsx)
 ├── supabase/                   # Local Supabase config + 13 migrations
@@ -45,7 +45,7 @@ ClassPoints/
 
 ## `src/` — React application
 
-```
+```text
 src/
 ├── App.tsx                     # 4-provider stack: Auth > Theme > Sound > App. View routing via useState.
 ├── main.tsx                    # createRoot, QueryClientProvider, <DevtoolsGate /> (imported from components/)
@@ -139,7 +139,7 @@ src/
 
 ## `supabase/` — Backend
 
-```
+```text
 supabase/
 ├── config.toml                 # Local-stack config (ports, auth, db version)
 ├── snippets/                   # SQL snippets (utility queries; not migrations)
@@ -163,7 +163,7 @@ Naming note: `001`–`012` are hand-authored with a zero-padded `0NN` prefix; th
 
 ## `tests/` — E2E and backend integration
 
-```
+```text
 tests/
 ├── README.md
 ├── e2e/
@@ -193,7 +193,7 @@ tests/
 
 There are also 17 Vitest unit/component test files under `src/` (`find src -name '*.test.ts*'` → 17):
 
-```
+```text
 src/test/
 ├── setup.ts                    # Vitest setup (testing-library/jest-dom) — not counted as a test file
 ├── leaderboardCalculations.test.ts
@@ -225,7 +225,7 @@ src/utils/
 
 ## `scripts/` — Node-side dev/CI/seed scripts
 
-```
+```text
 scripts/
 ├── dev.mjs                     # `npm run dev` entrypoint — local-by-default; preflights Docker, manages Supabase lifecycle
 ├── lib/                        # Committed compiled .mjs + .d.mts helpers (importable by .mjs scripts + E2E globalSetup, no build step)
@@ -247,7 +247,7 @@ scripts/
 
 ## `.github/workflows/` — CI
 
-```
+```text
 .github/
 ├── dependabot.yml
 └── workflows/
@@ -259,7 +259,7 @@ scripts/
 
 ## `docs/` — This workflow's output
 
-```
+```text
 docs/
 ├── index.md                    # ← Master entry point (start here)
 ├── project-overview.md

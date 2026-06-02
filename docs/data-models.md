@@ -272,7 +272,7 @@ Function schemas reflect the harden migration (`20260429181608_*`): trigger-only
 
 ### Adding a column — checklist
 
-1. Write `supabase/migrations/0NN_*.sql`.
+1. Create the migration with `supabase migration new <name>`, then write the SQL into the generated timestamp-prefixed file under `supabase/migrations/`. It sorts after the legacy zero-padded set (lexicographic order); do not reuse or renumber a `0NN` prefix.
 2. Add to `DbX` Row/Insert/Update in `src/types/database.ts`.
 3. If user-facing, add to the `X` app type in `src/types/index.ts`.
 4. Update `transformX()` in `src/types/transforms.ts` — UNLESS it's `dbToPointTransaction` (`{ ...row }` passthrough automatically picks up new fields).
