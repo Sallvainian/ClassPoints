@@ -1,14 +1,14 @@
 # Source Tree Analysis
 
-_Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
+_Generated 2026-06-02 (exhaustive full rescan; HEAD `c9ca66f` on `main`)._
 
 ClassPoints is a single-part monolith — one React SPA backed by Supabase. The repo's interesting structure lives in `src/`, `supabase/`, `tests/`, `scripts/`, and `.github/workflows/`; everything else is config or generated output.
 
 ## Top-level layout
 
-```
+```text
 ClassPoints/
-├── src/                        # React app source (113 .ts/.tsx/.css files; 103 non-test .ts/.tsx)
+├── src/                        # React app source (126 .ts/.tsx/.css files; 107 non-test .ts/.tsx)
 ├── supabase/                   # Local Supabase config + 13 migrations
 ├── tests/                      # Playwright E2E, Vitest backend integration, support helpers
 ├── scripts/                    # Node-side dev/CI/seed scripts (tsx + .mjs)
@@ -32,7 +32,7 @@ ClassPoints/
 ├── vite.config.ts              # `base: '/ClassPoints/'`, react plugin, host: true
 ├── vitest.config.ts            # jsdom, src/test/setup.ts
 ├── playwright.config.ts        # Local-stack guard, .auth/user.json storage, Chromium-only
-├── eslint.config.js            # Flat config (ESLint 9), TS + React-hooks + react-refresh
+├── eslint.config.js            # Flat config (ESLint 10), TS + React-hooks 7 (set-state-in-effect: error) + react-refresh
 ├── postcss.config.js           # @tailwindcss/postcss plugin
 ├── tailwind.config.js          # Vestigial v3-style stub; Tailwind v4 theme lives in src/index.css @theme
 ├── .prettierrc                 # semi, single-quote, tabWidth 2, printWidth 100
@@ -45,7 +45,7 @@ ClassPoints/
 
 ## `src/` — React application
 
-```
+```text
 src/
 ├── App.tsx                     # 4-provider stack: Auth > Theme > Sound > App. View routing via useState.
 ├── main.tsx                    # createRoot, QueryClientProvider, <DevtoolsGate /> (imported from components/)
@@ -77,26 +77,30 @@ src/
 │   ├── students/               # StudentGrid, StudentPointCard
 │   └── ui/                     # Button, Dialog, Input, Modal, ErrorToast (primitive design system)
 │
-├── contexts/                   # 4 React contexts (NOT migrated to TanStack — by design). Each split:
-│   │                           #   XContext.tsx = Provider component only; useX.ts = type + context + useX hook
+├── contexts/                   # 9 files: 4 React contexts (NOT migrated to TanStack — by design) + AppContext.test.tsx.
+│   │                           #   Each split: XContext.tsx = Provider component only; useX.ts = type + context + useX hook
 │   │                           #   (react-refresh/only-export-components fix)
 │   ├── AuthContext.tsx         # Supabase auth + stale-JWT graceful degrade (Promise.race 5s validate, sb-* purge)
 │   ├── useAuth.ts              # AuthContextValue + AuthContext + useAuth()
-│   ├── AppContext.tsx          # 710 LOC. Thin wrapper around hooks. Phase 4 dissolution target.
-│   ├── useApp.ts               # AppContextValue + AppContext + useApp()
+│   ├── AppContext.tsx          # 33 LOC. UI/session state ONLY: activeClassroomId + setActiveClassroom (Phase 4 dissolved the facade).
+│   ├── useApp.ts               # AppContextValue ({activeClassroomId, setActiveClassroom}) + AppContext + useApp()
+│   ├── AppContext.test.tsx     # AppProvider active-classroom persistence + useApp guard
 │   ├── SoundContext.tsx        # Web Audio + user_sound_settings table + cross-device sync
 │   ├── useSoundContext.ts      # SoundSettings + SoundContextValue + SoundContext + useSoundContext()
 │   ├── ThemeContext.tsx        # light/dark, prefers-color-scheme + localStorage
 │   └── useTheme.ts             # Theme + ThemeContextValue + ThemeContext + useTheme()
 │
-├── hooks/                      # 12 hook implementation files + index barrel + hook tests
+├── hooks/                      # 15 hook implementation files + index barrel + hook tests (__tests__/)
 │   ├── index.ts                # Hook barrel export
-│   ├── useClassrooms.ts        # TanStack ✅ (Phase 2)
-│   ├── useStudents.ts          # TanStack ✅ (Phase 3) — owns students realtime + point_transactions DELETE
-│   ├── useTransactions.ts      # TanStack ✅ (Phase 2) — useAwardPoints is THE optimistic mutation showcase
+│   ├── useClassrooms.ts        # TanStack ✅ (Phase 2) — no realtime; cross-hook invalidation
+│   ├── useStudents.ts          # TanStack ✅ (Phase 3) — SOLE owner of students realtime (invalidate-not-merge)
+│   ├── useTransactions.ts      # TanStack ✅ (Phase 2) — owns point_transactions realtime; useAwardPoints is THE optimistic mutation showcase
 │   ├── useBehaviors.ts         # TanStack ✅ (Phase 1)
-│   ├── useLayoutPresets.ts     # ❌ Legacy hand-rolled (presets/loading/error/refetch shape) — DO NOT clone
-│   ├── useSeatingChart.ts      # ❌ Legacy hand-rolled (1118 LOC, 23-value return) — DO NOT clone
+│   ├── useBatchAward.ts        # Phase 4 bridge — awardClass/awardSubset fan-out over useAwardPoints (silent per-item filter, cluster #2)
+│   ├── useUndoableAction.ts    # Phase 4 bridge — 10s undo window (getRecentUndoableAction) relocated from AppContext
+│   ├── useAppClassrooms.ts     # Phase 4 bridge — camelCase useAppClassrooms/useActiveClassroom over useClassrooms/useStudents
+│   ├── useLayoutPresets.ts     # ❌ Legacy hand-rolled (170 LOC, presets/loading/error/refetch shape) — DO NOT clone
+│   ├── useSeatingChart.ts      # ❌ Legacy hand-rolled (1122 LOC, 23-value return) — DO NOT clone
 │   ├── useRealtimeSubscription.ts # Generic WS subscription wrapper (crypto.randomUUID channel names)
 │   ├── usePersistedState.ts    # Legacy localStorage state for migration wizard
 │   ├── useDisplaySettings.ts   # Per-device UI prefs (cardSize, viewMode, showPointTotals)
@@ -108,6 +112,7 @@ src/
 │   ├── supabase.ts             # createClient<Database>; window.__SUPABASE_CLIENT__ for migration scripts
 │   ├── queryClient.ts          # ADR-005 defaults: staleTime 30s, gcTime 10min, refetchOnWindowFocus false
 │   ├── queryKeys.ts            # Single source of truth for query keys (use BOTH for read AND invalidate)
+│   ├── batchKindStore.ts       # Phase 4 — module-level Map<batchId, 'class'|'subset'>; written by useBatchAward, read by useUndoableAction
 │   └── manualAdjustmentConstants.ts
 │
 ├── services/
@@ -117,23 +122,24 @@ src/
 │   ├── database.ts             # Supabase-generated Database type + 30+ convenience aliases
 │   ├── index.ts                # App-shape types (Behavior, Student, Classroom, AppState, UndoableAction)
 │   ├── seatingChart.ts         # All seating chart types (DB + app + transforms colocated)
-│   └── transforms.ts           # dbToBehavior/Classroom/Student/PointTransaction (boundary normalization)
+│   └── transforms.ts           # forward dbToBehavior/Classroom/Student/PointTransaction + Phase-4 app-shape dbStudentToApp/dbClassroomToApp
 │
 └── utils/
     ├── index.ts                # Re-exports
     ├── dateUtils.ts            # getDateBoundaries (start of today, start of week)
-    ├── defaults.ts             # Default behaviors + sounds
+    ├── defaults.ts             # Default behaviors (createDefaultBehaviors, 15) + sounds
     ├── errorMessages.ts        # ERROR_MESSAGES dictionary
     ├── leaderboardCalculations.ts
     ├── migrateToSupabase.ts    # hasLocalStorageData, migration helpers (one-time wizard)
     ├── migrations.ts           # AppState schema migrations for legacy localStorage data
+    ├── pointSelectors.ts       # Phase 4 — read-only point/transaction selectors relocated from AppContext (READS stored totals)
     ├── studentParser.ts        # Bulk-import name parser
     └── validateAudioUrl.ts     # Custom-sound URL validation + AudioBuffer load
 ```
 
 ## `supabase/` — Backend
 
-```
+```text
 supabase/
 ├── config.toml                 # Local-stack config (ports, auth, db version)
 ├── snippets/                   # SQL snippets (utility queries; not migrations)
@@ -153,17 +159,18 @@ supabase/
     └── 20260429181608_harden_database_linter_findings.sql  # Supabase-CLI-generated (timestamp prefix): DROP pg_graphql, private schema, SET search_path='' on functions, tighten RPC/trigger grants
 ```
 
-Naming note: `001`–`012` are hand-authored with a zero-padded `0NN` prefix; the single timestamp-prefixed file was emitted by `supabase migration` during the PR #86 linter-hardening work. Files apply in lexicographic order, so `012` sorts before the timestamped one. Hand-authored migrations continue the zero-padded sequence (next = `013`).
+Naming note: `001`–`012` are hand-authored with a zero-padded `0NN` prefix; the single timestamp-prefixed file was emitted by `supabase migration` during the PR #86 linter-hardening work. Files apply in lexicographic order, so the zero-padded set sorts before the timestamped one. New migrations should be created with `supabase migration new <name>` (timestamp-prefixed; sorts after the legacy set) — do not reuse or renumber a zero-padded prefix.
 
 ## `tests/` — E2E and backend integration
 
-```
+```text
 tests/
 ├── README.md
 ├── e2e/
 │   ├── auth.setup.ts           # Setup project: log in once → save .auth/user.json storage state
 │   ├── auth.spec.ts            # Stale cached-session recovery E2E
 │   ├── example.spec.ts         # Authenticated shell + userFactory smoke tests
+│   ├── realtime-cross-device-totals.spec.ts # Two-page / two-client cross-device realtime totals (imports @playwright/test directly)
 │   ├── global-setup.ts         # globalSetup: starts local Supabase + seeds test user
 │   └── global-teardown.ts      # globalTeardown: stops local Supabase
 ├── integration/
@@ -184,31 +191,41 @@ tests/
     └── page-objects/           # .gitkeep placeholder (no page objects yet)
 ```
 
-There are also Vitest unit tests under `src/`:
+There are also 17 Vitest unit/component test files under `src/` (`find src -name '*.test.ts*'` → 17):
 
-```
+```text
 src/test/
-├── setup.ts                    # Vitest setup (testing-library/jest-dom)
+├── setup.ts                    # Vitest setup (testing-library/jest-dom) — not counted as a test file
 ├── leaderboardCalculations.test.ts
 ├── sounds.test.ts
 ├── TeacherDashboard.test.tsx
-└── useRotatingCategory.test.ts
+├── useRotatingCategory.test.ts
+├── AwardPointsModal.test.tsx                 # Phase 4 — single-award modal via useAwardPoints
+└── dashboard-students-mount.regression.test.tsx  # asserts exactly one useStudents subscription per dashboard mount
 
 src/contexts/
-└── AppContext.test.tsx         # Disabled classroom-scoped queries do not block home loading
+└── AppContext.test.tsx         # AppProvider active-classroom persistence + useApp guard
 
 src/hooks/__tests__/
 ├── useAwardPoints.test.ts
 ├── useRealtimeSubscription.test.ts
-└── useStudents.test.ts
+├── useStudents.test.ts         # students onReconnect refresh contract
+├── useBehaviors.test.ts        # Phase 4
+├── useBatchAward.test.ts       # Phase 4
+├── useAppClassrooms.test.ts    # Phase 4
+└── useUndoableAction.test.ts   # Phase 4
 
-src/utils/__tests__/
-└── studentParser.test.ts
+src/types/
+└── transforms.test.ts          # Phase 4 — DB↔app transforms
+
+src/utils/
+├── __tests__/studentParser.test.ts
+└── pointSelectors.test.ts      # Phase 4 — point/transaction selectors
 ```
 
 ## `scripts/` — Node-side dev/CI/seed scripts
 
-```
+```text
 scripts/
 ├── dev.mjs                     # `npm run dev` entrypoint — local-by-default; preflights Docker, manages Supabase lifecycle
 ├── lib/                        # Committed compiled .mjs + .d.mts helpers (importable by .mjs scripts + E2E globalSetup, no build step)
@@ -230,7 +247,7 @@ scripts/
 
 ## `.github/workflows/` — CI
 
-```
+```text
 .github/
 ├── dependabot.yml
 └── workflows/
@@ -242,7 +259,7 @@ scripts/
 
 ## `docs/` — This workflow's output
 
-```
+```text
 docs/
 ├── index.md                    # ← Master entry point (start here)
 ├── project-overview.md
@@ -277,17 +294,17 @@ docs/
 
 ## Critical entry points
 
-| Path                          | What it is                                                                                                                   |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `src/main.tsx`                | App bootstrap. Mounts `<App />` inside `QueryClientProvider`; registers DevtoolsGate (DEV-only).                             |
-| `src/App.tsx`                 | Provider stack + view router (home / dashboard / settings / migration / profile). View persists via `localStorage:app:view`. |
-| `src/contexts/AppContext.tsx` | `useApp()` legacy facade — Phase 4 dissolution target. New components MUST call hooks directly.                              |
-| `src/lib/supabase.ts`         | Single Supabase client. `window.__SUPABASE_CLIENT__` for migration scripts.                                                  |
-| `src/lib/queryClient.ts`      | TanStack QueryClient with ADR-005 defaults (load-bearing for the optimistic-mutation Phases 1–3).                            |
-| `src/lib/queryKeys.ts`        | Single source of truth for query keys — used for both reads AND invalidations to keep them in sync.                          |
-| `scripts/dev.mjs`             | `npm run dev` entrypoint. Local-by-default; starts/stops local Supabase + preflights Docker.                                 |
-| `playwright.config.ts`        | E2E. Fail-closed network allow-list (loopback, RFC1918, Tailscale CGNAT).                                                    |
-| `supabase/migrations/`        | 13 migrations (12 zero-padded `0NN` + 1 timestamp-prefixed CLI file); applied in lexicographic order.                        |
+| Path                          | What it is                                                                                                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main.tsx`                | App bootstrap. Mounts `<App />` inside `QueryClientProvider`; registers DevtoolsGate (DEV-only).                                                            |
+| `src/App.tsx`                 | Provider stack + view router (home / dashboard / settings / migration / profile). View persists via `localStorage:app:view`.                                |
+| `src/contexts/AppContext.tsx` | `useApp()` — UI/session state ONLY (activeClassroomId + setActiveClassroom, 33 LOC; Phase 4 dissolved the facade). New components MUST call hooks directly. |
+| `src/lib/supabase.ts`         | Single Supabase client. `window.__SUPABASE_CLIENT__` for migration scripts.                                                                                 |
+| `src/lib/queryClient.ts`      | TanStack QueryClient with ADR-005 defaults (load-bearing for the optimistic-mutation Phases 1–3).                                                           |
+| `src/lib/queryKeys.ts`        | Single source of truth for query keys — used for both reads AND invalidations to keep them in sync.                                                         |
+| `scripts/dev.mjs`             | `npm run dev` entrypoint. Local-by-default; starts/stops local Supabase + preflights Docker.                                                                |
+| `playwright.config.ts`        | E2E. Fail-closed network allow-list (loopback, RFC1918, Tailscale CGNAT).                                                                                   |
+| `supabase/migrations/`        | 13 migrations (12 zero-padded `0NN` + 1 timestamp-prefixed CLI file); applied in lexicographic order.                                                       |
 
 ## Where to add new code
 

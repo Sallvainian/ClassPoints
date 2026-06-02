@@ -170,7 +170,7 @@ export function useUpdateStudent() {
   const qc = useQueryClient();
   return useMutation<DbStudent, Error, UpdateStudentInput>({
     mutationFn: async ({ id, updates }) => {
-      // Typed UpdateStudent payload per supabase-js 2.104 RejectExcessProperties
+      // Typed UpdateStudent payload per supabase-js RejectExcessProperties
       // (reference: src/hooks/useSeatingChart.ts).
       const { data, error } = await supabase
         .from('students')

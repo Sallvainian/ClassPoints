@@ -1,6 +1,6 @@
 # ClassPoints Documentation
 
-_Last generated: 2026-05-31 via BMad document-project full rescan, exhaustive scan (HEAD `cad3cfa` on `main`)._
+_Last generated: 2026-06-02 via BMad document-project full rescan, exhaustive scan (HEAD `c9ca66f` on `main`)._
 
 ClassPoints is a React classroom-management app for teachers to track behavior points, classroom totals, today/this-week roll-ups, seating charts, and per-user sound feedback. It is a client-only SPA backed by Supabase Auth, Postgres, Realtime, RLS, and RPCs.
 
@@ -9,11 +9,11 @@ ClassPoints is a React classroom-management app for teachers to track behavior p
 | Type         | Single-page web application, monolith |
 | Architecture | React SPA + Supabase BaaS             |
 | Language     | TypeScript ~5.9.3, strict             |
-| Framework    | React 18.3.1                          |
-| Build        | Vite 6.4.2, base `/ClassPoints/`      |
-| Styling      | Tailwind CSS 4.2.4 (v4 syntax)        |
-| Server state | TanStack Query 5.100.1                |
-| Backend      | Supabase JS 2.104.1                   |
+| Framework    | React 19.2.7                          |
+| Build        | Vite 8.0.16, base `/ClassPoints/`     |
+| Styling      | Tailwind CSS 4.3.0 (v4 syntax)        |
+| Server state | TanStack Query 5.100.14               |
+| Backend      | Supabase JS 2.106.2                   |
 | Tests        | Vitest unit/integration + Playwright  |
 
 ## Start here
@@ -48,7 +48,7 @@ Entry points:
 - Supabase client: `src/lib/supabase.ts`
 - Query client: `src/lib/queryClient.ts`
 - Query keys: `src/lib/queryKeys.ts`
-- Legacy app facade: `src/contexts/AppContext.tsx` (Phase 4 dissolution target)
+- App UI/session context: `src/contexts/AppContext.tsx` (33 LOC — active-classroom selection only; Phase 4 dissolved the facade)
 
 ## Generated documentation
 

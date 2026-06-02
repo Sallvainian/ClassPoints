@@ -89,7 +89,8 @@ export function useTransactions(
  *       protect against duplicate mutation invocations.
  *   (c) temp row id is content-derived (studentId + behaviorId + caller timestamp);
  *       no `crypto.randomUUID()`.
- *   (d) explicit `onError` wired below — error surfaces through AppContext (not silent).
+ *   (d) explicit `onError` wired below — error surfaces via the caller's mutation
+ *       state (`mutation.error` / `isError`), not silently.
  *   (e) reads previous cache state via `queryClient.getQueryData`, never from the
  *       component closure (which goes stale across re-renders).
  */
@@ -207,7 +208,8 @@ export function useAwardPoints() {
     },
     // (a) null-guard context.previous — `undefined` after cancellation would wipe
     //     the cache on rollback, worse than leaving the optimistic write in place.
-    // (d) explicit onError present → error surfaces via AppContext.error; never silent.
+    // (d) explicit onError present → error surfaces via the caller's mutation state
+    //     (`mutation.error` / `isError`); never silent.
     onError: (_err, input, context) => {
       if (context?.previousTransactions !== undefined) {
         qc.setQueryData(

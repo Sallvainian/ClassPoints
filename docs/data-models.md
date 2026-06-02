@@ -1,10 +1,12 @@
 # Data Models
 
-_Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
+_Generated 2026-06-02 (exhaustive full rescan; HEAD `c9ca66f` on `main`)._
+
+_Schema unchanged since the prior scan: `supabase/migrations/` had zero changes in `cad3cfa..c9ca66f`, so the table/enum/trigger/RLS content below is preserved. This refresh updates only the TypeScript-side references (transforms, behavior-defaults constants, realtime subscriptions) that the Phase 4 dissolution moved._
 
 ## Overview
 
-ClassPoints uses Postgres via Supabase. The schema is defined across **13 migrations** in `supabase/migrations/`: the zero-padded `001_initial_schema.sql` → `012_add_insubordination_behavior.sql`, plus one timestamp-prefixed file, `20260429181608_harden_database_linter_findings.sql`, emitted by the Supabase CLI during the PR #86 linter-hardening work. Migrations apply in lexicographic order, so `012` sorts before the timestamped file; hand-authored migrations continue the zero-padded sequence (next = `013`). All tables have Row-Level Security enabled and policies keyed on `auth.uid()`. Type definitions are auto-generated to `src/types/database.ts`; the camelCase app shapes live in `src/types/index.ts` and the boundary transforms in `src/types/transforms.ts`.
+ClassPoints uses Postgres via Supabase. The schema is defined across **13 migrations** in `supabase/migrations/`: the zero-padded `001_initial_schema.sql` → `012_add_insubordination_behavior.sql`, plus one timestamp-prefixed file, `20260429181608_harden_database_linter_findings.sql`, emitted by the Supabase CLI during the PR #86 linter-hardening work. Migrations apply in lexicographic order, so the zero-padded set sorts before the timestamped file. **New migrations should be created with `supabase migration new <name>`** (timestamp-prefixed; sorts after the legacy zero-padded set) — do not reuse or renumber an existing zero-padded prefix. All tables have Row-Level Security enabled and policies keyed on `auth.uid()`. Type definitions are auto-generated to `src/types/database.ts`; the camelCase app shapes live in `src/types/index.ts` and the boundary transforms in `src/types/transforms.ts`.
 
 ## Tables
 
@@ -61,10 +63,9 @@ RLS: visible when `user_id IS NULL OR user_id = auth.uid()`. INSERT/UPDATE/DELET
 - **Positive (8)**: On Task (+1 📚), Helping Others (+2 🤝), Great Effort (+2 💪), Participation (+1 ✋), Excellent Work (+3 ⭐), Being Kind (+2 ❤️), Following Rules (+1 ✅), Working Quietly (+1 🤫)
 - **Negative (7)**: Off Task (-1 😴), Disruptive (-2 🔊), Unprepared (-1 📝), Unkind Words (-2 💬), Not Following Rules (-1 🚫), Late (-1 ⏰), Insubordination (-5 🚨, added in 012)
 
-These defaults are also hard-coded as TWO TS constants, and they have **drifted** — keep this in mind when touching default behaviors:
+These defaults are also hard-coded in **one** TS constant (the prior `AppContext.DEFAULT_BEHAVIORS` / `resetBehaviorsToDefault` pair was deleted with the Phase 4 facade dissolution — `grep DEFAULT_BEHAVIORS src` → 0; the earlier 14-vs-15 drift is gone):
 
-- `src/contexts/AppContext.tsx:49` `DEFAULT_BEHAVIORS` — **14 entries, no Insubordination**. Inserted by the `resetBehaviorsToDefault` flow (`AppContext.tsx:271`), so "reset to default" currently restores the pre-012 set.
-- `src/utils/defaults.ts:13` `createDefaultBehaviors()` — **15 entries, includes Insubordination**. Used by the legacy localStorage→Supabase migration path (`src/utils/migrations.ts`).
+- `src/utils/defaults.ts:33` `createDefaultBehaviors()` — **15 entries, includes Insubordination** (the array literal at `:13-30`), matching the DB. Used by the legacy localStorage→Supabase migration path (`src/utils/migrations.ts`).
 
 ### `point_transactions`
 
@@ -259,7 +260,7 @@ Function schemas reflect the harden migration (`20260429181608_*`): trigger-only
 `REPLICA IDENTITY FULL`:
 
 - `point_transactions` (migration 005) — required for DELETE payloads in the cross-device undo flow
-- `students` (migration 005) — REPLICA FULL set even though current app code only uses INSERT/UPDATE on this channel; keeps the door open for DELETE handling
+- `students` (migration 005) — required for filtered-DELETE event delivery; `useStudents` is invalidate-not-merge, so it refetches on ANY students-table event (INSERT/UPDATE/DELETE) rather than reading the payload body
 - `user_sound_settings` (migration 007)
 
 ## Type-system overview
@@ -267,11 +268,11 @@ Function schemas reflect the harden migration (`20260429181608_*`): trigger-only
 - `src/types/database.ts` — auto-generated Postgres types. Pattern: `Database['public']['Tables']['X']['Row' | 'Insert' | 'Update']`. Convenience aliases: `Classroom`, `NewClassroom`, `UpdateClassroom`, etc. Function aliases: `Database['public']['Functions']['get_student_time_totals']['Args' | 'Returns']`.
 - `src/types/index.ts` — camelCase app shapes (`Behavior`, `Student`, `Classroom`, `PointTransaction`, `AppState`, `StudentPoints`, `UndoableAction`). Re-exports `*` from `./seatingChart` (cleanup target; the explicit-export rule applies to new code).
 - `src/types/seatingChart.ts` — DB types, app types, AND transforms colocated in one file (predates the boundary-separation pattern; left as-is for that domain).
-- `src/types/transforms.ts` — `dbToBehavior`, `dbToClassroom` (with `ClassroomAggregate` payload), `dbToStudent` (with `timeTotals` payload), `dbToPointTransaction` (passthrough — the Db shape leaks intentionally to legacy consumers reading `useApp().transactions`).
+- `src/types/transforms.ts` — forward `dbToBehavior`, `dbToClassroom` (with `ClassroomAggregate` payload), `dbToStudent` (with `timeTotals` payload), `dbToPointTransaction` (passthrough — the Db shape leaks intentionally; consumers read `DbPointTransaction` directly via `useTransactions`), plus the Phase-4 app-shape (camelCase) transforms `dbStudentToApp` (`:113`) and `dbClassroomToApp` (`:134`), relocated from the dissolved AppContext `mapped*` bridges (consumed by `useAppClassrooms`/`useActiveClassroom`; thin and transitional).
 
 ### Adding a column — checklist
 
-1. Write `supabase/migrations/0NN_*.sql`.
+1. Create the migration with `supabase migration new <name>`, then write the SQL into the generated timestamp-prefixed file under `supabase/migrations/`. It sorts after the legacy zero-padded set (lexicographic order); do not reuse or renumber a `0NN` prefix.
 2. Add to `DbX` Row/Insert/Update in `src/types/database.ts`.
 3. If user-facing, add to the `X` app type in `src/types/index.ts`.
 4. Update `transformX()` in `src/types/transforms.ts` — UNLESS it's `dbToPointTransaction` (`{ ...row }` passthrough automatically picks up new fields).
@@ -279,7 +280,7 @@ Function schemas reflect the harden migration (`20260429181608_*`): trigger-only
 
 ## Current realtime subscriptions (HEAD)
 
-- `useStudents.ts` — subscribes to `students` (any event, classroom-filtered) AND to `point_transactions` (DELETE only, classroom-filtered).
-- `useTransactions.ts` — subscribes to `point_transactions` (any event, classroom-filtered).
+- `useStudents.ts` — subscribes to `students` ONLY (any event, classroom-filtered), invalidate-not-merge. The prior `point_transactions` DELETE local-decrement subscription was removed in `ea9f406`; cross-device award AND undo totals now flow through the DB trigger's `students` UPDATE (migration `011:45-47`) → refetch.
+- `useTransactions.ts` — subscribes to `point_transactions` (any event, classroom-filtered), invalidate-not-merge.
 - `useLayoutPresets.ts` — legacy subscription to `layout_presets`.
 - `useSeatingChart.ts` — NO realtime subscription, by design. Previously planned to add 4 seating-table subscriptions for cross-device drag sync; that use case was dropped 2026-05-13. Seating-chart now uses on-demand `invalidateQueries` after mutations.
