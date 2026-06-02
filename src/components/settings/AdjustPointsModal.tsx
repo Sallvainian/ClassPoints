@@ -22,6 +22,10 @@ export function AdjustPointsModal({ student, isOpen, onClose, onConfirm }: Adjus
 
   useEffect(() => {
     if (isOpen && student) {
+      // TEMP(set-state-in-effect): inline disable is temporary, pending a refactor
+      // to a key-reset remount or deriving during render (react.dev: You Might Not
+      // Need an Effect). Remove the disable when the refactor lands.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTargetPoints(String(student.pointTotal));
       setNote('');
       setError(null);

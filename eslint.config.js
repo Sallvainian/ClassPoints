@@ -47,7 +47,7 @@ export default tseslint.config(
       // set-state-in-effect fires on idiomatic, correct patterns (prop-reset
       // effects, timer-driven toasts) plus fetch-in-effect hooks slated for the
       // TanStack Query migration. Track as warnings rather than churn working code.
-      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/set-state-in-effect': 'error',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   }

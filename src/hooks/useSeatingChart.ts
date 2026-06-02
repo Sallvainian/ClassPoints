@@ -151,6 +151,10 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
 
   // Initial load
   useEffect(() => {
+    // TEMP(set-state-in-effect): inline disable is temporary, pending migration of
+    // this hook to TanStack useQuery (deferred item #12), which removes the
+    // fetch-in-effect entirely. Remove the disable when #12 lands.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchChart();
   }, [fetchChart]);
 

@@ -19,6 +19,10 @@ export function DeleteClassroomModal({
 
   useEffect(() => {
     if (isOpen) {
+      // TEMP(set-state-in-effect): inline disable is temporary, pending a refactor
+      // to a key-reset remount or deriving during render (react.dev: You Might Not
+      // Need an Effect). Remove the disable when the refactor lands.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setConfirmationText('');
     }
   }, [isOpen]);

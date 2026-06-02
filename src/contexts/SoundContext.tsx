@@ -92,7 +92,12 @@ export function SoundProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Try to init immediately (works if user already interacted)
+    // Try to init immediately (works if user already interacted).
+    // initializeAudio() commits the AudioContext + synthesized buffers via
+    // setState. That is external-system setup (Web Audio) — the documented valid
+    // use of an effect, not state derivable during render. The React Compiler
+    // rule flags it regardless; the compiler is not enabled here. Permanent.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     initializeAudio();
 
     // Also listen for interaction to handle autoplay restrictions
@@ -108,6 +113,10 @@ export function SoundProvider({ children }: { children: ReactNode }) {
   // Load settings from Supabase when user is available
   useEffect(() => {
     if (!user) {
+      // TEMP(set-state-in-effect): inline disable is temporary, pending a refactor
+      // to derive from auth state or handle the reset in the load path. Remove the
+      // disable when the refactor lands.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSettings(DEFAULT_SETTINGS);
       setIsLoading(false);
       return;

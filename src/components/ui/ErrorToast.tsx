@@ -16,6 +16,10 @@ export function ErrorToast({ error, onDismiss, duration = 5000 }: ErrorToastProp
   useEffect(() => {
     if (error) {
       dismissedRef.current = false;
+      // TEMP(set-state-in-effect): inline disable is temporary, pending a refactor
+      // to derive `visible` from props and keep only the auto-dismiss timer.
+      // Remove the disable when the refactor lands.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setVisible(true);
       setTimeLeft(duration);
 

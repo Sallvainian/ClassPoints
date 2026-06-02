@@ -11,7 +11,7 @@
     "dev:host": "node scripts/dev.mjs --host",
     "dev:hosted": "fnox exec -- vite",
     "build": "tsc -b && fnox exec -- vite build",
-    "lint": "eslint . --max-warnings 14",
+    "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
     "check:bundle": "node scripts/check-bundle.mjs",
     "preview": "fnox exec -- vite preview",

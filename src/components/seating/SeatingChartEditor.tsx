@@ -155,6 +155,10 @@ function DraggableGroup({
     if (isDragging && transform) {
       const snappedX = snapToGrid(group.x + transform.x);
       const snappedY = snapToGrid(group.y + transform.y);
+      // Syncs committed position to the transient dnd-kit drag transform (not a
+      // prop, so not derivable during render). Kept as local UI state by design
+      // decision D1 (seating drag layer stays local useState/useRef). Permanent.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalPos({ x: snappedX, y: snappedY });
     }
   }, [isDragging, transform, group.x, group.y, snapToGrid]);
@@ -305,6 +309,10 @@ function DraggableRoomElement({
     if (isDragging && transform) {
       const snappedX = snapToGrid(element.x + transform.x);
       const snappedY = snapToGrid(element.y + transform.y);
+      // Syncs committed position to the transient dnd-kit drag transform (not a
+      // prop, so not derivable during render). Kept as local UI state by design
+      // decision D1 (seating drag layer stays local useState/useRef). Permanent.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocal((prev) => {
         if (prev.x === snappedX && prev.y === snappedY) return prev;
         return { ...prev, x: snappedX, y: snappedY };

@@ -49,6 +49,10 @@ export function useLayoutPresets(): UseLayoutPresetsReturn {
   }, []);
 
   useEffect(() => {
+    // TEMP(set-state-in-effect): inline disable is temporary, pending migration of
+    // this hook to TanStack useQuery (deferred item #11), which removes the
+    // fetch-in-effect entirely. Remove the disable when #11 lands.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPresets();
   }, [fetchPresets]);
 
