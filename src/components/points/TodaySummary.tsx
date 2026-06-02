@@ -46,13 +46,39 @@ export function TodaySummary({ transactions, students, limit = 10 }: TodaySummar
   return (
     <ol className="space-y-0">
       {recentTransactions.map((transaction, index) => {
-        const isPositive = transaction.points > 0;
         const isLast = index === recentTransactions.length - 1;
+        const rowClass = `flex items-start gap-3 py-3 ${isLast ? '' : 'border-b border-hairline'}`;
+
+        // Synthetic "batch award failed" entry (no points landed). Distinct FAILED
+        // badge instead of a signed point delta; no real student to name.
+        if (transaction.failed) {
+          return (
+            <li key={transaction.id} className={rowClass}>
+              <span
+                className="shrink-0 inline-flex items-center justify-center min-w-[3rem] h-7 rounded-md px-2 font-mono uppercase tracking-[0.08em] text-[10px] font-semibold bg-red-500/10 text-red-700 dark:text-red-400"
+                aria-label="Award failed"
+              >
+                Failed
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-ink-strong leading-tight truncate">
+                  Award failed
+                </p>
+                <p className="mt-0.5 text-[12px] text-ink-mid leading-tight truncate">
+                  <span aria-hidden="true">{transaction.behaviorIcon} </span>
+                  {transaction.behaviorName}
+                </p>
+              </div>
+              <span className="shrink-0 font-mono text-[10px] tracking-[0.04em] text-ink-muted mt-0.5">
+                {formatRelativeTime(transaction.timestamp)}
+              </span>
+            </li>
+          );
+        }
+
+        const isPositive = transaction.points > 0;
         return (
-          <li
-            key={transaction.id}
-            className={`flex items-start gap-3 py-3 ${isLast ? '' : 'border-b border-hairline'}`}
-          >
+          <li key={transaction.id} className={rowClass}>
             {/* Delta column — mono, color-coded */}
             <span
               className={`shrink-0 inline-flex items-center justify-center min-w-[3rem] h-7 rounded-md px-2 font-mono tabular-nums text-xs font-semibold ${

@@ -10,6 +10,7 @@ import {
   useUndoBatchTransaction,
 } from '../../hooks/useTransactions';
 import { useUndoableAction } from '../../hooks/useUndoableAction';
+import { useFailedBatches } from '../../hooks/useFailedBatches';
 import { classroomTransactions } from '../../utils/pointSelectors';
 import { useDisplaySettings } from '../../hooks/useDisplaySettings';
 import { ERROR_MESSAGES } from '../../utils/errorMessages';
@@ -40,6 +41,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     error: classroomError,
   } = useActiveClassroom(activeClassroomId);
   const transactionsQuery = useTransactions(activeClassroomId);
+  const failedBatches = useFailedBatches(activeClassroomId);
   const { getRecentUndoableAction, forget: forgetBatchKind } = useUndoableAction(activeClassroomId);
   const undoTransactionMutation = useUndoTransaction();
   const undoBatchTransactionMutation = useUndoBatchTransaction();
@@ -171,12 +173,9 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
 
   const transactions: PointTransaction[] = useMemo(() => {
     if (!activeClassroom) return [];
-    const dbTransactions = classroomTransactions(
-      transactionsQuery.data ?? [],
-      activeClassroom.id,
-      20
-    );
-    return dbTransactions.map((t) => ({
+    const dbRows = transactionsQuery.data ?? [];
+    const dbTransactions = classroomTransactions(dbRows, activeClassroom.id, 20);
+    const real: PointTransaction[] = dbTransactions.map((t) => ({
       id: t.id,
       studentId: t.student_id,
       classroomId: t.classroom_id,
@@ -187,7 +186,33 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       timestamp: new Date(t.created_at).getTime(),
       note: t.note || undefined,
     }));
-  }, [activeClassroom, transactionsQuery.data]);
+    // CAP-3: an atomic batch failure writes zero DB rows, so its activity-feed
+    // visibility is a synthetic, session-ephemeral entry sourced from
+    // failedBatchStore (device-local; survives unmount, gone on reload).
+    //
+    // CAP-6 late-confirm: if a failed notice's batch_id now appears among the
+    // committed rows, the batch actually landed (a lost ack whose recovery read
+    // couldn't confirm, later surfaced by onSettled's refetch). Suppress its
+    // "Failed" entry so the feed never shows one batch as both awarded and failed.
+    // A genuine failure wrote zero rows, so its batchId is absent here and stays.
+    const committedBatchIds = new Set(
+      dbRows.map((t) => t.batch_id).filter((id): id is string => !!id)
+    );
+    const failed: PointTransaction[] = failedBatches
+      .filter((n) => !committedBatchIds.has(n.batchId))
+      .map((n) => ({
+        id: `failed-${n.batchId}`,
+        studentId: '',
+        classroomId: n.classroomId,
+        behaviorId: '',
+        behaviorName: n.behaviorName,
+        behaviorIcon: n.behaviorIcon,
+        points: n.points,
+        timestamp: n.timestamp,
+        failed: true,
+      }));
+    return [...failed, ...real];
+  }, [activeClassroom, transactionsQuery.data, failedBatches]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Loading / error / empty states

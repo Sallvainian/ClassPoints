@@ -39,6 +39,19 @@ export interface AwardPointsInput {
   timestamp: number;
 }
 
+export interface BatchAwardInput {
+  classroomId: string;
+  // Shared batch correlation id stamped on every row, minted once per batch by
+  // useBatchAward. Required (unlike the single-award case): undo groups on it.
+  batchId: string;
+  // Single ms timestamp shared by all rows; drives deterministic optimistic ids.
+  timestamp: number;
+  behavior: AppBehavior;
+  note?: string | null;
+  // One row per id. All rows carry the same behavior/batchId/timestamp.
+  studentIds: string[];
+}
+
 interface AwardPointsContext {
   previousTransactions: DbPointTransaction[] | undefined;
   previousClassrooms: ClassroomWithCount[] | undefined;
@@ -210,6 +223,156 @@ export function useAwardPoints() {
     //     the cache on rollback, worse than leaving the optimistic write in place.
     // (d) explicit onError present → error surfaces via the caller's mutation state
     //     (`mutation.error` / `isError`); never silent.
+    onError: (_err, input, context) => {
+      if (context?.previousTransactions !== undefined) {
+        qc.setQueryData(
+          queryKeys.transactions.list(input.classroomId),
+          context.previousTransactions
+        );
+      }
+      if (context?.previousClassrooms !== undefined) {
+        qc.setQueryData(queryKeys.classrooms.all, context.previousClassrooms);
+      }
+      if (context?.previousStudents !== undefined) {
+        qc.setQueryData(
+          queryKeys.students.byClassroom(input.classroomId),
+          context.previousStudents
+        );
+      }
+    },
+    onSettled: (_data, _err, input) => {
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.list(input.classroomId) });
+      qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+      qc.invalidateQueries({ queryKey: queryKeys.students.byClassroom(input.classroomId) });
+    },
+  });
+}
+
+/**
+ * Atomic batch award (class-wide / multi-select subset). The all-or-nothing
+ * counterpart to useAwardPoints: ONE multi-row INSERT so Postgres commits every
+ * row or none — there is no partial outcome. The `011` totals trigger fires per
+ * row inside that same transaction, so `students` totals commit/roll back with
+ * the rows. Used only via useBatchAward; single-student award stays useAwardPoints.
+ *
+ * Satisfies ADR-005 §4 (a)–(e) as ONE batch-level lifecycle (§5 gates on "any
+ * useMutation WITH onMutate"): one snapshot per cache, one N-row patch, one
+ * null-guarded rollback, one getQueryData read per cache, deterministic ids.
+ */
+export function useAwardPointsBatch() {
+  const qc = useQueryClient();
+  return useMutation<DbPointTransaction[], Error, BatchAwardInput, AwardPointsContext>({
+    mutationFn: async (input) => {
+      const rows: NewPointTransaction[] = input.studentIds.map((studentId) => ({
+        student_id: studentId,
+        classroom_id: input.classroomId,
+        behavior_id: input.behavior.id,
+        behavior_name: input.behavior.name,
+        behavior_icon: input.behavior.icon,
+        points: input.behavior.points,
+        note: input.note ?? null,
+        batch_id: input.batchId,
+      }));
+      // ONE statement → atomic all-or-none. Bare `.select()`, NOT `.single()`:
+      // N rows are expected, and `.single()` throws on count ≠ 1 (a manufactured
+      // false-positive failure surface). Throw the RAW error (not
+      // `new Error(error.message)`): the PostgREST `.code` (SQLSTATE) must survive
+      // for useBatchAward's failure classification (SPEC §3) — do not "tidy" it.
+      const { data, error } = await supabase.from('point_transactions').insert(rows).select();
+      if (error) throw error;
+      return (data ?? []).map(dbToPointTransaction);
+    },
+    onMutate: async (input) => {
+      const listKey = queryKeys.transactions.list(input.classroomId);
+      const studentsKey = queryKeys.students.byClassroom(input.classroomId);
+      await qc.cancelQueries({ queryKey: listKey });
+      await qc.cancelQueries({ queryKey: queryKeys.classrooms.all });
+      await qc.cancelQueries({ queryKey: studentsKey });
+
+      // (e) read state from cache, not from closure
+      const previousTransactions = qc.getQueryData<DbPointTransaction[]>(listKey);
+      const previousClassrooms = qc.getQueryData<ClassroomWithCount[]>(queryKeys.classrooms.all);
+      const previousStudents = qc.getQueryData<StudentWithPoints[]>(studentsKey);
+
+      const points = input.behavior.points;
+
+      // (b) batch-level idempotency guard: if onMutate double-fires (StrictMode /
+      // double-submit), the first invocation already prepended the N optimistic
+      // rows. Detecting the first id skips ALL patches so the aggregate arithmetic
+      // can't double-apply. (c) deterministic id: optimistic-${batchId}-${studentId}.
+      const firstId =
+        input.studentIds.length > 0 ? `optimistic-${input.batchId}-${input.studentIds[0]}` : null;
+      const alreadyPatched =
+        firstId !== null && (previousTransactions?.some((t) => t.id === firstId) ?? false);
+
+      if (!alreadyPatched && input.studentIds.length > 0) {
+        const targeted = new Set(input.studentIds);
+        const aggregateDelta = points * input.studentIds.length;
+
+        const optimisticRows: DbPointTransaction[] = input.studentIds.map((studentId) => ({
+          id: `optimistic-${input.batchId}-${studentId}`,
+          student_id: studentId,
+          classroom_id: input.classroomId,
+          behavior_id: input.behavior.id,
+          behavior_name: input.behavior.name,
+          behavior_icon: input.behavior.icon,
+          points,
+          note: input.note ?? null,
+          batch_id: input.batchId,
+          created_at: new Date(input.timestamp).toISOString(),
+        }));
+
+        qc.setQueryData<DbPointTransaction[]>(listKey, (prev) =>
+          prev ? [...optimisticRows, ...prev] : optimisticRows
+        );
+
+        qc.setQueryData<ClassroomWithCount[]>(queryKeys.classrooms.all, (prev) => {
+          if (!prev) return prev;
+          return prev.map((c) => {
+            if (c.id !== input.classroomId) return c;
+            return {
+              ...c,
+              point_total: c.point_total + aggregateDelta,
+              positive_total: points > 0 ? c.positive_total + aggregateDelta : c.positive_total,
+              negative_total: points < 0 ? c.negative_total + aggregateDelta : c.negative_total,
+              student_summaries: c.student_summaries.map((s) =>
+                targeted.has(s.id)
+                  ? {
+                      ...s,
+                      point_total: s.point_total + points,
+                      positive_total: points > 0 ? s.positive_total + points : s.positive_total,
+                      negative_total: points < 0 ? s.negative_total + points : s.negative_total,
+                      today_total: s.today_total + points,
+                      this_week_total: s.this_week_total + points,
+                    }
+                  : s
+              ),
+            };
+          });
+        });
+
+        qc.setQueryData<StudentWithPoints[]>(studentsKey, (prev) =>
+          prev
+            ? prev.map((s) =>
+                targeted.has(s.id)
+                  ? {
+                      ...s,
+                      point_total: s.point_total + points,
+                      positive_total: points > 0 ? s.positive_total + points : s.positive_total,
+                      negative_total: points < 0 ? s.negative_total + points : s.negative_total,
+                      today_total: s.today_total + points,
+                      this_week_total: s.this_week_total + points,
+                    }
+                  : s
+              )
+            : prev
+        );
+      }
+
+      return { previousTransactions, previousClassrooms, previousStudents };
+    },
+    // (a) null-guard context.previous — undefined post-cancellation would wipe the
+    // cache. One whole-batch rollback replaces the prior N per-student rollbacks.
     onError: (_err, input, context) => {
       if (context?.previousTransactions !== undefined) {
         qc.setQueryData(
