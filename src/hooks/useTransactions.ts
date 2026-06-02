@@ -209,7 +209,7 @@ export function useAwardPoints() {
     // (a) null-guard context.previous — `undefined` after cancellation would wipe
     //     the cache on rollback, worse than leaving the optimistic write in place.
     // (d) explicit onError present → error surfaces via the caller's mutation state
-    //     (mutation.error / isError); never silent.
+    //     (`mutation.error` / `isError`); never silent.
     onError: (_err, input, context) => {
       if (context?.previousTransactions !== undefined) {
         qc.setQueryData(
