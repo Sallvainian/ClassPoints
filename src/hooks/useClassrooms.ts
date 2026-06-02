@@ -121,7 +121,7 @@ export function useUpdateClassroom() {
   const qc = useQueryClient();
   return useMutation<DbClassroom, Error, UpdateClassroomInput>({
     mutationFn: async ({ id, updates }) => {
-      // Typed UpdateClassroom payload per supabase-js 2.104 RejectExcessProperties
+      // Typed UpdateClassroom payload per supabase-js RejectExcessProperties
       // (reference: src/hooks/useSeatingChart.ts).
       const { data, error } = await supabase
         .from('classrooms')

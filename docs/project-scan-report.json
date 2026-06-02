@@ -1,92 +1,75 @@
 {
   "workflow_version": "1.2.0",
   "timestamps": {
-    "started": "2026-05-31T18:28:30Z",
-    "last_updated": "2026-05-31T18:46:37Z",
-    "completed": "2026-05-31T18:46:37Z"
+    "started": "2026-06-02T05:19:55Z",
+    "last_updated": "2026-06-02T05:36:45Z",
+    "completed": "2026-06-02T05:36:45Z"
   },
   "mode": "full_rescan",
   "scan_level": "exhaustive",
   "project_root": "/Users/sallvain/Projects/ClassPoints",
   "project_knowledge": "/Users/sallvain/Projects/ClassPoints/docs",
-  "strategy": "Diff-driven surgical refresh: the diff 4126a49..HEAD (the previous scan ref) was the staleness map. Every doc claim touching a file changed in that range was re-verified against current source; every count was re-derived via shell; claims citing unchanged files retained valid line numbers. Accurate content was preserved (not regenerated blank-slate).",
+  "strategy": "Diff-driven surgical refresh: the diff cad3cfa..c9ca66f (the previous scan ref cad3cfa documented by the May 31 run) was the staleness map. The major in-range change is the Phase 4 AppContext server-data facade dissolution (d8cde26, AppContext 710->33 LOC) plus the invalidate-not-merge cross-device-totals refactor (ea9f406), the React 19 / Vite 8 / ESLint 10 dependency ecosystem bumps (e9ae285, 2e28130), react-hooks/set-state-in-effect enforcement (749b9d2/c9ca66f), and dependabot GitHub Actions bumps. supabase/migrations was UNCHANGED in range, so data-models schema content was preserved and the refresh there collapsed to the transforms.ts app-shape additions, the behavior-defaults constant relocation, and the realtime-subscription correction. Every doc claim touching a file changed in cad3cfa..c9ca66f was re-verified against current source; every count was re-derived via shell; resolved dependency versions were re-derived from package-lock.json (NOT from project-context.md). Accurate content was preserved, not regenerated blank-slate.",
   "completed_steps": [
     {
       "step": "step_0",
       "status": "completed",
-      "timestamp": "2026-05-31T18:25:22Z",
-      "outputs": ["docs/.archive/project-scan-report-20260531T182522Z.json"],
-      "summary": "Archived the completed 2026-04-29 exhaustive-rescan state before starting a fresh exhaustive full_rescan."
+      "timestamp": "2026-06-02T05:19:55Z",
+      "outputs": ["docs/.archive/project-scan-report-20260602T051955Z.json"],
+      "summary": "Archived the completed 2026-05-31 exhaustive full_rescan state (documented HEAD cad3cfa) before starting a fresh exhaustive full_rescan against HEAD c9ca66f."
     },
     {
       "step": "step_1",
       "status": "completed",
-      "timestamp": "2026-05-31T18:28:30Z",
-      "summary": "Confirmed classification unchanged: single-part web monolith, React SPA + Supabase BaaS, TypeScript strict. project_type_id=web."
+      "timestamp": "2026-06-02T05:20:00Z",
+      "summary": "Classification unchanged: single-part web monolith, React SPA + Supabase BaaS, TypeScript strict. project_type_id=web."
     },
     {
       "step": "step_3",
       "status": "completed",
-      "timestamp": "2026-05-31T18:30:00Z",
-      "summary": "Re-derived installed stack from package-lock.json: React 18.3.1, TS 5.9.3, Vite 6.4.2, Tailwind 4.2.4, supabase-js 2.104.1, TanStack Query 5.100.1, Vitest 4.1.5, Playwright 1.59.1. NEW: Node engine >=25 (@types/node 25.6.0), tdd-guard-vitest removed, supabase CLI now brew-global (no npm dep)."
+      "timestamp": "2026-06-02T05:22:00Z",
+      "summary": "Re-derived installed stack from package-lock.json (lockfileVersion 3): React 19.2.7, react-dom 19.2.7, TS 5.9.3, Vite 8.0.16, @vitejs/plugin-react 6.0.2, Tailwind 4.3.0, supabase-js 2.106.2, TanStack Query 5.100.14 (+devtools), Vitest 4.1.8, jsdom 29.1.1, Playwright 1.60.0, ESLint 10.4.1, @eslint/js 10.0.1, typescript-eslint 8.60.1, eslint-plugin-react-hooks 7.1.1, lucide-react 1.17.0, @types/node 25.9.1. React Compiler NOT enabled."
     },
     {
       "step": "step_4",
       "status": "completed",
-      "timestamp": "2026-05-31T18:40:00Z",
-      "summary": "Verified drift across changed files (4126a49..HEAD): context useX hooks split into sibling files (4 new), DevtoolsGate extracted to src/components/DevtoolsGate.tsx (DCE pattern intact), AppContext 797->710 LOC, AuthContext stale-JWT now Promise.race (5s timeout fires), 2 new migrations (012 insubordination + timestamped harden_database_linter_findings adding a private schema), DashboardView undoable-action derivation reworked."
+      "timestamp": "2026-06-02T05:30:00Z",
+      "summary": "Verified the Phase 4 dissolution against source: AppContext.tsx 33 LOC (UI/session only), useApp.ts 21 LOC; new modules useBatchAward (122), useUndoableAction (95), useAppClassrooms (60), batchKindStore (33), pointSelectors (74); transforms.ts gained dbStudentToApp (:113)/dbClassroomToApp (:134). useStudents is invalidate-not-merge, sole students-table subscriber (no more point_transactions DELETE local-decrement). Counts re-derived: 126 src .ts/.tsx/.css (107 non-test), 47 components, 16 hook files incl index, 9 context files, 17 unit/component tests, 4 integration, 3 e2e, 13 migrations, exactly 3 realtime subs (students/point_transactions/legacy layout_presets), 63 from('...') literals, 14 set-state-in-effect disables across 12 files, 16 new Error(error.message) sites. DEFAULT_BEHAVIORS/resetBehaviorsToDefault deleted (grep=0); only createDefaultBehaviors (defaults.ts:33, 15 entries) remains."
     },
     {
-      "step": "step_5",
+      "step": "step_5_9",
       "status": "completed",
-      "timestamp": "2026-05-31T18:38:00Z",
-      "outputs": ["source-tree-analysis.md"],
-      "summary": "Updated source tree + counts (113 src files / 103 non-test, 47 components, 13 migrations, 8 context files), added DevtoolsGate, context hook siblings, new migrations, brew-CLI scripts/lib helpers, and corrected the tests/support listing."
-    },
-    {
-      "step": "step_6",
-      "status": "completed",
-      "timestamp": "2026-05-31T18:44:00Z",
-      "outputs": ["development-guide.md"],
-      "summary": "Updated Supabase CLI prerequisite (brew global; CI pins 2.95.0 via setup-cli), removed stale tdd-guard-vitest note, fixed npx-supabase reference and added startSupabaseWithRecovery. CI test.yml/deploy.yml descriptions re-verified accurate."
-    },
-    {
-      "step": "step_8",
-      "status": "completed",
-      "timestamp": "2026-05-31T18:43:00Z",
-      "outputs": ["architecture.md"],
-      "summary": "Updated HEAD/branch (cad3cfa on main), redesign-merged framing, AuthContext Promise.race (2 sites), and the AppContext silent-filter wrapper line refs (329-351 / 375-395)."
-    },
-    {
-      "step": "step_9",
-      "status": "completed",
-      "timestamp": "2026-05-31T18:42:00Z",
+      "timestamp": "2026-06-02T05:35:00Z",
       "outputs": [
-        "project-overview.md",
-        "data-models.md",
         "state-management.md",
-        "component-inventory.md"
+        "architecture.md",
+        "data-models.md",
+        "component-inventory.md",
+        "source-tree-analysis.md",
+        "development-guide.md",
+        "project-overview.md",
+        "index.md"
       ],
-      "summary": "project-overview: Node>=25 row, brew Supabase CLI, current-HEAD section, redesign-landed framing. data-models: 13 migrations + naming note, Insubordination default (DB=15; AppContext DEFAULT_BEHAVIORS=14 drift), private-schema/search_path hardening, hardened RPC grants. state-management: context Provider/hook split, AppContext 710 LOC, silent-filter refs, undoable derivation, AuthContext Promise.race, SoundContext PGRST116 :120. component-inventory: count 47, DevtoolsGate, UndoToast prop-not-poll."
+      "summary": "Refreshed all 8 generated docs. state-management: full rewrite of the AppContext section (facade -> 33 LOC), useStudents invalidate-not-merge realtime, new Phase-4 transitional-modules table, undo derivation relocated to useUndoableAction/DashboardView, adapter contracts corrected to 16 new Error(error.message) sites + 2 throw-original. architecture: header/HEAD, exec summary (Phase 4 done), React 19/Vite 8/ESLint 10 constraints, fixed the line-32 vs line-90 realtime contradiction, state-mgmt section, testing counts (17 unit/3 e2e). data-models: schema preserved (migrations unchanged); fixed behavior-defaults drift (now single createDefaultBehaviors), transforms list, realtime subscriptions, migration-create guidance. component-inventory: modal award calls (useAwardPoints/useBatchAward), UndoToast prop line :473. source-tree: all counts, new hook/lib/util files, AppContext 33 LOC, eslint 10, 17-file test tree, e2e realtime spec. development-guide: setup-cli@v2, ESLint 10/react-hooks 7 set-state-in-effect, React 19 gotcha, migration-create guidance. project-overview + index: version tables + Current HEAD + entry points."
     },
     {
       "step": "step_10",
       "status": "completed",
-      "timestamp": "2026-05-31T18:45:00Z",
+      "timestamp": "2026-06-02T05:35:30Z",
       "outputs": ["index.md"],
-      "summary": "Updated master index last-generated date + HEAD anchor. Version table re-verified accurate; all 8 generated docs present (zero incomplete markers)."
+      "summary": "Master index version table + last-generated date + HEAD anchor updated; AppContext entry-point line reframed. All 8 generated docs present, zero incomplete markers."
     },
     {
       "step": "step_11",
       "status": "completed",
-      "timestamp": "2026-05-31T18:46:00Z",
-      "summary": "Validated: prettier --check clean (after --write normalized the data-models table), state-file JSON valid, zero incomplete markers under docs (excl .archive), git diff --check clean, 50/50 relative markdown links resolve."
+      "timestamp": "2026-06-02T05:36:30Z",
+      "summary": "Validated: residual-staleness grep sweep clean (no stale React 18 / Vite 6 / 2.104 / 710 LOC / ESLint 9 / 5.100.1 / dissolution-target / useApp().transactions claims remain; the only matches are intentional dissolution descriptions and stale-code-comment callouts). prettier --write then --check clean across the 8 docs + JSON. JSON valid (python json.tool). 50/50 relative markdown links resolve. git diff --check clean. Zero incomplete-documentation markers."
     },
     {
       "step": "step_12",
       "status": "completed",
-      "timestamp": "2026-05-31T18:46:37Z",
-      "summary": "Workflow complete; surgical exhaustive full_rescan finalized."
+      "timestamp": "2026-06-02T05:36:45Z",
+      "summary": "Workflow complete; surgical exhaustive full_rescan finalized at HEAD c9ca66f."
     }
   ],
   "current_step": "completed",
@@ -97,32 +80,38 @@
       "primary_language": "TypeScript",
       "architecture_type": "React SPA plus Supabase BaaS"
     },
-    "head_snapshot": "cad3cfa on main (was 4126a49 on redesign/editorial-engineering at the prior scan)",
+    "head_snapshot": "c9ca66f on main (prior scan documented cad3cfa on main)",
     "technology_stack": [
       {
         "part_id": "classpoints",
-        "tech_summary": "React 18.3.1, TypeScript 5.9.3 strict, Node >=25, Vite 6.4.2, Tailwind CSS 4.2.4, Supabase JS 2.104.1, TanStack Query 5.100.1, Vitest 4.1.5, Playwright 1.59.1."
+        "tech_summary": "React 19.2.7, TypeScript 5.9.3 strict, Node >=25, Vite 8.0.16, Tailwind CSS 4.3.0, Supabase JS 2.106.2, TanStack Query 5.100.14, Vitest 4.1.8, Playwright 1.60.0, ESLint 10.4.1 (react-hooks 7)."
       }
     ],
     "current_counts": {
-      "src_ts_tsx_css": 113,
-      "src_non_test_ts_tsx": 103,
+      "src_ts_tsx_css": 126,
+      "src_non_test_ts_tsx": 107,
       "component_tsx": 47,
-      "hook_impl_files_plus_index": 13,
-      "context_files": 8,
-      "migrations": 13,
-      "unit_test_files": 9,
+      "hook_files_incl_index": 16,
+      "context_files": 9,
+      "unit_component_test_files": 17,
       "integration_test_files": 4,
-      "active_e2e_specs": 2
+      "active_e2e_specs": 3,
+      "migrations": 13,
+      "realtime_subscriptions_src_hooks": 3,
+      "from_literal_sites": 63,
+      "set_state_in_effect_disables": 14,
+      "set_state_in_effect_files": 12,
+      "new_error_message_sites": 16,
+      "appcontext_loc": 33
     },
     "key_drift_since_prior_scan": [
-      "Branch merged: redesign/editorial-engineering -> main via PR #86 (6b06828).",
-      "Context useX hooks split into sibling files (useApp/useAuth/useSoundContext/useTheme) for react-refresh/only-export-components; contexts 4 -> 8 files.",
-      "DevtoolsGate extracted from main.tsx into src/components/DevtoolsGate.tsx (DCE pattern unchanged).",
-      "AuthContext stale-JWT: unwired AbortController replaced with Promise.race (5s timeout now fires).",
-      "Two new migrations: 012_add_insubordination_behavior.sql and timestamp-prefixed 20260429181608_harden_database_linter_findings.sql (private schema, search_path hardening, dropped pg_graphql, tightened grants).",
-      "Default-behavior drift: DB ships 15 (incl. Insubordination); AppContext.DEFAULT_BEHAVIORS still 14, so resetBehaviorsToDefault omits it.",
-      "Toolchain: Node >=25 sync; tdd-guard-vitest removed; Supabase CLI switched to brew global with startSupabaseWithRecovery."
+      "Phase 4 dissolved the AppContext server-data facade (d8cde26): AppContext.tsx 710 -> 33 LOC, UI/session state only. Wrappers/selectors/undo machinery relocated to useBatchAward, useUndoableAction, useAppClassrooms, pointSelectors, batchKindStore + transforms.ts app-shape transforms.",
+      "useStudents realtime refactored to invalidate-not-merge (ea9f406); the prior students merge-on-update and point_transactions DELETE local-decrement subscriptions were removed. useStudents is the sole students-table subscriber; cross-device award+undo flow via the DB trigger students UPDATE.",
+      "Dependency ecosystem bumps: React 18.3.1 -> 19.2.7 + Vite 6.4.2 -> 8.0.16 (e9ae285); ESLint 9 -> 10.4.1 ecosystem + react-hooks 5 -> 7 (2e28130); supabase-js 2.104.1 -> 2.106.2; TanStack Query 5.100.1 -> 5.100.14; lucide-react 1.9 -> 1.17.0; jsdom -> 29.1.1; Playwright 1.59.1 -> 1.60.0.",
+      "react-hooks/set-state-in-effect enforced as 'error' (749b9d2); 14 per-site disables across 12 files. React Compiler still NOT enabled.",
+      "Behavior-defaults: AppContext.DEFAULT_BEHAVIORS (14) and resetBehaviorsToDefault deleted; only createDefaultBehaviors (defaults.ts, 15 incl Insubordination) remains. The prior 14-vs-15 drift is gone.",
+      "Dependabot GitHub Actions bumps: supabase/setup-cli v1 -> v2 (CLI still pinned 2.95.0), upload-pages-artifact 4 -> 5, mise-action 3 -> 4. e2e specs 2 -> 3 (added realtime-cross-device-totals.spec.ts).",
+      "supabase/migrations UNCHANGED in cad3cfa..c9ca66f (13 migrations) — data-models schema content preserved verbatim."
     ]
   },
   "project_types": [
@@ -134,7 +123,7 @@
   ],
   "outputs_generated": [
     "project-scan-report.json",
-    "docs/.archive/project-scan-report-20260531T182522Z.json",
+    "docs/.archive/project-scan-report-20260602T051955Z.json",
     "index.md",
     "project-overview.md",
     "architecture.md",
@@ -144,19 +133,26 @@
     "source-tree-analysis.md",
     "development-guide.md"
   ],
-  "resume_instructions": "Workflow completed at HEAD cad3cfa. Start a new full rescan if this state becomes stale (HEAD moves materially).",
+  "resume_instructions": "Workflow completed at HEAD c9ca66f. Start a new full rescan if this state becomes stale (HEAD moves materially past c9ca66f).",
   "out_of_scope_observations": [
-    "_bmad-output/project-context.md (owned by bmad-generate-project-context, not this workflow) is stale: it pins DevtoolsGate at main.tsx:14-24 (now src/components/DevtoolsGate.tsx), calls tdd-guard-vitest 'installed but not wired' (removed), and references HEAD 201c4ae on redesign/editorial-engineering. Regenerate via /bmad-generate-project-context to refresh."
+    "Stale in-code comments FIXED at user request (comment-only, no behavior change), with coupled doc callouts updated in the same pass: useStudents.ts:173 + useClassrooms.ts:124 dropped the stale 'supabase-js 2.104' version label (now just 'per supabase-js RejectExcessProperties'); useRealtimeSubscription.ts:101 dropped 'React 18' ('under StrictMode dev double-mount'); useTransactions.ts §4(d) comments (:92, :211) now say errors surface via the caller's mutation state instead of the dissolved 'AppContext.error'. Doc callouts that had described these as stale (architecture.md:135, state-management.md §useAwardPoints + §channel-naming) were rewritten to match.",
+    "_bmad-output/project-context.md (owned by bmad-generate-project-context, NOT this workflow) is current at c9ca66f and was used only as a where-to-look pointer; every doc claim was independently re-verified against primary source per the verbatim-grounding requirement."
   ],
   "validation_status": {
-    "last_validated": "2026-05-31T18:46:37Z",
+    "last_validated": "2026-06-02T05:40:00Z",
     "validation_errors": [],
     "validation_commands": [
-      "npx prettier --write then --check docs/index.md docs/project-overview.md docs/architecture.md docs/data-models.md docs/state-management.md docs/component-inventory.md docs/source-tree-analysis.md docs/development-guide.md docs/project-scan-report.json",
+      "node package-lock.json resolved-version extractor across 29 packages",
+      "git diff --name-only cad3cfa..c9ca66f -- supabase/migrations (empty = unchanged)",
+      "shell count derivations (find/grep/wc) for all cited counts",
+      "residual-staleness grep sweep across the 8 generated docs",
+      "facade-framing grep sweep (imperative wrapper / adapter bridge / AppContext holds-survives-provides / mapped*) — only intentional past-tense relocation mentions remain",
+      "npx prettier --write then --check on the 8 generated docs + project-scan-report.json (All matched files use Prettier code style)",
       "python3 -m json.tool docs/project-scan-report.json",
       "custom node relative-link resolver across the 8 generated docs (50 links, 0 broken)",
-      "grep incomplete-documentation markers under docs excluding docs/.archive (none)",
-      "git diff --check -- docs"
-    ]
+      "git diff --check -- docs (clean)",
+      "incomplete-documentation marker scan (none)"
+    ],
+    "adversarial_review_pass": "A second reviewer pass read the two largest unread changed files (ClassSettingsView.tsx +74, SoundContext.tsx +44). Found and fixed one stale prose claim: component-inventory.md said ClassSettingsView manages 'behaviors, sound, layout presets' — it manages only the student roster + per-student adjust + classroom-points reset + classroom rename/delete (verified imports: only student/classroom/points hooks; behavior-mutation hooks have zero component consumers; SoundSettings is rendered by DashboardView). Confirmed accurate (no change): SoundContext.updateSettings is still optimistic-update + revert-on-error (:164-184); the architecture.md facade narrative is fully past-tense."
   }
 }

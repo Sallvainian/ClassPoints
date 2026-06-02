@@ -1,6 +1,6 @@
 # Development Guide
 
-_Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
+_Generated 2026-06-02 (exhaustive full rescan; HEAD `c9ca66f` on `main`)._
 
 ## Prerequisites
 
@@ -9,7 +9,7 @@ _Generated 2026-05-31 (exhaustive full rescan; HEAD `cad3cfa` on `main`)._
 - **fnox** — age-encrypted secrets loader. Required for hosted dev / build / preview / migrate. NOT required for local dev (default mode reads `.env.test`).
 - **age private key** — needed to decrypt `fnox.toml`. The two recipient public keys are listed in `fnox.toml`.
 - **Docker daemon** — required for local Supabase (`npm run test:e2e`, `npm run dev` when pointed at a local URL). On macOS use OrbStack (preferred — fastest cold-start), Docker Desktop, or Colima. `scripts/dev.mjs` will preflight and auto-start the daemon if it's down (commit `136f493`).
-- **Supabase CLI** — installed as a **brew global** (no longer an npm devDependency; the `supabase` package was dropped). Invoked directly as `supabase ...`. CI installs a pinned `2.95.0` via `supabase/setup-cli@v1` (see `.github/workflows/test.yml`); your local brew version may be newer (e.g. `2.102.0`).
+- **Supabase CLI** — installed as a **brew global** (no longer an npm devDependency; the `supabase` package was dropped). Invoked directly as `supabase ...`. CI installs a pinned `2.95.0` via `supabase/setup-cli@v2` (see `.github/workflows/test.yml`); your local brew version may be newer (e.g. `2.102.0`).
 - **Playwright browsers** — installed by `npx playwright install chromium` the first time you run E2E.
 - **Tailscale** (optional) — `playwright.config.ts` and `scripts/lib/supabase-host.mjs` allow Tailscale CGNAT (`100.64.0.0/10`) hosts so a Linux box can drive a Mac-hosted local Supabase, or vice versa.
 
@@ -37,7 +37,7 @@ cp .env.test.example .env.test
 | `npm run dev:hosted`                            | Hosted-Supabase fallback. `fnox exec -- vite` — decrypts `fnox.toml` for hosted credentials. Use only when reproducing a hosted-only bug.                                                                                                                                                                                                                               |
 | `npm run build`                                 | Production build. `tsc -b && fnox exec -- vite build` — typecheck first, then bundle with hosted creds inlined.                                                                                                                                                                                                                                                         |
 | `npm run preview`                               | `fnox exec -- vite preview` — preview the production bundle locally.                                                                                                                                                                                                                                                                                                    |
-| `npm run lint`                                  | ESLint. Flat config (`eslint.config.js`); ignores `dist`, `.bmad`, `.claude`, `.agent`, `.cursor`, `.serena`, `*.config.{js,ts}`, `supabase`, `scripts`, `coverage`.                                                                                                                                                                                                    |
+| `npm run lint`                                  | ESLint 10, flat config (`eslint.config.js`); `eslint-plugin-react-hooks` v7. Ignores `dist`, `dist-ssr`, `.bmad`, `.claude`, `.agent`, `.cursor`, `.serena`, `node_modules`, `*.config.{js,ts}`, `supabase`, `scripts`, `coverage`. `react-hooks/set-state-in-effect` is `'error'` — see Gotchas.                                                                       |
 | `npm run typecheck`                             | `tsc -b --noEmit`. Strict TS — `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `noUncheckedSideEffectImports`.                                                                                                                                                                                                                                    |
 | `npm run check:bundle`                          | CI-required post-build assertion: zero `react-query-devtools` chunks AND zero textual matches in any emitted `.js` (excluding source maps). Run after `npm run build`.                                                                                                                                                                                                  |
 | `npm test`                                      | Vitest watch mode.                                                                                                                                                                                                                                                                                                                                                      |
@@ -94,7 +94,8 @@ cp .env.test.example .env.test
 ### Unit (Vitest)
 
 - Config: `vitest.config.ts`. jsdom environment, globals on, setup file at `src/test/setup.ts`.
-- Tests live next to source under `src/test/`, `src/hooks/__tests__/`, `src/utils/__tests__/`, and `src/contexts/`.
+- Tests live next to source under `src/test/`, `src/hooks/__tests__/`, `src/utils/` (+ `__tests__/`), `src/types/`, and `src/contexts/`. 17 unit/component test files today.
+- New Phase-4 unit tests use a real `QueryClientProvider` with a fresh test-local `QueryClient` (retries disabled) and mock Supabase at the module boundary — do NOT mock TanStack Query itself (`useBatchAward.test.ts`, `useUndoableAction.test.ts`, `useAppClassrooms.test.ts`).
 - Vitest **4** API — older v1 patterns may not apply; check existing tests under `src/test/**`.
 - (`tdd-guard-vitest` was removed in `280fa10` to close Dependabot alerts — it is no longer a dependency.)
 
@@ -155,15 +156,15 @@ Claude Code GitHub actions for review and assistance.
 
 ## Common workflows
 
-| Task                                                          | Command sequence                                                                                                                                                                                                                       |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Daily local dev                                               | `npm run dev`                                                                                                                                                                                                                          |
-| Add a Supabase column                                         | Write `supabase/migrations/0NN_*.sql` → `npm run supabase:down && npm run supabase:up` (or rely on dev-script lifecycle) → update `src/types/database.ts` types → update transforms if applicable → verify `.select()` clauses → tests |
-| Reproduce hosted-only bug                                     | `npm run dev:hosted` (requires age key)                                                                                                                                                                                                |
-| Run a single Vitest file                                      | `npm test -- src/test/leaderboardCalculations.test.ts`                                                                                                                                                                                 |
-| Re-seed local test user                                       | `npm run test:seed`                                                                                                                                                                                                                    |
-| Switch to a different local Supabase project on the same port | `npm run supabase:down && npm run supabase:up`                                                                                                                                                                                         |
-| Verify prod bundle has no devtools                            | `npm run build && npm run check:bundle`                                                                                                                                                                                                |
+| Task                                                          | Command sequence                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Daily local dev                                               | `npm run dev`                                                                                                                                                                                                                                                     |
+| Add a Supabase column                                         | `supabase migration new <name>` (timestamp-prefixed) → write SQL → `npm run supabase:down && npm run supabase:up` (or rely on dev-script lifecycle) → update `src/types/database.ts` types → update transforms if applicable → verify `.select()` clauses → tests |
+| Reproduce hosted-only bug                                     | `npm run dev:hosted` (requires age key)                                                                                                                                                                                                                           |
+| Run a single Vitest file                                      | `npm test -- src/test/leaderboardCalculations.test.ts`                                                                                                                                                                                                            |
+| Re-seed local test user                                       | `npm run test:seed`                                                                                                                                                                                                                                               |
+| Switch to a different local Supabase project on the same port | `npm run supabase:down && npm run supabase:up`                                                                                                                                                                                                                    |
+| Verify prod bundle has no devtools                            | `npm run build && npm run check:bundle`                                                                                                                                                                                                                           |
 
 ## Gotchas
 
@@ -171,6 +172,7 @@ Claude Code GitHub actions for review and assistance.
 - **`fnox.toml` is age-encrypted**: cloning the repo gets you the ciphertext. You need the matching age private key (one of the two recipients) to decrypt. Without it, only `npm run dev` (local-by-default) works.
 - **Pre-commit typecheck slows commits on large branches**: run `npm run typecheck` periodically while working so the pre-commit pass is incremental.
 - **`scripts/dev.mjs` strips fnox-auto-injected env vars**: if you need hosted creds in dev, use `npm run dev:hosted`. Setting `VITE_SUPABASE_URL` directly in your shell will be silently stripped by `dev.mjs` before spawning Vite.
-- **React 18 only**: do not introduce `use()`, `useActionState`, or React-19 form actions. `useTransition` / `useDeferredValue` are fine.
+- **React 19 is installed (19.2.7) but barely used**: new code MAY use React 19 features — ref-as-prop especially (React 19 passes `ref` as a plain prop; do NOT reintroduce `forwardRef`). Keep server state in TanStack Query rather than `useOptimistic`, and match the prevailing style. The React Compiler is NOT enabled (`vite.config.ts` is `plugins: [react()]`).
+- **`react-hooks/set-state-in-effect` is `'error'`** (`eslint.config.js:52`; `eslint-plugin-react-hooks` v7): because the React Compiler is NOT enabled, the rule also fires on correct idiomatic effects (prop-reset effects, timer-driven toasts, external-system init). Prefer derive-during-render or a key-reset remount; otherwise disable per-site with a one-line justification (PERMANENT where the effect is genuinely correct, TEMP where a refactor is pending). There are 14 such disables across 12 files today (`grep -rn 'react-hooks/set-state-in-effect' src` → 14).
 - **Tailwind v4 syntax only**: `@import "tailwindcss"` + `@tailwindcss/postcss` plugin. No legacy v3 `tailwind.config.js` theme extensions or v3 PostCSS plugin.
 - **Realtime DELETE rule**: any table receiving realtime DELETE events MUST have `ALTER TABLE x REPLICA IDENTITY FULL` in its migration. See `supabase/migrations/005_replica_identity_full.sql`.

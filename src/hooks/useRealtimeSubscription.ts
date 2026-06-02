@@ -98,7 +98,7 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
       channelRef.current = null;
     }
 
-    // Use a UUID, not Date.now(): under React 18 StrictMode dev double-mount,
+    // Use a UUID, not Date.now(): under StrictMode dev double-mount,
     // cleanup → remount runs in the same microtask (and same millisecond), so
     // Date.now() collides. supabase.channel(topic) returns the EXISTING channel
     // for a matching topic, and the second .on('postgres_changes', …) on a
