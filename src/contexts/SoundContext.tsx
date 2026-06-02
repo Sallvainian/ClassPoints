@@ -63,7 +63,6 @@ export function SoundProvider({ children }: { children: ReactNode }) {
         throw new Error('AudioContext not supported');
       }
       const ctx = new AudioContextClass();
-      audioContextRef.current = ctx;
 
       // Synthesize all sounds into a fresh map, then commit via state
       const buffers = new Map<SoundId, AudioBuffer>();
@@ -71,6 +70,9 @@ export function SoundProvider({ children }: { children: ReactNode }) {
         buffers.set(id as SoundId, synthesizeSound(ctx, definition));
       }
 
+      // Commit the guard ref only after synthesis succeeds, so a mid-init throw
+      // leaves the ref unset and a later interaction can retry.
+      audioContextRef.current = ctx;
       setAudioState({ context: ctx, buffers, ready: true });
     } catch (err) {
       console.warn('Failed to initialize audio:', err);
