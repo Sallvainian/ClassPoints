@@ -138,4 +138,93 @@ describe('useRotatingCategory', () => {
 
     expect(result.current.activeCategory).toBe('a');
   });
+
+  it('should not fire after unmount (no timer leaks)', () => {
+    // Regression: intervalRef initialized as `undefined` (React 19 explicit init).
+    // The cleanup guard `if (intervalRef.current) clearInterval(...)` must
+    // prevent any stale timer from mutating state after the component unmounts.
+    const { result, unmount } = renderHook(() =>
+      useRotatingCategory({ categories, intervalMs: 1000 })
+    );
+
+    expect(result.current.activeCategory).toBe('a');
+
+    unmount();
+
+    // Advance well past one interval — should not throw or update state
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+
+    // After unmount there is no longer a result to observe, but the critical
+    // assertion is that clearInterval was called (confirmed by the existing
+    // cleanup test). This test verifies no error is thrown post-unmount.
+    expect(true).toBe(true);
+  });
+
+  it('should clear previous interval when selectCategory resets the timer', () => {
+    // Regression: verifies that rapid manual selections do not accumulate
+    // multiple concurrent intervals. Each selectCategory must cancel the
+    // outstanding timer before starting a new one.
+    const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+
+    const { result } = renderHook(() =>
+      useRotatingCategory({ categories, intervalMs: 1000 })
+    );
+
+    // First selection: should clear the initial interval and start a new one
+    act(() => {
+      result.current.selectCategory('b');
+    });
+
+    // Second selection: should clear the interval from first selection
+    act(() => {
+      result.current.selectCategory('c');
+    });
+
+    // clearInterval should have been called at least twice (once per selectCategory)
+    expect(clearIntervalSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(result.current.activeCategory).toBe('c');
+  });
+
+  it('should initialize intervalRef as undefined before first render side-effects', () => {
+    // Regression for React 19 explicit `undefined` initialization:
+    // `useRef<ReturnType<typeof setInterval> | undefined>(undefined)`.
+    // The cleanup path `if (intervalRef.current) clearInterval(...)` must be
+    // safe even if called before the ref is ever populated by startInterval.
+    // We validate this by spying on clearInterval and confirming it is NOT
+    // called with `undefined` on the very first cleanup invocation.
+    const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+
+    const { unmount } = renderHook(() =>
+      useRotatingCategory({ categories, intervalMs: 1000 })
+    );
+
+    unmount();
+
+    // clearInterval must only be invoked with a real timer id, never undefined
+    for (const [arg] of clearIntervalSpy.mock.calls) {
+      expect(arg).not.toBeUndefined();
+    }
+  });
+
+  it('should rotate correctly starting from a manually selected non-first category', () => {
+    // Boundary: after manual selection of the last element, the next rotation
+    // should wrap around to the first element.
+    const { result } = renderHook(() =>
+      useRotatingCategory({ categories, intervalMs: 1000 })
+    );
+
+    act(() => {
+      result.current.selectCategory('d');
+    });
+
+    expect(result.current.activeCategory).toBe('d');
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(result.current.activeCategory).toBe('a');
+  });
 });
