@@ -1,7 +1,7 @@
 # ADR-005 — QueryClient defaults, adapter error contract, devtools DCE pattern, Phase 2 mutation AC, realtime scope policy
 
 **Status:** Accepted (2026-04-23).
-**Supersedes:** QueryClient Topology block in `_bmad-output/planning-artifacts/architecture-trim-V1.md:150`.
+**Supersedes:** the v5 QueryClient defaults (`refetchOnWindowFocus: true`, `gcTime: 5 * 60_000`). Adopted values are implemented in `src/lib/queryClient.ts` and recorded in §Decision §1 below.
 **Enacts:** PR #63 hardened patch queue items 4, 5, 6.
 
 ## Context
