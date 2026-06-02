@@ -20,7 +20,7 @@ export function useRotatingCategory<T>({
   intervalMs = 7000,
 }: UseRotatingCategoryOptions<T>): UseRotatingCategoryReturn<T> {
   const [activeCategory, setActiveCategory] = useState<T>(categories[0]);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   const rotateCategory = useCallback(() => {
     setActiveCategory((current) => {
