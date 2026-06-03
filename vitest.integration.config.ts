@@ -41,6 +41,13 @@ export default defineConfig({
     include: ['tests/integration/**/*.{test,spec}.ts'],
     environment: 'node',
     globals: true,
+    // All integration files share ONE local Supabase stack. Running them in
+    // parallel contends on the Realtime service, so subscription/event delivery
+    // races the per-test timeout (the point_transactions DELETE test is the
+    // canary — it passes alone but times out under the full parallel run).
+    // Serialize files so each gets the stack to itself. Deterministic and only
+    // a few seconds slower for this suite size.
+    fileParallelism: false,
     // Network round trips against local Supabase are slower than unit tests;
     // schema-touching setup hooks (migrations) can take longer still.
     testTimeout: 30_000,

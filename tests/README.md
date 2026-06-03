@@ -63,25 +63,33 @@ After that, `npm run test:e2e` and `npm run test:integration` manage the local S
 
 ```
 tests/
-├── e2e/
-│   ├── auth.setup.ts        # `setup` project — login via UI, capture .auth/user.json
-│   ├── global-setup.ts      # Boot local Supabase (only if URL points here), seed test user
-│   ├── global-teardown.ts   # Stop local Supabase (only if globalSetup started it)
-│   └── example.spec.ts      # Sample E2E specs (Given/When/Then)
-├── integration/
-│   └── example.test.ts      # Sample Supabase backend-integration tests
+├── e2e/                                            # Playwright (Chromium), real browser + local Supabase
+│   ├── auth.setup.ts                               # `setup` project — login via UI, capture .auth/user.json
+│   ├── auth.spec.ts                                # Stale-cached-session resilience (no spinner loop)
+│   ├── example.spec.ts                             # App-bootstrap smoke + userFactory sample (Given/When/Then)
+│   ├── realtime-cross-device-totals.spec.ts        # Two-page / two-client cross-device realtime
+│   ├── global-setup.ts                             # Boot local Supabase (only if URL points here), seed test user
+│   └── global-teardown.ts                          # Stop local Supabase (only if globalSetup started it)
+├── integration/                                    # Vitest + Node, real local Supabase (service-role)
+│   ├── example.test.ts                             # Smoke: admin client + schema reachability
+│   ├── rls/classrooms.test.ts                      # RLS boundary — userA cannot see userB's rows
+│   ├── realtime/point-transaction-delete.test.ts   # Realtime DELETE emits an identifiable payload.old
+│   ├── schema/student-totals.test.ts               # Denormalized-totals trigger behavior
+│   └── transactions/batch-award-atomicity.test.ts  # All-or-nothing batch insert (cluster #2)
 ├── support/
 │   ├── fixtures/
-│   │   ├── index.ts         # mergeTests(logTest, apiRequestTest, recurseTest) + userFactory
+│   │   ├── index.ts                                # mergeTests(logTest, apiRequestTest, recurseTest) + userFactory
 │   │   └── factories/
-│   │       └── user.factory.ts  # UserFactory class — create() / cleanup(), no faker
+│   │       ├── user.factory.ts                     # UserFactory — create() / cleanup(), no faker
+│   │       └── classroom.factory.ts                # ClassroomFactory — used directly by integration tests
 │   ├── helpers/
-│   │   ├── auth.ts          # loginViaUi() — fallback for tests that bypass storageState
-│   │   ├── supabase-admin.ts # Cached service-role client for direct DB access
-│   │   └── unique.ts        # uniqueSlug() — Date.now() + counter, parallel-safe
-│   └── page-objects/        # (empty — page-object pattern available but unused so far)
-├── tsconfig.json            # Tests-scoped tsconfig (extends ../tsconfig.app.json)
-└── README.md                # This file
+│   │   ├── auth.ts                                 # loginViaUi() — fallback for tests that bypass storageState
+│   │   ├── impersonation.ts                        # createImpersonationPair() — two signed-in clients for RLS tests
+│   │   ├── supabase-admin.ts                       # Cached service-role client for direct DB access
+│   │   └── unique.ts                               # uniqueSlug() — Date.now() + counter, parallel-safe
+│   └── page-objects/                               # (empty — page-object pattern available but unused so far)
+├── tsconfig.json                                   # Tests-scoped tsconfig (extends ../tsconfig.app.json)
+└── README.md                                       # This file
 ```
 
 ### Fixture composition (`tests/support/fixtures/index.ts`)
@@ -126,7 +134,9 @@ test('Given a user, ...', async ({ userFactory }) => {
 });
 ```
 
-To add new factories (Classroom, Student, Behavior, Transaction):
+`ClassroomFactory` already exists (`factories/classroom.factory.ts`) and is consumed **directly** by the Vitest integration tests (`new ClassroomFactory()` + a manual `cleanup()` in a `finally`) — Vitest can't use Playwright's fixture-provide mechanism, so it is intentionally NOT wired into `index.ts`. The wiring step below applies only when a factory must be available to **E2E** specs as a fixture.
+
+To add new factories (Student, Behavior, Transaction) for E2E use:
 
 1. Create `tests/support/fixtures/factories/<name>.factory.ts` mirroring `user.factory.ts`.
 2. Use `uniqueSlug()` from `tests/support/helpers/unique.ts` for IDs/names — collision-safe across parallel workers without faker.
@@ -186,31 +196,18 @@ Do **not** use `page.locator('.some-class')` for primary identification — Tail
 
 ## CI integration
 
-`.github/workflows/test.yml` (existing) runs:
+`.github/workflows/test.yml` runs these jobs, all gated by the `Test Summary` branch-protection job:
 
-- `npm run lint`
-- `npm run typecheck`
+- `npm run lint` + `npm run typecheck` (typecheck covers `src/` **and** `tests/`)
 - `npm run check:bundle` (NFR4 devtools-DCE assertion after `npm run build`)
+- **`npm test -- --run`** (Vitest unit) — credless (Supabase mocked at the module boundary); gates PRs
+- **`npm run test:integration`** (Vitest backend-integration) — boots a local Supabase stack and runs the files **serially**. The one Realtime-subscription test (`integration/realtime/point-transaction-delete.test.ts`) is **skipped in CI** (`it.skipIf(!!process.env.CI)`): a cold CI stack's `postgres_changes` binding propagation is non-deterministic, and current runtime code no longer reads that DELETE `payload.old` (invalidate-only since #23). It runs **locally** with a binding-propagation settle, and realtime transport is covered in CI by `e2e/realtime-cross-device-totals.spec.ts`.
 - `npm run test:e2e` sharded across 4 workers (`--shard=N/4`)
-- An E2E burn-in job that runs the suite ≥2× to catch flake
+- An E2E burn-in job that runs the suite **10×** to catch flake
 
-**`npm test` (Vitest unit) and `npm run test:integration` (Vitest backend-integration) are not yet in CI** — both run on developer machines today. Adding them is a tracked future addition (see PRD).
+`deploy.yml` (push to `main`) re-runs lint → typecheck → unit → build before publishing to GitHub Pages.
 
-### Adding the integration suite to CI later
-
-The integration suite has the same security boundary as E2E (rejects non-private hosts), so the same `.env.test` setup applies. A minimal CI step:
-
-```yaml
-- name: Backend integration tests
-  run: npm run test:integration
-  env:
-    # populate .env.test from CI secrets, then run
-    VITE_SUPABASE_URL: http://127.0.0.1:54321
-    VITE_SUPABASE_ANON_KEY: ${{ secrets.LOCAL_ANON_KEY }}
-    SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.LOCAL_SERVICE_ROLE_KEY }}
-```
-
-(Both keys are non-secret for the pinned local stack — they're deterministic outputs of `supabase start`.)
+The integration job derives its three keys (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) from `supabase status` — non-secret, deterministic outputs of the local stack — so it needs no repository secrets. The integration suite shares the same private-host security boundary as E2E (rejects non-loopback / RFC1918 / Tailscale hosts), enforced in `vitest.integration.config.ts`.
 
 ---
 
@@ -235,18 +232,13 @@ This scaffold was built from `@seontechnologies/playwright-utils` patterns, codi
 | `Failed to seed test user ...: ... already exists`                         | Stack was started, test user already seeded                                                          | This is idempotent — should pass silently. If it doesn't, ensure `seedTestUser` regex matches your Supabase version's "already registered" message |
 | Browser tests time out at `Welcome Back` heading                           | Vite dev server didn't start (port collision, build error)                                           | Check `playwright-report/index.html` for the page screenshot; check the test stderr for vite errors                                                |
 | `supabaseAdmin() requires VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY` | `.env.test` is missing or doesn't have the service-role key                                          | Re-run `supabase status` and copy the keys                                                                                                         |
-| `npm test` errors loading `e2e.legacy/*.spec.ts`                           | A leftover legacy directory is being picked up by Vitest                                             | Already excluded in `vitest.config.ts` — if you see this, the exclude isn't matching; check the path matches the glob `**/e2e.legacy/**`           |
 
 ---
 
 ## Open follow-ups
 
-These were surfaced during scaffold but require user decisions:
+These require user decisions:
 
-1. **`e2e.legacy/` and `playwright-legacy-config.ts` retirement.** Both predate this scaffold and exist at the project root. They're excluded from Vitest's unit run so they don't break `npm test`, but they otherwise sit dormant. Decision needed: move to `~/Backups/`, delete, or leave indefinitely.
+1. **Add a `tests:all` aggregate script.** A single `npm run tests:all` that runs unit + integration + E2E in sequence would simplify local pre-push checks. Not added by default — kept granular for now.
 
-2. **Add backend-integration tests beyond the smoke samples.** RLS policy assertions are the highest-value missing surface — write tests as different users (impersonation via service-role key) and assert can/can't see other users' data. The `public.classrooms` migration adds `user_id` for ownership; that's the natural first target.
-
-3. **Wire `tdd-guard-vitest`.** It's installed (`devDependencies`) but not in `vitest.config.ts` `reporters`. Decide whether to enable it in pre-commit or CI.
-
-4. **Add a `tests:all` aggregate script.** A single `npm run tests:all` that runs unit + integration + E2E in sequence would simplify CI parity. Not added by default — kept granular for now.
+_Resolved since the original scaffold: backend-integration RLS assertions now exist (`integration/rls/classrooms.test.ts` via `helpers/impersonation.ts`); unit and integration suites now run in CI (`test.yml`); the legacy `e2e.legacy/` directory and `playwright-legacy-config.ts` were removed in PR #86. The earlier note about wiring `tdd-guard-vitest` is dropped — that package is not installed._
