@@ -87,6 +87,85 @@ jobs:
       - name: Run bundle DCE assertion
         run: npm run check:bundle
 
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # Unit tests mock Supabase at the module boundary — no creds, no stack
+      # needed. This gates PRs; deploy.yml only runs them after merge to main.
+      - name: Run unit tests
+        run: npm run test -- --run
+
+  integration:
+    name: Backend Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: 2.95.0
+
+      # GHCR is an incomplete mirror of Supabase's registry (gotrue et al. are
+      # often missing); point the CLI at public.ecr.aws. See supabase/cli#4696.
+      - name: Override image registry (GHCR mirror is incomplete)
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws" >> "$GITHUB_ENV"
+
+      # Docker Hub anonymous-pull rate limits can trip mid-boot; a partial boot
+      # leaves containers bound to the fixed ports, so clear state before each
+      # attempt. `supabase start` applies all migrations in supabase/migrations.
+      - name: Start Supabase local stack (with retry)
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: supabase stop --no-backup 2>/dev/null; supabase start
+
+      # Integration tests need only URL + anon + service-role (no seeded login
+      # user, no fnox). Derive all three from `supabase status`; the keys are
+      # non-secret deterministic outputs of the local stack.
+      - name: Write .env.test (local stack keys)
+        run: |
+          supabase status -o env \
+            | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' \
+            | sed -e 's/^API_URL=/VITE_SUPABASE_URL=/' \
+                  -e 's/^ANON_KEY=/VITE_SUPABASE_ANON_KEY=/' \
+                  -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_ROLE_KEY=/' \
+                  -e 's/"//g' > .env.test
+
+      - name: Validate .env.test keys
+        run: |
+          for key in VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+            grep -q "^${key}=" .env.test || { echo "::error::Missing ${key} in .env.test"; exit 1; }
+          done
+
+      - name: Run integration tests
+        run: npm run test:integration
+
   test:
     name: E2E Tests (Shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
@@ -124,9 +203,9 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
-      # Pinned to match the `supabase` devDependency in package.json so the
-      # CLI used in CI tracks the one developers use locally. Bump both
-      # together when updating.
+      # The supabase CLI is environment-installed locally (not a repo
+      # devDependency); pin it here so CI is reproducible. The integration and
+      # burn-in jobs below pin the same version — bump all three together.
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v2
         with:
@@ -324,7 +403,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [lint, bundle-check, test, burn-in]
+    needs: [lint, bundle-check, unit, integration, test, burn-in]
     if: always()
     steps:
       - name: Check test results
@@ -335,6 +414,14 @@ jobs:
           fi
           if [[ "${{ needs.bundle-check.result }}" == "failure" ]]; then
             echo "❌ Bundle DCE check failed — devtools leaked to prod"
+            exit 1
+          fi
+          if [[ "${{ needs.unit.result }}" == "failure" ]]; then
+            echo "❌ Unit tests failed"
+            exit 1
+          fi
+          if [[ "${{ needs.integration.result }}" == "failure" ]]; then
+            echo "❌ Backend integration tests failed"
             exit 1
           fi
           if [[ "${{ needs.test.result }}" == "failure" ]]; then

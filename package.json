@@ -12,7 +12,7 @@
     "dev:hosted": "fnox exec -- vite",
     "build": "tsc -b && fnox exec -- vite build",
     "lint": "eslint .",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b --noEmit && tsc -p tests/tsconfig.json --noEmit",
     "check:bundle": "node scripts/check-bundle.mjs",
     "preview": "fnox exec -- vite preview",
     "supabase:up": "supabase start",
