@@ -163,6 +163,10 @@ jobs:
             grep -q "^${key}=" .env.test || { echo "::error::Missing ${key} in .env.test"; exit 1; }
           done
 
+      # NOTE: the realtime DELETE test is `it.skipIf(!!process.env.CI)`-skipped
+      # here (cold-stack postgres_changes binding propagation is non-deterministic
+      # in CI), so this job reports 1 skipped vs the full local count. Full
+      # rationale is in tests/integration/realtime/point-transaction-delete.test.ts.
       - name: Run integration tests
         run: npm run test:integration
 
