@@ -201,7 +201,7 @@ Do **not** use `page.locator('.some-class')` for primary identification — Tail
 - `npm run lint` + `npm run typecheck` (typecheck covers `src/` **and** `tests/`)
 - `npm run check:bundle` (NFR4 devtools-DCE assertion after `npm run build`)
 - **`npm test -- --run`** (Vitest unit) — credless (Supabase mocked at the module boundary); gates PRs
-- **`npm run test:integration`** (Vitest backend-integration) — boots a local Supabase stack and runs the files **serially**
+- **`npm run test:integration`** (Vitest backend-integration) — boots a local Supabase stack and runs the files **serially**. The one Realtime-subscription test (`integration/realtime/point-transaction-delete.test.ts`) is **skipped in CI** (`it.skipIf(!!process.env.CI)`): a cold CI stack's `postgres_changes` binding propagation is non-deterministic, and current runtime code no longer reads that DELETE `payload.old` (invalidate-only since #23). It runs **locally** with a binding-propagation settle, and realtime transport is covered in CI by `e2e/realtime-cross-device-totals.spec.ts`.
 - `npm run test:e2e` sharded across 4 workers (`--shard=N/4`)
 - An E2E burn-in job that runs the suite **10×** to catch flake
 
