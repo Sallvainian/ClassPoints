@@ -131,8 +131,8 @@ ADR-005 §4 (a)–(e) compliance, inline in the hook (`src/hooks/useTransactions
 
 ### Realtime hook pattern (`useRealtimeSubscription`)
 
-- Generic over postgres_changes events. Supports `onChange` (preferred, single payload) plus legacy `onInsert`/`onUpdate`/`onDelete` callbacks for remaining migration consumers. Do not add new legacy callback callers.
-- Channel names use `crypto.randomUUID()` per mount (`useRealtimeSubscription.ts:106`). Prior `Date.now()` collided under StrictMode dev double-mount because cleanup→remount happens in the same millisecond, and Supabase reuses the existing channel for matching topics — the second `.on('postgres_changes', …)` on a rejoining channel throws. (The dev double-mount mechanism is unchanged under React 19.)
+- Generic over postgres_changes events. A single optional `onChange` callback receives the full payload; the legacy `onInsert`/`onUpdate`/`onDelete` API and its DEV warning were removed (deferred #13). Status-only subscriptions (just `onStatusChange`/`onReconnect`) remain legitimate.
+- Channel names use `crypto.randomUUID()` per mount (`useRealtimeSubscription.ts:79`). Prior `Date.now()` collided under StrictMode dev double-mount because cleanup→remount happens in the same millisecond, and Supabase reuses the existing channel for matching topics — the second `.on('postgres_changes', …)` on a rejoining channel throws. (The dev double-mount mechanism is unchanged under React 19.)
 - Callbacks held in refs to avoid re-subscribing on every render.
 - Tracks subscription status transitions; fires `onReconnect` when SUBSCRIBED returns from CHANNEL_ERROR / TIMED_OUT / CLOSED.
 

@@ -6,21 +6,16 @@ type PostgresChangeEvent = 'INSERT' | 'UPDATE' | 'DELETE' | '*';
 
 export type RealtimeConnectionStatus = 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED';
 
-interface UseRealtimeSubscriptionOptions<T extends Record<string, unknown>, D = { id: string }> {
+interface UseRealtimeSubscriptionOptions<T extends Record<string, unknown>> {
   table: string;
   schema?: string;
   event?: PostgresChangeEvent;
   filter?: string;
   /**
-   * Preferred for migrated callers: single callback receiving the full payload. When provided,
-   * legacy `onInsert`/`onUpdate`/`onDelete` are ignored. Added Phase 1 as a
-   * transitional bridge; keep legacy callbacks only for existing migration consumers.
+   * Single callback receiving the full postgres_changes payload. Optional —
+   * status-only subscriptions (just `onStatusChange`/`onReconnect`) are legitimate.
    */
   onChange?: (payload: RealtimePostgresChangesPayload<T>) => void;
-  // Legacy callbacks: do not use in new code. Prefer `onChange`.
-  onInsert?: (payload: T) => void;
-  onUpdate?: (payload: T) => void;
-  onDelete?: (payload: D) => void;
   enabled?: boolean;
   /** Fires on every subscription status transition (SUBSCRIBED, CHANNEL_ERROR, TIMED_OUT, CLOSED). */
   onStatusChange?: (status: RealtimeConnectionStatus, err?: Error) => void;
@@ -36,51 +31,29 @@ interface UseRealtimeSubscriptionOptions<T extends Record<string, unknown>, D = 
  * Hook to subscribe to Supabase Realtime postgres_changes.
  * Uses refs for callbacks to avoid stale closures.
  */
-export function useRealtimeSubscription<T extends Record<string, unknown>, D = { id: string }>({
+export function useRealtimeSubscription<T extends Record<string, unknown>>({
   table,
   schema = 'public',
   event = '*',
   filter,
   onChange,
-  onInsert,
-  onUpdate,
-  onDelete,
   enabled = true,
   onStatusChange,
   onReconnect,
-}: UseRealtimeSubscriptionOptions<T, D>) {
+}: UseRealtimeSubscriptionOptions<T>) {
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   // Keep callbacks fresh via refs so we don't re-subscribe on every render
   const onChangeRef = useRef(onChange);
-  const onInsertRef = useRef(onInsert);
-  const onUpdateRef = useRef(onUpdate);
-  const onDeleteRef = useRef(onDelete);
   const onStatusChangeRef = useRef(onStatusChange);
   const onReconnectRef = useRef(onReconnect);
   const previousStatusRef = useRef<RealtimeConnectionStatus | null>(null);
 
   useEffect(() => {
     onChangeRef.current = onChange;
-    onInsertRef.current = onInsert;
-    onUpdateRef.current = onUpdate;
-    onDeleteRef.current = onDelete;
     onStatusChangeRef.current = onStatusChange;
     onReconnectRef.current = onReconnect;
-  }, [onChange, onInsert, onUpdate, onDelete, onStatusChange, onReconnect]);
-
-  // Dev-mode warning if a caller supplies both onChange and any legacy callback.
-  // onChange takes precedence at dispatch time; surfacing the mis-migration early helps.
-  // Wrapped in useEffect so the warning fires only when the callback set actually changes,
-  // not on every render.
-  useEffect(() => {
-    if (import.meta.env.DEV && onChange && (onInsert || onUpdate || onDelete)) {
-      console.warn(
-        '[useRealtimeSubscription] `onChange` and legacy callbacks both supplied; ' +
-          '`onChange` wins and legacy callbacks are ignored. Pick one (prefer `onChange`).'
-      );
-    }
-  }, [onChange, onInsert, onUpdate, onDelete]);
+  }, [onChange, onStatusChange, onReconnect]);
 
   useEffect(() => {
     if (!enabled) {
@@ -129,22 +102,7 @@ export function useRealtimeSubscription<T extends Record<string, unknown>, D = {
       }
     )
       .on('postgres_changes', filterConfig, (payload: RealtimePostgresChangesPayload<T>) => {
-        // onChange wins when provided — legacy callbacks ignored for that subscription
-        if (onChangeRef.current) {
-          onChangeRef.current(payload);
-          return;
-        }
-        switch (payload.eventType) {
-          case 'INSERT':
-            onInsertRef.current?.(payload.new as T);
-            break;
-          case 'UPDATE':
-            onUpdateRef.current?.(payload.new as T);
-            break;
-          case 'DELETE':
-            onDeleteRef.current?.(payload.old as D);
-            break;
-        }
+        onChangeRef.current?.(payload);
       })
       .subscribe((status: string, err?: Error) => {
         const typed = status as RealtimeConnectionStatus;
