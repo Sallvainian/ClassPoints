@@ -958,6 +958,11 @@ export function SeatingChartEditor({
                             <button
                               onClick={async () => {
                                 await onLoadPreset(preset);
+                                // Preset apply no longer remounts the Editor; the
+                                // old groups/elements are replaced with new ids, so
+                                // drop any selection pointing at them.
+                                setSelectedGroupId(null);
+                                setSelectedElementId(null);
                                 setShowPresetList(false);
                               }}
                               className="flex-1 text-left"
