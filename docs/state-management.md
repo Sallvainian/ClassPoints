@@ -168,16 +168,16 @@ On failure, `classifyAndRecover` (`useBatchAward.ts:68`) runs a deterministic re
 
 Wraps `supabase.channel(...).on('postgres_changes', ...).subscribe(...)`. Key behaviors:
 
-- **Channel naming**: `${table}-changes-${filter || 'all'}-${crypto.randomUUID()}` (`:106`). The per-mount UUID fixes StrictMode dev double-mount: cleanup → remount happens in the same millisecond, so `Date.now()` collided and the second `.on('postgres_changes', ...)` on a rejoining channel threw (`:101-106`). The mechanism is unchanged under React 19.
-- **Callbacks via refs** — a `useEffect` updates `*Ref.current` on every callback prop change (`:64-70`) so the channel does not re-subscribe.
-- **`onChange` is preferred** (`:19`) over the legacy `onInsert`/`onUpdate`/`onDelete` triple (`:21-23`). When both are passed, `onChange` wins and a DEV-only warning fires (`:77-83`). The only current legacy consumer is `useLayoutPresets`; new callers must use `onChange`.
-- **Status callbacks**: `onStatusChange` fires on every transition (SUBSCRIBED, CHANNEL_ERROR, TIMED_OUT, CLOSED). `onReconnect` (`:32`) fires when SUBSCRIBED returns from a failure state — wire it to a refetch so events that arrived while offline aren't silently missed (as `useStudents` does).
+- **Channel naming**: `${table}-changes-${filter || 'all'}-${crypto.randomUUID()}` (`:79`). The per-mount UUID fixes StrictMode dev double-mount: cleanup → remount happens in the same millisecond, so `Date.now()` collided and the second `.on('postgres_changes', ...)` on a rejoining channel threw (`:74-79`). The mechanism is unchanged under React 19.
+- **Callbacks via refs** — a `useEffect` updates `*Ref.current` on every callback prop change (`:52-56`) so the channel does not re-subscribe.
+- **`onChange` is the single change callback** (`:18`) — optional, receiving the full `RealtimePostgresChangesPayload`. The legacy `onInsert`/`onUpdate`/`onDelete` triple and its DEV-only both-supplied warning were removed (deferred #13); status-only subscriptions (just `onStatusChange`/`onReconnect`) remain legitimate.
+- **Status callbacks**: `onStatusChange` fires on every transition (SUBSCRIBED, CHANNEL_ERROR, TIMED_OUT, CLOSED). `onReconnect` (`:27`) fires when SUBSCRIBED returns from a failure state — wire it to a refetch so events that arrived while offline aren't silently missed (as `useStudents` does).
 
 ## Legacy hand-rolled hooks
 
 ### `useLayoutPresets` (`src/hooks/useLayoutPresets.ts`)
 
-170 LOC. Returns `{ presets, loading, error, savePreset, deletePreset, refetch }`. Still uses the legacy realtime callbacks (`onInsert`/`onUpdate`) and a `setState`-in-effect fetch. **DO NOT clone this shape.** Target state is a thin TanStack hook with on-demand invalidation, not realtime (deferred item #11).
+155 LOC. Returns `{ presets, loading, error, savePreset, deletePreset, refetch }`. Migrated to TanStack (deferred #11, 2026-06-09): a thin `useQuery` (`queryKeys.layoutPresets.all`) plus two plain mutations behind the unchanged 6-key wrapper. No realtime subscription (non-realtime domain) and no legacy callbacks — the prior `setState`-in-effect fetch is gone. No longer a migration target.
 
 ### `useSeatingChart` (`src/hooks/useSeatingChart.ts`)
 

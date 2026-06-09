@@ -3,11 +3,13 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useRealtimeSubscription } from '../useRealtimeSubscription';
 import { supabase } from '../../lib/supabase';
 
-// Types for captured mock handlers
+// Types for captured mock handlers. Real RealtimePostgresChangesPayload never
+// carries null: `old` is Partial<T> ({} on INSERT) and `new` is {} on DELETE —
+// mirror that here so tests can't cement a payload shape production won't send.
 type MockHandler = (payload: {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE';
-  new: Record<string, unknown> | null;
-  old: Record<string, unknown> | null;
+  new: Record<string, unknown>;
+  old: Record<string, unknown>;
 }) => void;
 
 type MockSubscribeCallback = (status: string, err?: Error) => void;
@@ -54,13 +56,13 @@ describe('useRealtimeSubscription', () => {
     vi.clearAllMocks();
   });
 
-  it('should call onInsert callback when INSERT event received', async () => {
-    const onInsert = vi.fn();
+  it('should call onChange with the full payload when INSERT event received', async () => {
+    const onChange = vi.fn();
 
     renderHook(() =>
       useRealtimeSubscription({
         table: 'test_table',
-        onInsert,
+        onChange,
       })
     );
 
@@ -74,20 +76,24 @@ describe('useRealtimeSubscription', () => {
       handler({
         eventType: 'INSERT',
         new: { id: '123', name: 'Test' },
-        old: null,
+        old: {},
       });
     });
 
-    expect(onInsert).toHaveBeenCalledWith({ id: '123', name: 'Test' });
+    expect(onChange).toHaveBeenCalledWith({
+      eventType: 'INSERT',
+      new: { id: '123', name: 'Test' },
+      old: {},
+    });
   });
 
-  it('should call onDelete callback when DELETE event received', async () => {
-    const onDelete = vi.fn();
+  it('should call onChange with the full payload when DELETE event received', async () => {
+    const onChange = vi.fn();
 
     renderHook(() =>
       useRealtimeSubscription({
         table: 'test_table',
-        onDelete,
+        onChange,
       })
     );
 
@@ -100,26 +106,30 @@ describe('useRealtimeSubscription', () => {
     act(() => {
       handler({
         eventType: 'DELETE',
-        new: null,
+        new: {},
         old: { id: '123' },
       });
     });
 
-    expect(onDelete).toHaveBeenCalledWith({ id: '123' });
+    expect(onChange).toHaveBeenCalledWith({
+      eventType: 'DELETE',
+      new: {},
+      old: { id: '123' },
+    });
   });
 
   it('should use fresh callbacks when they change (no stale closure)', async () => {
     let callCount = 0;
 
     const { rerender } = renderHook(
-      ({ onInsert }) =>
+      ({ onChange }) =>
         useRealtimeSubscription({
           table: 'test_table',
-          onInsert,
+          onChange,
         }),
       {
         initialProps: {
-          onInsert: () => {
+          onChange: () => {
             callCount = 1;
           },
         },
@@ -133,7 +143,7 @@ describe('useRealtimeSubscription', () => {
     const handler = globalThis.__mockOnHandler!;
 
     rerender({
-      onInsert: () => {
+      onChange: () => {
         callCount = 2;
       },
     });
@@ -142,7 +152,7 @@ describe('useRealtimeSubscription', () => {
       handler({
         eventType: 'INSERT',
         new: { id: '123' },
-        old: null,
+        old: {},
       });
     });
 
@@ -258,20 +268,14 @@ describe('useRealtimeSubscription', () => {
     expect(supabase.removeChannel).toHaveBeenCalledWith(channelMock);
   });
 
-  // Decision 3: `onChange` takes precedence; legacy callbacks are ignored when `onChange` supplied.
-  it('should route all events to onChange when provided, ignoring legacy callbacks', async () => {
+  // CAP-3: INSERT, UPDATE, and DELETE all route through the single `onChange` path.
+  it('should route INSERT, UPDATE, and DELETE events through onChange', async () => {
     const onChange = vi.fn();
-    const onInsert = vi.fn();
-    const onUpdate = vi.fn();
-    const onDelete = vi.fn();
 
     renderHook(() =>
       useRealtimeSubscription({
         table: 'test_table',
         onChange,
-        onInsert,
-        onUpdate,
-        onDelete,
       })
     );
 
@@ -282,14 +286,26 @@ describe('useRealtimeSubscription', () => {
     const handler = globalThis.__mockOnHandler!;
 
     act(() => {
-      handler({ eventType: 'INSERT', new: { id: '1' }, old: null });
+      handler({ eventType: 'INSERT', new: { id: '1' }, old: {} });
       handler({ eventType: 'UPDATE', new: { id: '1', name: 'x' }, old: { id: '1' } });
-      handler({ eventType: 'DELETE', new: null, old: { id: '1' } });
+      handler({ eventType: 'DELETE', new: {}, old: { id: '1' } });
     });
 
     expect(onChange).toHaveBeenCalledTimes(3);
-    expect(onInsert).not.toHaveBeenCalled();
-    expect(onUpdate).not.toHaveBeenCalled();
-    expect(onDelete).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenNthCalledWith(1, {
+      eventType: 'INSERT',
+      new: { id: '1' },
+      old: {},
+    });
+    expect(onChange).toHaveBeenNthCalledWith(2, {
+      eventType: 'UPDATE',
+      new: { id: '1', name: 'x' },
+      old: { id: '1' },
+    });
+    expect(onChange).toHaveBeenNthCalledWith(3, {
+      eventType: 'DELETE',
+      new: {},
+      old: { id: '1' },
+    });
   });
 });
