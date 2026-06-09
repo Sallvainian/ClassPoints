@@ -5,6 +5,7 @@ import { useLayoutPresets } from '../../hooks/useLayoutPresets';
 import { EmptyChartPrompt } from './EmptyChartPrompt';
 import { SeatingChartCanvas } from './SeatingChartCanvas';
 import { Button } from '../ui/Button';
+import { ErrorToast } from '../ui/ErrorToast';
 
 const SeatingChartEditor = lazy(() =>
   import('./SeatingChartEditor').then((m) => ({ default: m.SeatingChartEditor }))
@@ -27,6 +28,8 @@ export function SeatingChartView({
     chart,
     loading,
     error,
+    actionError,
+    clearActionError,
     createChart,
     addGroup,
     moveGroup,
@@ -117,8 +120,11 @@ export function SeatingChartView({
     );
   }
 
-  // Error state
-  if (error) {
+  // Error state — gated on `error && !chart` so it only fires for load
+  // failures: a failed background refetch with a populated cache keeps the
+  // chart visible instead of blanking it. Mutation failures render the
+  // dismissible toast below.
+  if (error && !chart) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-red-600 dark:text-red-400">
         <p>Error loading seating chart: {error.message}</p>
@@ -126,45 +132,63 @@ export function SeatingChartView({
     );
   }
 
+  // Empty-string fallback: ErrorToast gates visibility on a falsy error prop,
+  // so a bare '' message would leave the toast stuck invisible, masking
+  // later errors.
+  const actionErrorToast = (
+    <ErrorToast
+      error={actionError ? actionError.message || 'Something went wrong' : null}
+      onDismiss={clearActionError}
+    />
+  );
+
   // No chart exists - show empty prompt
   if (!chart) {
-    return <EmptyChartPrompt onCreateChart={handleCreateChart} hasPresets={presets.length > 0} />;
+    return (
+      <>
+        <EmptyChartPrompt onCreateChart={handleCreateChart} hasPresets={presets.length > 0} />
+        {actionErrorToast}
+      </>
+    );
   }
 
   // Editor mode
   if (isEditing) {
     return (
-      <Suspense
-        fallback={
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-          </div>
-        }
-      >
-        <SeatingChartEditor
-          chart={chart}
-          students={students}
-          onClose={handleCloseEditor}
-          onAddGroup={addGroup}
-          onMoveGroup={moveGroup}
-          onDeleteGroup={deleteGroup}
-          onRotateGroup={rotateGroup}
-          onAssignStudent={assignStudent}
-          onUnassignStudent={unassignStudent}
-          onSwapStudents={swapStudents}
-          onRandomize={() => randomizeAssignments(students)}
-          onAddRoomElement={addRoomElement}
-          onMoveRoomElement={moveRoomElement}
-          onResizeRoomElement={resizeRoomElement}
-          onDeleteRoomElement={deleteRoomElement}
-          onRotateRoomElement={rotateRoomElement}
-          onUpdateSettings={updateSettings}
-          onSavePreset={handleSavePreset}
-          presets={presets}
-          onLoadPreset={applyPreset}
-          onDeletePreset={deletePreset}
-        />
-      </Suspense>
+      <>
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          }
+        >
+          <SeatingChartEditor
+            chart={chart}
+            students={students}
+            onClose={handleCloseEditor}
+            onAddGroup={addGroup}
+            onMoveGroup={moveGroup}
+            onDeleteGroup={deleteGroup}
+            onRotateGroup={rotateGroup}
+            onAssignStudent={assignStudent}
+            onUnassignStudent={unassignStudent}
+            onSwapStudents={swapStudents}
+            onRandomize={() => randomizeAssignments(students)}
+            onAddRoomElement={addRoomElement}
+            onMoveRoomElement={moveRoomElement}
+            onResizeRoomElement={resizeRoomElement}
+            onDeleteRoomElement={deleteRoomElement}
+            onRotateRoomElement={rotateRoomElement}
+            onUpdateSettings={updateSettings}
+            onSavePreset={handleSavePreset}
+            presets={presets}
+            onLoadPreset={applyPreset}
+            onDeletePreset={deletePreset}
+          />
+        </Suspense>
+        {actionErrorToast}
+      </>
     );
   }
 
@@ -234,6 +258,7 @@ export function SeatingChartView({
           showPointBreakdown={showPointBreakdown}
         />
       </div>
+      {actionErrorToast}
     </div>
   );
 }

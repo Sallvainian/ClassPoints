@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 import type { Student } from '../types';
 import type { UpdateSeatingChart } from '../types/database';
 import type {
@@ -7,10 +9,7 @@ import type {
   SeatingGroup,
   RoomElement,
   RoomElementType,
-  DbSeatingChart,
-  DbSeatingGroup,
   DbSeatingSeat,
-  DbRoomElement,
   LayoutPreset,
 } from '../types/seatingChart';
 import {
@@ -24,7 +23,11 @@ import {
 interface UseSeatingChartReturn {
   chart: SeatingChart | null;
   loading: boolean;
+  /** Query (load) failures only — drives the View's full-screen error branch. */
   error: Error | null;
+  /** First non-null mutation error — drives a dismissible toast; the chart stays visible. */
+  actionError: Error | null;
+  clearActionError: () => void;
 
   // Chart operations
   createChart: (name?: string) => Promise<SeatingChart | null>;
@@ -75,45 +78,72 @@ interface UseSeatingChartReturn {
   refetch: () => Promise<void>;
 }
 
+// camelCase settings patch — applied to the meta cache in onSuccess and mapped
+// to the snake_case UpdateSeatingChart for the DB write.
+type SeatingChartSettingsPatch = Partial<{
+  name: string;
+  snapEnabled: boolean;
+  gridSize: number;
+  canvasWidth: number;
+  canvasHeight: number;
+}>;
+
+// Rollback contexts for the optimistic mutations (ADR-005 §4(a): snapshots are
+// null-guarded in onError; §4(e): snapshots come from qc.getQueryData, never the
+// component closure).
+interface GroupsContext {
+  previousGroups: SeatingGroup[] | undefined;
+}
+
+interface RoomElementsContext {
+  previousRoomElements: RoomElement[] | undefined;
+}
+
+// Seating-chart server state lives in 3 per-table caches (meta / groups+seats /
+// room_elements) keyed by queryKeys.seatingChart.*. The hook assembles them back
+// into the SeatingChart blob consumers already use. Seating is a non-realtime
+// domain (ADR-005 §6, CAP-4): freshness comes from onSettled invalidation only.
 export function useSeatingChart(classroomId: string | null): UseSeatingChartReturn {
-  const [chart, setChart] = useState<SeatingChart | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const qc = useQueryClient();
 
-  // Fetch seating chart with all related data
-  const fetchChart = useCallback(async () => {
-    if (!classroomId) {
-      setChart(null);
-      setLoading(false);
-      return;
-    }
+  const metaQuery = useQuery<SeatingChart | null, Error>({
+    queryKey: queryKeys.seatingChart.metaByClassroom(classroomId),
+    enabled: !!classroomId,
+    queryFn: async () => {
+      if (!classroomId) return null;
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const { data: chartData, error: chartError } = await supabase
+      const { data, error: chartError } = await supabase
         .from('seating_charts')
         .select('*')
         .eq('classroom_id', classroomId)
         .maybeSingle();
 
       if (chartError) throw new Error(chartError.message);
-      if (!chartData) {
-        setChart(null);
-        setLoading(false);
-        return;
-      }
+      if (!data) return null;
+
+      // Meta row only — groups/roomElements live in their own caches and are
+      // composed into the blob by the useMemo below.
+      return dbToSeatingChart(data, [], []);
+    },
+  });
+
+  const chartId = metaQuery.data?.id ?? null;
+
+  const groupsQuery = useQuery<SeatingGroup[], Error>({
+    queryKey: queryKeys.seatingChart.groupsByChart(chartId),
+    enabled: !!chartId,
+    queryFn: async () => {
+      if (!chartId) return [];
 
       const { data: groupsData, error: groupsError } = await supabase
         .from('seating_groups')
         .select('*')
-        .eq('seating_chart_id', chartData.id)
+        .eq('seating_chart_id', chartId)
         .order('letter', { ascending: true });
 
       if (groupsError) throw new Error(groupsError.message);
 
-      const groupIds = (groupsData || []).map((g) => g.id);
+      const groupIds = (groupsData ?? []).map((g) => g.id);
       let seatsData: DbSeatingSeat[] = [];
       if (groupIds.length > 0) {
         const { data: seats, error: seatsError } = await supabase
@@ -123,97 +153,148 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
           .order('position_in_group', { ascending: true });
 
         if (seatsError) throw new Error(seatsError.message);
-        seatsData = seats || [];
+        seatsData = seats ?? [];
       }
 
-      const { data: elementsData, error: elementsError } = await supabase
+      return (groupsData ?? []).map((g) => dbToSeatingGroup(g, seatsData));
+    },
+  });
+
+  const roomElementsQuery = useQuery<RoomElement[], Error>({
+    queryKey: queryKeys.seatingChart.roomElementsByChart(chartId),
+    enabled: !!chartId,
+    queryFn: async () => {
+      if (!chartId) return [];
+
+      const { data, error: elementsError } = await supabase
         .from('room_elements')
         .select('*')
-        .eq('seating_chart_id', chartData.id);
+        .eq('seating_chart_id', chartId);
 
       if (elementsError) throw new Error(elementsError.message);
+      return (data ?? []).map((e) => dbToRoomElement(e));
+    },
+  });
 
-      const groups: SeatingGroup[] = (groupsData || []).map((g) =>
-        dbToSeatingGroup(g as DbSeatingGroup, seatsData)
+  // Blob assembly. structuralSharing (ADR-005 §1) keeps each cache entry
+  // ref-stable, so group/element prop identities only change when their own
+  // table data changes. Assemble only when ALL THREE caches are populated: a
+  // child query that failed its initial load must not fabricate an
+  // empty-groups/elements chart — the View's full-screen branch gates on
+  // `error && !chart`, so a fabricated blob would mask the load failure.
+  const chart = useMemo<SeatingChart | null>(() => {
+    const meta = metaQuery.data;
+    const groups = groupsQuery.data;
+    const roomElements = roomElementsQuery.data;
+    if (!meta || !groups || !roomElements) return null;
+    return { ...meta, groups, roomElements };
+  }, [metaQuery.data, groupsQuery.data, roomElementsQuery.data]);
+
+  // .isLoading (= isPending && isFetching) on all three, NOT .isPending: every
+  // query here is enabled-gated (meta on classroomId, children on chartId), and
+  // a disabled query reports isPending: true / isFetching: false forever — with
+  // .isPending a null classroomId (or a classroom with no chart) would pin the
+  // spinner and never reach the chart=null → EmptyChartPrompt branch.
+  const loading = metaQuery.isLoading || groupsQuery.isLoading || roomElementsQuery.isLoading;
+
+  // Query (load) errors only — mutation failures surface via actionError below.
+  const error = metaQuery.error ?? groupsQuery.error ?? roomElementsQuery.error ?? null;
+
+  // ============================================
+  // Chart operations
+  // ============================================
+
+  const createChartMutation = useMutation<SeatingChart, Error, string>({
+    mutationFn: async (name) => {
+      if (!classroomId) throw new Error('No classroom selected');
+
+      const { data, error: insertError } = await supabase
+        .from('seating_charts')
+        .insert({
+          classroom_id: classroomId,
+          name,
+          snap_enabled: DEFAULT_SEATING_CHART_SETTINGS.snapEnabled,
+          grid_size: DEFAULT_SEATING_CHART_SETTINGS.gridSize,
+          canvas_width: DEFAULT_SEATING_CHART_SETTINGS.canvasWidth,
+          canvas_height: DEFAULT_SEATING_CHART_SETTINGS.canvasHeight,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw new Error(insertError.message);
+      return dbToSeatingChart(data, [], []);
+    },
+    // Seed all 3 caches synchronously (matches the old synchronous state write)
+    // so the new chart renders without flashing EmptyChartPrompt before the
+    // editor opens. Keys derive from the RETURNED row (newChart.classroomId),
+    // not the closure classroomId, so a stale closure can't seed a foreign key.
+    onSuccess: (newChart) => {
+      // Cancel in-flight seating refetches before patching: a refetch dispatched
+      // before this mutation committed would resolve with pre-mutation rows and
+      // clobber the patch until the onSettled refetch converges. (The optimistic
+      // mutations get the same protection from cancelQueries in onMutate.)
+      void qc.cancelQueries({ queryKey: queryKeys.seatingChart.all });
+      qc.setQueryData<SeatingGroup[]>(queryKeys.seatingChart.groupsByChart(newChart.id), []);
+      qc.setQueryData<RoomElement[]>(queryKeys.seatingChart.roomElementsByChart(newChart.id), []);
+      qc.setQueryData<SeatingChart | null>(
+        queryKeys.seatingChart.metaByClassroom(newChart.classroomId),
+        newChart
       );
-      const roomElements: RoomElement[] = (elementsData || []).map((e) =>
-        dbToRoomElement(e as DbRoomElement)
-      );
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.seatingChart.all }),
+  });
 
-      setChart(dbToSeatingChart(chartData as DbSeatingChart, groups, roomElements));
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch seating chart'));
-      setChart(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [classroomId]);
-
-  // Initial load
-  useEffect(() => {
-    // TEMP(set-state-in-effect): inline disable is temporary, pending migration of
-    // this hook to TanStack useQuery (deferred item #12), which removes the
-    // fetch-in-effect entirely. Remove the disable when #12 lands.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchChart();
-  }, [fetchChart]);
-
-  // Create a new seating chart
+  // mutateAsync is identity-stable; depending on it (not the whole mutation
+  // result object) keeps each wrapper's identity from churning on mutation
+  // state flips. Same pattern for every wrapper below.
+  const { mutateAsync: createChartAsync } = createChartMutation;
   const createChart = useCallback(
     async (name = 'Seating Chart'): Promise<SeatingChart | null> => {
       if (!classroomId) return null;
-
       try {
-        const { data, error: insertError } = await supabase
-          .from('seating_charts')
-          .insert({
-            classroom_id: classroomId,
-            name,
-            snap_enabled: DEFAULT_SEATING_CHART_SETTINGS.snapEnabled,
-            grid_size: DEFAULT_SEATING_CHART_SETTINGS.gridSize,
-            canvas_width: DEFAULT_SEATING_CHART_SETTINGS.canvasWidth,
-            canvas_height: DEFAULT_SEATING_CHART_SETTINGS.canvasHeight,
-          })
-          .select()
-          .single();
-
-        if (insertError) throw new Error(insertError.message);
-
-        const newChart: SeatingChart = {
-          id: data.id,
-          classroomId: data.classroom_id,
-          name: data.name,
-          snapEnabled: data.snap_enabled,
-          gridSize: data.grid_size,
-          canvasWidth: data.canvas_width,
-          canvasHeight: data.canvas_height,
-          groups: [],
-          roomElements: [],
-          createdAt: new Date(data.created_at).getTime(),
-          updatedAt: new Date(data.updated_at).getTime(),
-        };
-
-        setChart(newChart);
-        return newChart;
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to create seating chart'));
+        return await createChartAsync(name);
+      } catch {
+        // Surfaced via actionError; contract returns null on failure.
         return null;
       }
     },
-    [classroomId]
+    [classroomId, createChartAsync]
   );
 
-  // Update chart settings
+  const updateSettingsMutation = useMutation<
+    void,
+    Error,
+    {
+      chartId: string;
+      classroomId: string;
+      updates: UpdateSeatingChart;
+      settings: SeatingChartSettingsPatch;
+    }
+  >({
+    mutationFn: async ({ chartId: id, updates }) => {
+      const { error: updateError } = await supabase
+        .from('seating_charts')
+        .update(updates)
+        .eq('id', id);
+      if (updateError) throw new Error(updateError.message);
+    },
+    // Post-write patch reproducing the old `{ ...prev, ...settings }` state write:
+    // invalidate-only would bounce the snap toggle / grid inputs for a refetch
+    // RTT (the control flips back until the refetch lands).
+    onSuccess: (_data, vars) => {
+      void qc.cancelQueries({ queryKey: queryKeys.seatingChart.metaByClassroom(vars.classroomId) });
+      qc.setQueryData<SeatingChart | null>(
+        queryKeys.seatingChart.metaByClassroom(vars.classroomId),
+        (prev) => (prev ? { ...prev, ...vars.settings } : prev)
+      );
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.metaByClassroom(vars.classroomId) }),
+  });
+
+  const { mutateAsync: updateSettingsAsync } = updateSettingsMutation;
   const updateSettings = useCallback(
-    async (
-      settings: Partial<{
-        name: string;
-        snapEnabled: boolean;
-        gridSize: number;
-        canvasWidth: number;
-        canvasHeight: number;
-      }>
-    ) => {
+    async (settings: SeatingChartSettingsPatch) => {
       if (!chart) return;
 
       const updates: UpdateSeatingChart = {};
@@ -223,49 +304,95 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       if (settings.canvasWidth !== undefined) updates.canvas_width = settings.canvasWidth;
       if (settings.canvasHeight !== undefined) updates.canvas_height = settings.canvasHeight;
 
-      const { error: updateError } = await supabase
-        .from('seating_charts')
-        .update(updates)
-        .eq('id', chart.id);
-
-      if (updateError) {
-        setError(new Error(updateError.message));
-        return;
+      try {
+        await updateSettingsAsync({
+          chartId: chart.id,
+          classroomId: chart.classroomId,
+          updates,
+          settings,
+        });
+      } catch {
+        // Surfaced via actionError.
       }
-
-      // Optimistic update
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              ...settings,
-              updatedAt: Date.now(),
-            }
-          : null
-      );
     },
-    [chart]
+    [chart, updateSettingsAsync]
   );
 
-  // Delete chart
+  const deleteChartMutation = useMutation<void, Error, { chartId: string; classroomId: string }>({
+    mutationFn: async ({ chartId: id }) => {
+      const { error: deleteError } = await supabase.from('seating_charts').delete().eq('id', id);
+      if (deleteError) throw new Error(deleteError.message);
+    },
+    // Post-write patch reproducing the old chart-to-null state write: the chart disappears
+    // immediately instead of after the refetch RTT.
+    onSuccess: (_data, vars) => {
+      void qc.cancelQueries({ queryKey: queryKeys.seatingChart.metaByClassroom(vars.classroomId) });
+      qc.setQueryData<SeatingChart | null>(
+        queryKeys.seatingChart.metaByClassroom(vars.classroomId),
+        null
+      );
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.seatingChart.all }),
+  });
+
+  const { mutateAsync: deleteChartAsync } = deleteChartMutation;
   const deleteChart = useCallback(async (): Promise<boolean> => {
     if (!chart) return false;
-
-    const { error: deleteError } = await supabase
-      .from('seating_charts')
-      .delete()
-      .eq('id', chart.id);
-
-    if (deleteError) {
-      setError(new Error(deleteError.message));
+    try {
+      await deleteChartAsync({ chartId: chart.id, classroomId: chart.classroomId });
+      return true;
+    } catch {
+      // Surfaced via actionError.
       return false;
     }
+  }, [chart, deleteChartAsync]);
 
-    setChart(null);
-    return true;
-  }, [chart]);
+  // ============================================
+  // Group operations
+  // ============================================
 
-  // Add a new group
+  const addGroupMutation = useMutation<
+    SeatingGroup,
+    Error,
+    { chartId: string; letter: string; x: number; y: number }
+  >({
+    mutationFn: async ({ chartId: id, letter, x, y }) => {
+      const { data, error: insertError } = await supabase
+        .from('seating_groups')
+        .insert({
+          seating_chart_id: id,
+          letter,
+          position_x: x,
+          position_y: y,
+          rotation: 0,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw new Error(insertError.message);
+
+      // Seats are auto-created by trigger, fetch them
+      const { data: seatsData } = await supabase
+        .from('seating_seats')
+        .select('*')
+        .eq('seating_group_id', data.id)
+        .order('position_in_group', { ascending: true });
+
+      return dbToSeatingGroup(data, seatsData ?? []);
+    },
+    // Post-write append reproducing the old `[...groups, newGroup]` state write:
+    // the new table shows up immediately, not one refetch RTT later.
+    onSuccess: (newGroup, vars) => {
+      void qc.cancelQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) });
+      qc.setQueryData<SeatingGroup[]>(queryKeys.seatingChart.groupsByChart(vars.chartId), (prev) =>
+        prev ? [...prev, newGroup] : [newGroup]
+      );
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: addGroupAsync } = addGroupMutation;
   const addGroup = useCallback(
     async (x: number, y: number): Promise<SeatingGroup | null> => {
       if (!chart) return null;
@@ -282,68 +409,61 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       const clampedY = snap(clamp(y, 0, chart.canvasHeight - GROUP_SIZE));
 
       try {
-        const { data, error: insertError } = await supabase
-          .from('seating_groups')
-          .insert({
-            seating_chart_id: chart.id,
-            letter,
-            position_x: clampedX,
-            position_y: clampedY,
-            rotation: 0,
-          })
-          .select()
-          .single();
-
-        if (insertError) throw new Error(insertError.message);
-
-        // Seats are auto-created by trigger, fetch them
-        const { data: seatsData } = await supabase
-          .from('seating_seats')
-          .select('*')
-          .eq('seating_group_id', data.id)
-          .order('position_in_group', { ascending: true });
-
-        const newGroup: SeatingGroup = {
-          id: data.id,
-          letter: data.letter,
-          x: data.position_x,
-          y: data.position_y,
-          rotation: data.rotation,
-          seats: (seatsData || []).map((s) => ({
-            id: s.id,
-            positionInGroup: s.position_in_group as 1 | 2 | 3 | 4,
-            studentId: s.student_id,
-          })),
-        };
-
-        // Optimistic update
-        setChart((prev) =>
-          prev
-            ? {
-                ...prev,
-                groups: [...prev.groups, newGroup],
-                updatedAt: Date.now(),
-              }
-            : null
-        );
-
-        return newGroup;
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to add group'));
+        return await addGroupAsync({
+          chartId: chart.id,
+          letter,
+          x: clampedX,
+          y: clampedY,
+        });
+      } catch {
+        // Surfaced via actionError.
         return null;
       }
     },
-    [chart]
+    [chart, addGroupAsync]
   );
 
-  // Move a group
+  const moveGroupMutation = useMutation<
+    void,
+    Error,
+    { chartId: string; groupId: string; x: number; y: number },
+    GroupsContext
+  >({
+    mutationFn: async ({ groupId, x, y }) => {
+      const { error: updateError } = await supabase
+        .from('seating_groups')
+        .update({ position_x: x, position_y: y })
+        .eq('id', groupId);
+      if (updateError) throw new Error(updateError.message);
+    },
+    // Synchronous onMutate (no awaits before the patch): the Editor's drag-end
+    // reconciliation must see the committed position on drop, otherwise the
+    // pre-drag props win for a frame and the item snaps back (flicker).
+    onMutate: ({ chartId: id, groupId, x, y }) => {
+      const key = queryKeys.seatingChart.groupsByChart(id);
+      void qc.cancelQueries({ queryKey: key });
+      const previousGroups = qc.getQueryData<SeatingGroup[]>(key);
+      qc.setQueryData<SeatingGroup[]>(key, (prev) =>
+        prev ? prev.map((g) => (g.id === groupId ? { ...g, x, y } : g)) : prev
+      );
+      return { previousGroups };
+    },
+    onError: (_err, vars, context) => {
+      if (context?.previousGroups !== undefined) {
+        qc.setQueryData(queryKeys.seatingChart.groupsByChart(vars.chartId), context.previousGroups);
+      }
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: moveGroupAsync } = moveGroupMutation;
   const moveGroup = useCallback(
     async (groupId: string, x: number, y: number) => {
       if (!chart) return;
 
-      // Store old position for rollback
-      const oldGroup = chart.groups.find((g) => g.id === groupId);
-      if (!oldGroup) return;
+      const group = chart.groups.find((g) => g.id === groupId);
+      if (!group) return;
 
       // Table group size is 160x160 (2x2 seats at 80px each)
       const GROUP_SIZE = 160;
@@ -354,75 +474,82 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       const clampedX = snap(clamp(x, 0, chart.canvasWidth - GROUP_SIZE));
       const clampedY = snap(clamp(y, 0, chart.canvasHeight - GROUP_SIZE));
 
-      // Optimistic update FIRST (prevents flicker)
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              groups: prev.groups.map((g) =>
-                g.id === groupId ? { ...g, x: clampedX, y: clampedY } : g
-              ),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
-
-      // Then update database
-      const { error: updateError } = await supabase
-        .from('seating_groups')
-        .update({ position_x: clampedX, position_y: clampedY })
-        .eq('id', groupId);
-
-      if (updateError) {
-        // Rollback on error
-        setChart((prev) =>
-          prev
-            ? {
-                ...prev,
-                groups: prev.groups.map((g) =>
-                  g.id === groupId ? { ...g, x: oldGroup.x, y: oldGroup.y } : g
-                ),
-              }
-            : null
-        );
-        setError(new Error(updateError.message));
+      try {
+        await moveGroupAsync({
+          chartId: chart.id,
+          groupId,
+          x: clampedX,
+          y: clampedY,
+        });
+      } catch {
+        // Rolled back in onError; surfaced via actionError.
       }
     },
-    [chart]
+    [chart, moveGroupAsync]
   );
 
-  // Delete a group
-  const deleteGroup = useCallback(
-    async (groupId: string): Promise<boolean> => {
-      if (!chart) return false;
-
+  const deleteGroupMutation = useMutation<void, Error, { chartId: string; groupId: string }>({
+    mutationFn: async ({ groupId }) => {
       const { error: deleteError } = await supabase
         .from('seating_groups')
         .delete()
         .eq('id', groupId);
+      if (deleteError) throw new Error(deleteError.message);
+    },
+    // Post-write filter reproducing the old `groups.filter(...)` state write.
+    onSuccess: (_data, vars) => {
+      void qc.cancelQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) });
+      qc.setQueryData<SeatingGroup[]>(queryKeys.seatingChart.groupsByChart(vars.chartId), (prev) =>
+        prev ? prev.filter((g) => g.id !== vars.groupId) : prev
+      );
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) }),
+  });
 
-      if (deleteError) {
-        setError(new Error(deleteError.message));
+  const { mutateAsync: deleteGroupAsync } = deleteGroupMutation;
+  const deleteGroup = useCallback(
+    async (groupId: string): Promise<boolean> => {
+      if (!chart) return false;
+      try {
+        await deleteGroupAsync({ chartId: chart.id, groupId });
+        return true;
+      } catch {
+        // Surfaced via actionError.
         return false;
       }
-
-      // Optimistic update
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              groups: prev.groups.filter((g) => g.id !== groupId),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
-
-      return true;
     },
-    [chart]
+    [chart, deleteGroupAsync]
   );
 
-  // Rotate a group by 90 degrees
+  const rotateGroupMutation = useMutation<
+    void,
+    Error,
+    { chartId: string; groupId: string; rotation: number }
+  >({
+    mutationFn: async ({ groupId, rotation }) => {
+      const { error: updateError } = await supabase
+        .from('seating_groups')
+        .update({ rotation })
+        .eq('id', groupId);
+      if (updateError) throw new Error(updateError.message);
+    },
+    // Post-write patch reproducing the old rotation state write:
+    // invalidate-only loses a turn on rapid clicks (the second click would
+    // compute from a stale cache during the refetch gap).
+    onSuccess: (_data, vars) => {
+      void qc.cancelQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) });
+      qc.setQueryData<SeatingGroup[]>(queryKeys.seatingChart.groupsByChart(vars.chartId), (prev) =>
+        prev
+          ? prev.map((g) => (g.id === vars.groupId ? { ...g, rotation: vars.rotation } : g))
+          : prev
+      );
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: rotateGroupAsync } = rotateGroupMutation;
   const rotateGroup = useCallback(
     async (groupId: string) => {
       if (!chart) return;
@@ -432,33 +559,71 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
 
       const newRotation = (group.rotation + 90) % 360;
 
-      const { error: updateError } = await supabase
-        .from('seating_groups')
-        .update({ rotation: newRotation })
-        .eq('id', groupId);
-
-      if (updateError) {
-        setError(new Error(updateError.message));
-        return;
+      try {
+        await rotateGroupAsync({
+          chartId: chart.id,
+          groupId,
+          rotation: newRotation,
+        });
+      } catch {
+        // Surfaced via actionError.
       }
-
-      // Optimistic update
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              groups: prev.groups.map((g) =>
-                g.id === groupId ? { ...g, rotation: newRotation } : g
-              ),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
     },
-    [chart]
+    [chart, rotateGroupAsync]
   );
 
-  // Assign a student to a seat
+  // ============================================
+  // Student assignment
+  // ============================================
+
+  const assignStudentMutation = useMutation<
+    void,
+    Error,
+    { chartId: string; studentId: string; seatId: string; currentSeatId: string | null },
+    GroupsContext
+  >({
+    mutationFn: async ({ studentId, seatId, currentSeatId }) => {
+      // Deliberately unchecked, matching the original: the clear-write on the
+      // student's previous seat never had error handling.
+      if (currentSeatId) {
+        await supabase.from('seating_seats').update({ student_id: null }).eq('id', currentSeatId);
+      }
+
+      const { error: updateError } = await supabase
+        .from('seating_seats')
+        .update({ student_id: studentId })
+        .eq('id', seatId);
+      if (updateError) throw new Error(updateError.message);
+    },
+    // Synchronous patch for instant feedback (see moveGroup's onMutate note).
+    onMutate: ({ chartId: id, studentId, seatId }) => {
+      const key = queryKeys.seatingChart.groupsByChart(id);
+      void qc.cancelQueries({ queryKey: key });
+      const previousGroups = qc.getQueryData<SeatingGroup[]>(key);
+      qc.setQueryData<SeatingGroup[]>(key, (prev) =>
+        prev
+          ? prev.map((g) => ({
+              ...g,
+              seats: g.seats.map((s) => {
+                if (s.id === seatId) return { ...s, studentId };
+                if (s.studentId === studentId) return { ...s, studentId: null };
+                return s;
+              }),
+            }))
+          : prev
+      );
+      return { previousGroups };
+    },
+    onError: (_err, vars, context) => {
+      if (context?.previousGroups !== undefined) {
+        qc.setQueryData(queryKeys.seatingChart.groupsByChart(vars.chartId), context.previousGroups);
+      }
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: assignStudentAsync } = assignStudentMutation;
   const assignStudent = useCallback(
     async (studentId: string, seatId: string) => {
       if (!chart) return;
@@ -471,139 +636,82 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       // Guard: if student is already in this seat, no-op
       if (currentSeat?.id === seatId) return;
 
-      // Optimistic update FIRST for instant feedback
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              groups: prev.groups.map((g) => ({
-                ...g,
-                seats: g.seats.map((s) => {
-                  if (s.id === seatId) return { ...s, studentId };
-                  if (s.studentId === studentId) return { ...s, studentId: null };
-                  return s;
-                }),
-              })),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
-
-      // Then persist to database
-      if (currentSeat) {
-        await supabase.from('seating_seats').update({ student_id: null }).eq('id', currentSeat.id);
-      }
-
-      const { error: updateError } = await supabase
-        .from('seating_seats')
-        .update({ student_id: studentId })
-        .eq('id', seatId);
-
-      if (updateError) {
-        setError(new Error(updateError.message));
-        // Revert optimistic update
-        setChart((prev) =>
-          prev
-            ? {
-                ...prev,
-                groups: prev.groups.map((g) => ({
-                  ...g,
-                  seats: g.seats.map((s) => {
-                    if (s.id === seatId) return { ...s, studentId: null };
-                    if (currentSeat && s.id === currentSeat.id) return { ...s, studentId };
-                    return s;
-                  }),
-                })),
-              }
-            : null
-        );
+      try {
+        await assignStudentAsync({
+          chartId: chart.id,
+          studentId,
+          seatId,
+          currentSeatId: currentSeat?.id ?? null,
+        });
+      } catch {
+        // Rolled back in onError; surfaced via actionError.
       }
     },
-    [chart]
+    [chart, assignStudentAsync]
   );
 
-  // Unassign a student from a seat
-  const unassignStudent = useCallback(
-    async (seatId: string) => {
-      if (!chart) return;
-
-      // Find current student for potential revert
-      const currentStudentId = chart.groups
-        .flatMap((g) => g.seats)
-        .find((s) => s.id === seatId)?.studentId;
-
-      // Optimistic update FIRST
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              groups: prev.groups.map((g) => ({
-                ...g,
-                seats: g.seats.map((s) => (s.id === seatId ? { ...s, studentId: null } : s)),
-              })),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
-
+  const unassignStudentMutation = useMutation<
+    void,
+    Error,
+    { chartId: string; seatId: string },
+    GroupsContext
+  >({
+    mutationFn: async ({ seatId }) => {
       const { error: updateError } = await supabase
         .from('seating_seats')
         .update({ student_id: null })
         .eq('id', seatId);
-
-      if (updateError) {
-        setError(new Error(updateError.message));
-        // Revert
-        setChart((prev) =>
-          prev
-            ? {
-                ...prev,
-                groups: prev.groups.map((g) => ({
-                  ...g,
-                  seats: g.seats.map((s) =>
-                    s.id === seatId ? { ...s, studentId: currentStudentId ?? null } : s
-                  ),
-                })),
-              }
-            : null
-        );
+      if (updateError) throw new Error(updateError.message);
+    },
+    onMutate: ({ chartId: id, seatId }) => {
+      const key = queryKeys.seatingChart.groupsByChart(id);
+      void qc.cancelQueries({ queryKey: key });
+      const previousGroups = qc.getQueryData<SeatingGroup[]>(key);
+      qc.setQueryData<SeatingGroup[]>(key, (prev) =>
+        prev
+          ? prev.map((g) => ({
+              ...g,
+              seats: g.seats.map((s) => (s.id === seatId ? { ...s, studentId: null } : s)),
+            }))
+          : prev
+      );
+      return { previousGroups };
+    },
+    onError: (_err, vars, context) => {
+      if (context?.previousGroups !== undefined) {
+        qc.setQueryData(queryKeys.seatingChart.groupsByChart(vars.chartId), context.previousGroups);
       }
     },
-    [chart]
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: unassignStudentAsync } = unassignStudentMutation;
+  const unassignStudent = useCallback(
+    async (seatId: string) => {
+      if (!chart) return;
+      try {
+        await unassignStudentAsync({ chartId: chart.id, seatId });
+      } catch {
+        // Rolled back in onError; surfaced via actionError.
+      }
+    },
+    [chart, unassignStudentAsync]
   );
 
-  // Swap students between two seats
-  const swapStudents = useCallback(
-    async (seatId1: string, seatId2: string) => {
-      if (!chart) return;
-
-      const allSeats = chart.groups.flatMap((g) => g.seats);
-      const seat1 = allSeats.find((s) => s.id === seatId1);
-      const seat2 = allSeats.find((s) => s.id === seatId2);
-
-      if (!seat1 || !seat2) return;
-
-      const student1Id = seat1.studentId;
-      const student2Id = seat2.studentId;
-
-      // Optimistic update first
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              groups: prev.groups.map((g) => ({
-                ...g,
-                seats: g.seats.map((s) => {
-                  if (s.id === seatId1) return { ...s, studentId: student2Id };
-                  if (s.id === seatId2) return { ...s, studentId: student1Id };
-                  return s;
-                }),
-              })),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
-
+  const swapStudentsMutation = useMutation<
+    void,
+    Error,
+    {
+      chartId: string;
+      seatId1: string;
+      seatId2: string;
+      student1Id: string | null;
+      student2Id: string | null;
+    },
+    GroupsContext
+  >({
+    mutationFn: async ({ seatId1, seatId2, student1Id, student2Id }) => {
       // Clear both seats first to avoid unique constraint violation
       await supabase
         .from('seating_seats')
@@ -621,30 +729,114 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
         .update({ student_id: student1Id })
         .eq('id', seatId2);
 
-      if (error1 || error2) {
-        setError(new Error('Failed to swap students'));
-        // Revert optimistic update on error
-        setChart((prev) =>
-          prev
-            ? {
-                ...prev,
-                groups: prev.groups.map((g) => ({
-                  ...g,
-                  seats: g.seats.map((s) => {
-                    if (s.id === seatId1) return { ...s, studentId: student1Id };
-                    if (s.id === seatId2) return { ...s, studentId: student2Id };
-                    return s;
-                  }),
-                })),
-              }
-            : null
-        );
+      if (error1 || error2) throw new Error('Failed to swap students');
+    },
+    onMutate: ({ chartId: id, seatId1, seatId2, student1Id, student2Id }) => {
+      const key = queryKeys.seatingChart.groupsByChart(id);
+      void qc.cancelQueries({ queryKey: key });
+      const previousGroups = qc.getQueryData<SeatingGroup[]>(key);
+      qc.setQueryData<SeatingGroup[]>(key, (prev) =>
+        prev
+          ? prev.map((g) => ({
+              ...g,
+              seats: g.seats.map((s) => {
+                if (s.id === seatId1) return { ...s, studentId: student2Id };
+                if (s.id === seatId2) return { ...s, studentId: student1Id };
+                return s;
+              }),
+            }))
+          : prev
+      );
+      return { previousGroups };
+    },
+    onError: (_err, vars, context) => {
+      if (context?.previousGroups !== undefined) {
+        qc.setQueryData(queryKeys.seatingChart.groupsByChart(vars.chartId), context.previousGroups);
       }
     },
-    [chart]
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: swapStudentsAsync } = swapStudentsMutation;
+  const swapStudents = useCallback(
+    async (seatId1: string, seatId2: string) => {
+      if (!chart) return;
+
+      const allSeats = chart.groups.flatMap((g) => g.seats);
+      const seat1 = allSeats.find((s) => s.id === seatId1);
+      const seat2 = allSeats.find((s) => s.id === seatId2);
+
+      if (!seat1 || !seat2) return;
+
+      try {
+        await swapStudentsAsync({
+          chartId: chart.id,
+          seatId1,
+          seatId2,
+          student1Id: seat1.studentId,
+          student2Id: seat2.studentId,
+        });
+      } catch {
+        // Rolled back in onError; surfaced via actionError.
+      }
+    },
+    [chart, swapStudentsAsync]
   );
 
-  // Randomize student assignments
+  const randomizeMutation = useMutation<
+    void,
+    Error,
+    { chartId: string; seatIds: string[]; assignments: { seatId: string; studentId: string }[] },
+    GroupsContext
+  >({
+    mutationFn: async ({ seatIds, assignments }) => {
+      // Batch clear all seats first (single query)
+      const { error: clearError } = await supabase
+        .from('seating_seats')
+        .update({ student_id: null })
+        .in('id', seatIds);
+
+      if (clearError) throw new Error(clearError.message);
+
+      // Batch assign students using individual updates (Supabase doesn't support
+      // bulk update with different values), run in parallel via Promise.all
+      const results = await Promise.all(
+        assignments.map(({ seatId, studentId }) =>
+          supabase.from('seating_seats').update({ student_id: studentId }).eq('id', seatId)
+        )
+      );
+      const failedAssign = results.find((r) => r.error);
+      if (failedAssign?.error) throw new Error(failedAssign.error.message);
+    },
+    onMutate: ({ chartId: id, assignments }) => {
+      const key = queryKeys.seatingChart.groupsByChart(id);
+      void qc.cancelQueries({ queryKey: key });
+      const previousGroups = qc.getQueryData<SeatingGroup[]>(key);
+      const assignmentBySeat = new Map(assignments.map((a) => [a.seatId, a.studentId]));
+      qc.setQueryData<SeatingGroup[]>(key, (prev) =>
+        prev
+          ? prev.map((g) => ({
+              ...g,
+              seats: g.seats.map((s) => ({
+                ...s,
+                studentId: assignmentBySeat.get(s.id) ?? null,
+              })),
+            }))
+          : prev
+      );
+      return { previousGroups };
+    },
+    onError: (_err, vars, context) => {
+      if (context?.previousGroups !== undefined) {
+        qc.setQueryData(queryKeys.seatingChart.groupsByChart(vars.chartId), context.previousGroups);
+      }
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.groupsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: randomizeAsync } = randomizeMutation;
   const randomizeAssignments = useCallback(
     async (students: Student[]) => {
       if (!chart) return;
@@ -663,82 +855,75 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
 
-      // Build assignment map for optimistic update
-      const newAssignments = new Map<string, string | null>();
-      allSeats.forEach((seat) => newAssignments.set(seat.id, null)); // Clear all first
+      const assignments: { seatId: string; studentId: string }[] = [];
       for (let i = 0; i < Math.min(shuffled.length, allSeats.length); i++) {
-        newAssignments.set(allSeats[i].id, shuffled[i].id);
+        assignments.push({ seatId: allSeats[i].id, studentId: shuffled[i].id });
       }
-
-      // Store old state for rollback
-      const oldAssignments = new Map<string, string | null>();
-      allSeats.forEach((seat) => oldAssignments.set(seat.id, seat.studentId));
-
-      // Optimistic update FIRST
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              groups: prev.groups.map((g) => ({
-                ...g,
-                seats: g.seats.map((s) => ({
-                  ...s,
-                  studentId: newAssignments.get(s.id) ?? null,
-                })),
-              })),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
 
       try {
-        // Batch clear all seats first (single query)
-        const seatIds = allSeats.map((s) => s.id);
-        const { error: clearError } = await supabase
-          .from('seating_seats')
-          .update({ student_id: null })
-          .in('id', seatIds);
-
-        if (clearError) throw new Error(clearError.message);
-
-        // Batch assign students using individual updates (Supabase doesn't support bulk update with different values)
-        // But we can run them in parallel using Promise.all
-        const assignPromises = [];
-        for (let i = 0; i < Math.min(shuffled.length, allSeats.length); i++) {
-          assignPromises.push(
-            supabase
-              .from('seating_seats')
-              .update({ student_id: shuffled[i].id })
-              .eq('id', allSeats[i].id)
-          );
-        }
-
-        const results = await Promise.all(assignPromises);
-        const failedAssign = results.find((r) => r.error);
-        if (failedAssign?.error) throw new Error(failedAssign.error.message);
-      } catch (err) {
-        // Rollback optimistic update on error
-        setChart((prev) =>
-          prev
-            ? {
-                ...prev,
-                groups: prev.groups.map((g) => ({
-                  ...g,
-                  seats: g.seats.map((s) => ({
-                    ...s,
-                    studentId: oldAssignments.get(s.id) ?? null,
-                  })),
-                })),
-              }
-            : null
-        );
-        setError(err instanceof Error ? err : new Error('Failed to randomize assignments'));
+        await randomizeAsync({
+          chartId: chart.id,
+          seatIds: allSeats.map((s) => s.id),
+          assignments,
+        });
+      } catch {
+        // Rolled back in onError; surfaced via actionError.
       }
     },
-    [chart]
+    [chart, randomizeAsync]
   );
 
-  // Add a room element
+  // ============================================
+  // Room elements
+  // ============================================
+
+  const addRoomElementMutation = useMutation<
+    RoomElement,
+    Error,
+    {
+      chartId: string;
+      type: RoomElementType;
+      label: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }
+  >({
+    mutationFn: async ({ chartId: id, type, label, x, y, width, height }) => {
+      const { data, error: insertError } = await supabase
+        .from('room_elements')
+        .insert({
+          seating_chart_id: id,
+          element_type: type,
+          label,
+          position_x: x,
+          position_y: y,
+          width,
+          height,
+          rotation: 0,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw new Error(insertError.message);
+      return dbToRoomElement(data);
+    },
+    // Post-write append reproducing the old `[...roomElements, newElement]` state write.
+    onSuccess: (newElement, vars) => {
+      void qc.cancelQueries({
+        queryKey: queryKeys.seatingChart.roomElementsByChart(vars.chartId),
+      });
+      qc.setQueryData<RoomElement[]>(
+        queryKeys.seatingChart.roomElementsByChart(vars.chartId),
+        (prev) => (prev ? [...prev, newElement] : [newElement])
+      );
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.roomElementsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: addRoomElementAsync } = addRoomElementMutation;
   const addRoomElement = useCallback(
     async (type: RoomElementType, x: number, y: number): Promise<RoomElement | null> => {
       if (!chart) return null;
@@ -761,68 +946,71 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       const clampedY = snap(clamp(y, 0, chart.canvasHeight - config.height));
 
       try {
-        const { data, error: insertError } = await supabase
-          .from('room_elements')
-          .insert({
-            seating_chart_id: chart.id,
-            element_type: type,
-            label: config.label,
-            position_x: clampedX,
-            position_y: clampedY,
-            width: config.width,
-            height: config.height,
-            rotation: 0,
-          })
-          .select()
-          .single();
-
-        if (insertError) throw new Error(insertError.message);
-
-        const newElement: RoomElement = {
-          id: data.id,
-          type: data.element_type,
-          label: data.label ?? undefined,
-          x: data.position_x,
-          y: data.position_y,
-          width: data.width,
-          height: data.height,
-          rotation: data.rotation,
-        };
-
-        // Optimistic update
-        setChart((prev) =>
-          prev
-            ? {
-                ...prev,
-                roomElements: [...prev.roomElements, newElement],
-                updatedAt: Date.now(),
-              }
-            : null
-        );
-
-        return newElement;
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to add room element'));
+        return await addRoomElementAsync({
+          chartId: chart.id,
+          type,
+          label: config.label,
+          x: clampedX,
+          y: clampedY,
+          width: config.width,
+          height: config.height,
+        });
+      } catch {
+        // Surfaced via actionError.
         return null;
       }
     },
-    [chart]
+    [chart, addRoomElementAsync]
   );
 
-  // Move a room element
+  const moveRoomElementMutation = useMutation<
+    void,
+    Error,
+    { chartId: string; id: string; x: number; y: number },
+    RoomElementsContext
+  >({
+    mutationFn: async ({ id, x, y }) => {
+      const { error: updateError } = await supabase
+        .from('room_elements')
+        .update({ position_x: x, position_y: y })
+        .eq('id', id);
+      if (updateError) throw new Error(updateError.message);
+    },
+    // Synchronous patch — same drag-end reconciliation seam as moveGroup.
+    onMutate: ({ chartId: cid, id, x, y }) => {
+      const key = queryKeys.seatingChart.roomElementsByChart(cid);
+      void qc.cancelQueries({ queryKey: key });
+      const previousRoomElements = qc.getQueryData<RoomElement[]>(key);
+      qc.setQueryData<RoomElement[]>(key, (prev) =>
+        prev ? prev.map((e) => (e.id === id ? { ...e, x, y } : e)) : prev
+      );
+      return { previousRoomElements };
+    },
+    onError: (_err, vars, context) => {
+      if (context?.previousRoomElements !== undefined) {
+        qc.setQueryData(
+          queryKeys.seatingChart.roomElementsByChart(vars.chartId),
+          context.previousRoomElements
+        );
+      }
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.roomElementsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: moveRoomElementAsync } = moveRoomElementMutation;
   const moveRoomElement = useCallback(
     async (id: string, x: number, y: number) => {
       if (!chart) return;
 
-      // Store old position for rollback
-      const oldElement = chart.roomElements.find((e) => e.id === id);
-      if (!oldElement) return;
+      const element = chart.roomElements.find((e) => e.id === id);
+      if (!element) return;
 
       // For 90°/270° rotation, visual dimensions are swapped
-      const rot = ((oldElement.rotation % 360) + 360) % 360;
+      const rot = ((element.rotation % 360) + 360) % 360;
       const is90or270 = rot === 90 || rot === 270;
-      const w = is90or270 ? oldElement.height : oldElement.width;
-      const h = is90or270 ? oldElement.width : oldElement.height;
+      const w = is90or270 ? element.height : element.width;
+      const h = is90or270 ? element.width : element.height;
 
       // Snap then clamp - snap when writing state, not just rendering
       const snap = (v: number) => Math.round(v / chart.gridSize) * chart.gridSize;
@@ -830,51 +1018,62 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       const clampedX = snap(clamp(x, 0, chart.canvasWidth - w));
       const clampedY = snap(clamp(y, 0, chart.canvasHeight - h));
 
-      // Optimistic update FIRST (prevents flicker)
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              roomElements: prev.roomElements.map((e) =>
-                e.id === id ? { ...e, x: clampedX, y: clampedY } : e
-              ),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
-
-      // Then update database
-      const { error: updateError } = await supabase
-        .from('room_elements')
-        .update({ position_x: clampedX, position_y: clampedY })
-        .eq('id', id);
-
-      if (updateError) {
-        // Rollback on error
-        setChart((prev) =>
-          prev
-            ? {
-                ...prev,
-                roomElements: prev.roomElements.map((e) =>
-                  e.id === id ? { ...e, x: oldElement.x, y: oldElement.y } : e
-                ),
-              }
-            : null
-        );
-        setError(new Error(updateError.message));
+      try {
+        await moveRoomElementAsync({
+          chartId: chart.id,
+          id,
+          x: clampedX,
+          y: clampedY,
+        });
+      } catch {
+        // Rolled back in onError; surfaced via actionError.
       }
     },
-    [chart]
+    [chart, moveRoomElementAsync]
   );
 
-  // Resize a room element
+  const resizeRoomElementMutation = useMutation<
+    void,
+    Error,
+    { chartId: string; id: string; width: number; height: number; x: number; y: number },
+    RoomElementsContext
+  >({
+    mutationFn: async ({ id, width, height, x, y }) => {
+      const { error: updateError } = await supabase
+        .from('room_elements')
+        .update({ width, height, position_x: x, position_y: y })
+        .eq('id', id);
+      if (updateError) throw new Error(updateError.message);
+    },
+    // Synchronous patch — same drag-end reconciliation seam as moveGroup.
+    onMutate: ({ chartId: cid, id, width, height, x, y }) => {
+      const key = queryKeys.seatingChart.roomElementsByChart(cid);
+      void qc.cancelQueries({ queryKey: key });
+      const previousRoomElements = qc.getQueryData<RoomElement[]>(key);
+      qc.setQueryData<RoomElement[]>(key, (prev) =>
+        prev ? prev.map((e) => (e.id === id ? { ...e, width, height, x, y } : e)) : prev
+      );
+      return { previousRoomElements };
+    },
+    onError: (_err, vars, context) => {
+      if (context?.previousRoomElements !== undefined) {
+        qc.setQueryData(
+          queryKeys.seatingChart.roomElementsByChart(vars.chartId),
+          context.previousRoomElements
+        );
+      }
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.roomElementsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: resizeRoomElementAsync } = resizeRoomElementMutation;
   const resizeRoomElement = useCallback(
     async (id: string, width: number, height: number, x?: number, y?: number) => {
       if (!chart) return;
 
-      // Store old values for rollback
-      const oldElement = chart.roomElements.find((e) => e.id === id);
-      if (!oldElement) return;
+      const element = chart.roomElements.find((e) => e.id === id);
+      if (!element) return;
 
       // Snap then clamp - snap when writing state
       const snap = (v: number) => Math.round(v / chart.gridSize) * chart.gridSize;
@@ -885,83 +1084,108 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       const newHeight = snap(clamp(height, chart.gridSize, chart.canvasHeight));
 
       // Snap x/y to grid
-      const newX = snap(clamp(x ?? oldElement.x, 0, chart.canvasWidth - newWidth));
-      const newY = snap(clamp(y ?? oldElement.y, 0, chart.canvasHeight - newHeight));
+      const newX = snap(clamp(x ?? element.x, 0, chart.canvasWidth - newWidth));
+      const newY = snap(clamp(y ?? element.y, 0, chart.canvasHeight - newHeight));
 
-      // Optimistic update FIRST
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              roomElements: prev.roomElements.map((e) =>
-                e.id === id ? { ...e, width: newWidth, height: newHeight, x: newX, y: newY } : e
-              ),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
-
-      // Then update database
-      const { error: updateError } = await supabase
-        .from('room_elements')
-        .update({ width: newWidth, height: newHeight, position_x: newX, position_y: newY })
-        .eq('id', id);
-
-      if (updateError) {
-        // Rollback on error
-        setChart((prev) =>
-          prev
-            ? {
-                ...prev,
-                roomElements: prev.roomElements.map((e) =>
-                  e.id === id
-                    ? {
-                        ...e,
-                        width: oldElement.width,
-                        height: oldElement.height,
-                        x: oldElement.x,
-                        y: oldElement.y,
-                      }
-                    : e
-                ),
-              }
-            : null
-        );
-        setError(new Error(updateError.message));
+      try {
+        await resizeRoomElementAsync({
+          chartId: chart.id,
+          id,
+          width: newWidth,
+          height: newHeight,
+          x: newX,
+          y: newY,
+        });
+      } catch {
+        // Rolled back in onError; surfaced via actionError.
       }
     },
-    [chart]
+    [chart, resizeRoomElementAsync]
   );
 
-  // Delete a room element
+  const deleteRoomElementMutation = useMutation<void, Error, { chartId: string; id: string }>({
+    mutationFn: async ({ id }) => {
+      const { error: deleteError } = await supabase.from('room_elements').delete().eq('id', id);
+      if (deleteError) throw new Error(deleteError.message);
+    },
+    // Post-write filter reproducing the old `roomElements.filter(...)` state write.
+    onSuccess: (_data, vars) => {
+      void qc.cancelQueries({
+        queryKey: queryKeys.seatingChart.roomElementsByChart(vars.chartId),
+      });
+      qc.setQueryData<RoomElement[]>(
+        queryKeys.seatingChart.roomElementsByChart(vars.chartId),
+        (prev) => (prev ? prev.filter((e) => e.id !== vars.id) : prev)
+      );
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.roomElementsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: deleteRoomElementAsync } = deleteRoomElementMutation;
   const deleteRoomElement = useCallback(
     async (id: string): Promise<boolean> => {
       if (!chart) return false;
-
-      const { error: deleteError } = await supabase.from('room_elements').delete().eq('id', id);
-
-      if (deleteError) {
-        setError(new Error(deleteError.message));
+      try {
+        await deleteRoomElementAsync({ chartId: chart.id, id });
+        return true;
+      } catch {
+        // Surfaced via actionError.
         return false;
       }
-
-      // Optimistic update
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              roomElements: prev.roomElements.filter((e) => e.id !== id),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
-
-      return true;
     },
-    [chart]
+    [chart, deleteRoomElementAsync]
   );
 
-  // Rotate a room element by 90 degrees
+  const rotateRoomElementMutation = useMutation<
+    void,
+    Error,
+    {
+      chartId: string;
+      id: string;
+      rotation: number;
+      x: number;
+      y: number;
+      positionChanged: boolean;
+    }
+  >({
+    mutationFn: async ({ id, rotation, x, y, positionChanged }) => {
+      const updateData: { rotation: number; position_x?: number; position_y?: number } = {
+        rotation,
+      };
+      if (positionChanged) {
+        updateData.position_x = x;
+        updateData.position_y = y;
+      }
+
+      const { error: updateError } = await supabase
+        .from('room_elements')
+        .update(updateData)
+        .eq('id', id);
+      if (updateError) throw new Error(updateError.message);
+    },
+    // Post-write patch reproducing the old rotation/position state write:
+    // invalidate-only loses a turn on rapid clicks (stale-cache read during the
+    // refetch gap).
+    onSuccess: (_data, vars) => {
+      void qc.cancelQueries({
+        queryKey: queryKeys.seatingChart.roomElementsByChart(vars.chartId),
+      });
+      qc.setQueryData<RoomElement[]>(
+        queryKeys.seatingChart.roomElementsByChart(vars.chartId),
+        (prev) =>
+          prev
+            ? prev.map((e) =>
+                e.id === vars.id ? { ...e, rotation: vars.rotation, x: vars.x, y: vars.y } : e
+              )
+            : prev
+      );
+    },
+    onSettled: (_data, _err, vars) =>
+      qc.invalidateQueries({ queryKey: queryKeys.seatingChart.roomElementsByChart(vars.chartId) }),
+  });
+
+  const { mutateAsync: rotateRoomElementAsync } = rotateRoomElementMutation;
   const rotateRoomElement = useCallback(
     async (id: string) => {
       if (!chart) return;
@@ -983,39 +1207,154 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       const newY = snap(clamp(element.y, 0, chart.canvasHeight - h));
       const positionChanged = newX !== element.x || newY !== element.y;
 
-      const updateData: { rotation: number; position_x?: number; position_y?: number } = {
-        rotation: newRotation,
-      };
-      if (positionChanged) {
-        updateData.position_x = newX;
-        updateData.position_y = newY;
+      try {
+        await rotateRoomElementAsync({
+          chartId: chart.id,
+          id,
+          rotation: newRotation,
+          x: newX,
+          y: newY,
+          positionChanged,
+        });
+      } catch {
+        // Surfaced via actionError.
       }
-
-      const { error: updateError } = await supabase
-        .from('room_elements')
-        .update(updateData)
-        .eq('id', id);
-
-      if (updateError) {
-        setError(new Error(updateError.message));
-        return;
-      }
-
-      // Optimistic update
-      setChart((prev) =>
-        prev
-          ? {
-              ...prev,
-              roomElements: prev.roomElements.map((e) =>
-                e.id === id ? { ...e, rotation: newRotation, x: newX, y: newY } : e
-              ),
-              updatedAt: Date.now(),
-            }
-          : null
-      );
     },
-    [chart]
+    [chart, rotateRoomElementAsync]
   );
+
+  // ============================================
+  // Presets
+  // ============================================
+
+  const applyPresetMutation = useMutation<void, Error, { chartId: string; preset: LayoutPreset }>({
+    // Write sequence preserved from the hand-rolled version, but EVERY write's
+    // { error } is checked and thrown: the failure toast must be reachable, and
+    // an unchecked mid-flight failure would silently destroy the chart (deletes
+    // committed, inserts lost, no signal). Atomicity itself is deferred (#27);
+    // onSettled invalidation converges the caches either way.
+    mutationFn: async ({ chartId: id, preset }) => {
+      // Update chart settings
+      const { error: settingsError } = await supabase
+        .from('seating_charts')
+        .update({
+          snap_enabled: preset.layoutData.settings.snapEnabled,
+          grid_size: preset.layoutData.settings.gridSize,
+          canvas_width: preset.layoutData.settings.canvasWidth,
+          canvas_height: preset.layoutData.settings.canvasHeight,
+        })
+        .eq('id', id);
+      if (settingsError) throw new Error(settingsError.message);
+
+      // Delete all existing groups (cascades to seats)
+      const { error: deleteGroupsError } = await supabase
+        .from('seating_groups')
+        .delete()
+        .eq('seating_chart_id', id);
+      if (deleteGroupsError) throw new Error(deleteGroupsError.message);
+
+      // Delete all existing room elements
+      const { error: deleteElementsError } = await supabase
+        .from('room_elements')
+        .delete()
+        .eq('seating_chart_id', id);
+      if (deleteElementsError) throw new Error(deleteElementsError.message);
+
+      // Create new groups from preset
+      for (const groupData of preset.layoutData.groups) {
+        const { error: insertGroupError } = await supabase.from('seating_groups').insert({
+          seating_chart_id: id,
+          letter: groupData.letter,
+          position_x: groupData.x,
+          position_y: groupData.y,
+          rotation: groupData.rotation,
+        });
+        if (insertGroupError) throw new Error(insertGroupError.message);
+      }
+
+      // Create new room elements from preset
+      for (const elementData of preset.layoutData.roomElements) {
+        const { error: insertElementError } = await supabase.from('room_elements').insert({
+          seating_chart_id: id,
+          element_type: elementData.type,
+          label: elementData.label,
+          position_x: elementData.x,
+          position_y: elementData.y,
+          width: elementData.width,
+          height: elementData.height,
+          rotation: elementData.rotation,
+        });
+        if (insertElementError) throw new Error(insertElementError.message);
+      }
+    },
+    // Invalidate-only refresh: the caches repopulate in the background while the
+    // previous data stays mounted, so the Editor never unmounts (no loading
+    // window, unlike the old fetchChart path which remounted it).
+    onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.seatingChart.all }),
+  });
+
+  // isPending is needed for the re-entry guard, so this wrapper's identity does
+  // churn on pending flips — required for correctness, unlike the others.
+  const { mutateAsync: applyPresetAsync, isPending: applyPresetPending } = applyPresetMutation;
+  const applyPreset = useCallback(
+    async (preset: LayoutPreset) => {
+      if (!chart) return;
+      // Re-entry guard: the write sequence is destructive and non-atomic — two
+      // concurrent applies would interleave deletes/inserts into a corrupt mix.
+      if (applyPresetPending) return;
+      try {
+        await applyPresetAsync({ chartId: chart.id, preset });
+      } catch {
+        // Surfaced via actionError.
+      }
+    },
+    [chart, applyPresetAsync, applyPresetPending]
+  );
+
+  // ============================================
+  // Action errors (mutation failures → dismissible toast)
+  // ============================================
+
+  const allMutations: { error: Error | null; reset: () => void }[] = [
+    createChartMutation,
+    updateSettingsMutation,
+    deleteChartMutation,
+    addGroupMutation,
+    moveGroupMutation,
+    deleteGroupMutation,
+    rotateGroupMutation,
+    assignStudentMutation,
+    unassignStudentMutation,
+    swapStudentsMutation,
+    randomizeMutation,
+    addRoomElementMutation,
+    moveRoomElementMutation,
+    resizeRoomElementMutation,
+    deleteRoomElementMutation,
+    rotateRoomElementMutation,
+    applyPresetMutation,
+  ];
+
+  // Derived from mutation state (never useState): first non-null mutation error.
+  const actionError = allMutations.find((m) => m.error !== null)?.error ?? null;
+
+  // Latest-ref so clearActionError stays identity-stable — ErrorToast's
+  // auto-dismiss effect depends on onDismiss, and a per-render closure would
+  // restart the toast timer on every unrelated re-render.
+  const allMutationsRef = useRef(allMutations);
+  useEffect(() => {
+    allMutationsRef.current = allMutations;
+  });
+
+  const clearActionError = useCallback(() => {
+    allMutationsRef.current.forEach((m) => {
+      if (m.error !== null) m.reset();
+    });
+  }, []);
+
+  // ============================================
+  // Computed
+  // ============================================
 
   // Computed: set of assigned student IDs
   const assignedStudentIds = useMemo(() => {
@@ -1037,67 +1376,18 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     [assignedStudentIds]
   );
 
-  // Apply a preset layout to the current chart
-  const applyPreset = useCallback(
-    async (preset: LayoutPreset) => {
-      if (!chart) return;
-
-      try {
-        // Update chart settings
-        await supabase
-          .from('seating_charts')
-          .update({
-            snap_enabled: preset.layoutData.settings.snapEnabled,
-            grid_size: preset.layoutData.settings.gridSize,
-            canvas_width: preset.layoutData.settings.canvasWidth,
-            canvas_height: preset.layoutData.settings.canvasHeight,
-          })
-          .eq('id', chart.id);
-
-        // Delete all existing groups (cascades to seats)
-        await supabase.from('seating_groups').delete().eq('seating_chart_id', chart.id);
-
-        // Delete all existing room elements
-        await supabase.from('room_elements').delete().eq('seating_chart_id', chart.id);
-
-        // Create new groups from preset
-        for (const groupData of preset.layoutData.groups) {
-          await supabase.from('seating_groups').insert({
-            seating_chart_id: chart.id,
-            letter: groupData.letter,
-            position_x: groupData.x,
-            position_y: groupData.y,
-            rotation: groupData.rotation,
-          });
-        }
-
-        // Create new room elements from preset
-        for (const elementData of preset.layoutData.roomElements) {
-          await supabase.from('room_elements').insert({
-            seating_chart_id: chart.id,
-            element_type: elementData.type,
-            label: elementData.label,
-            position_x: elementData.x,
-            position_y: elementData.y,
-            width: elementData.width,
-            height: elementData.height,
-            rotation: elementData.rotation,
-          });
-        }
-
-        // Refetch to get updated data
-        await fetchChart();
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to apply preset'));
-      }
-    },
-    [chart, fetchChart]
-  );
+  // Real refresh: invalidates all three seating caches (shared key prefix) and
+  // resolves when the active refetches complete.
+  const refetch = useCallback(async () => {
+    await qc.invalidateQueries({ queryKey: queryKeys.seatingChart.all });
+  }, [qc]);
 
   return {
     chart,
     loading,
     error,
+    actionError,
+    clearActionError,
     createChart,
     updateSettings,
     deleteChart,
@@ -1117,6 +1407,6 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     unassignedStudents,
     assignedStudentIds,
     applyPreset,
-    refetch: fetchChart,
+    refetch,
   };
 }
