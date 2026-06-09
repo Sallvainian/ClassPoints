@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { useRealtimeSubscription } from './useRealtimeSubscription';
+import { queryKeys } from '../lib/queryKeys';
 import type { Json } from '../types/database';
 import type {
   LayoutPreset,
@@ -19,152 +20,136 @@ interface UseLayoutPresetsReturn {
   refetch: () => Promise<void>;
 }
 
-export function useLayoutPresets(): UseLayoutPresetsReturn {
-  const [presets, setPresets] = useState<LayoutPreset[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+interface SavePresetInput {
+  name: string;
+  chart: SeatingChart;
+}
 
-  const fetchPresets = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+function useSaveLayoutPreset() {
+  const qc = useQueryClient();
+  return useMutation<LayoutPreset, Error, SavePresetInput>({
+    mutationFn: async ({ name, chart }) => {
+      // Extract layout data (positions only, no student assignments)
+      const layoutData: LayoutPresetData = {
+        groups: chart.groups.map((g) => ({
+          letter: g.letter,
+          x: g.x,
+          y: g.y,
+          rotation: g.rotation,
+        })),
+        roomElements: chart.roomElements.map((e) => ({
+          type: e.type,
+          label: e.label,
+          x: e.x,
+          y: e.y,
+          width: e.width,
+          height: e.height,
+          rotation: e.rotation,
+        })),
+        settings: {
+          snapEnabled: chart.snapEnabled,
+          gridSize: chart.gridSize,
+          canvasWidth: chart.canvasWidth,
+          canvasHeight: chart.canvasHeight,
+        },
+      };
 
-    try {
-      const { data, error: queryError } = await supabase
+      // Get current user ID for RLS
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data, error: insertError } = await supabase
         .from('layout_presets')
-        .select('*')
-        .order('name', { ascending: true });
+        .insert({
+          name,
+          user_id: user.id,
+          layout_data: layoutData as unknown as Json,
+        })
+        .select()
+        .single();
 
-      if (queryError) {
-        throw new Error(queryError.message);
-      }
+      if (insertError) throw new Error(insertError.message);
 
-      const layoutPresets = (data || []).map((p) => dbToLayoutPreset(p as DbLayoutPreset));
-      setPresets(layoutPresets);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch presets'));
-      setPresets([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    // TEMP(set-state-in-effect): inline disable is temporary, pending migration of
-    // this hook to TanStack useQuery (deferred item #11), which removes the
-    // fetch-in-effect entirely. Remove the disable when #11 lands.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchPresets();
-  }, [fetchPresets]);
-
-  // Real-time subscription
-  useRealtimeSubscription<DbLayoutPreset>({
-    table: 'layout_presets',
-    onInsert: (preset) => {
-      setPresets((prev) => {
-        if (prev.some((p) => p.id === preset.id)) return prev;
-        const newPreset = dbToLayoutPreset(preset);
-        return [...prev, newPreset].sort((a, b) => a.name.localeCompare(b.name));
-      });
+      return dbToLayoutPreset(data as DbLayoutPreset);
     },
-    onUpdate: (preset) => {
-      setPresets((prev) =>
-        prev
-          .map((p) => (p.id === preset.id ? dbToLayoutPreset(preset) : p))
-          .sort((a, b) => a.name.localeCompare(b.name))
-      );
-    },
-    onDelete: ({ id }) => {
-      setPresets((prev) => prev.filter((p) => p.id !== id));
-    },
+    // RETURNING the invalidate promise makes mutateAsync await the list refetch,
+    // so callers observe the refreshed (server-sorted) list on settle.
+    onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.layoutPresets.all }),
   });
+}
 
-  // Save current chart layout as a preset
-  const savePreset = useCallback(
-    async (name: string, chart: SeatingChart): Promise<LayoutPreset | null> => {
-      try {
-        // Extract layout data (positions only, no student assignments)
-        const layoutData: LayoutPresetData = {
-          groups: chart.groups.map((g) => ({
-            letter: g.letter,
-            x: g.x,
-            y: g.y,
-            rotation: g.rotation,
-          })),
-          roomElements: chart.roomElements.map((e) => ({
-            type: e.type,
-            label: e.label,
-            x: e.x,
-            y: e.y,
-            width: e.width,
-            height: e.height,
-            rotation: e.rotation,
-          })),
-          settings: {
-            snapEnabled: chart.snapEnabled,
-            gridSize: chart.gridSize,
-            canvasWidth: chart.canvasWidth,
-            canvasHeight: chart.canvasHeight,
-          },
-        };
-
-        // Get current user ID for RLS
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        const { data, error: insertError } = await supabase
-          .from('layout_presets')
-          .insert({
-            name,
-            user_id: user.id,
-            layout_data: layoutData as unknown as Json,
-          })
-          .select()
-          .single();
-
-        if (insertError) throw new Error(insertError.message);
-
-        const newPreset = dbToLayoutPreset(data as DbLayoutPreset);
-
-        setPresets((prev) => {
-          if (prev.some((p) => p.id === newPreset.id)) return prev;
-          return [...prev, newPreset].sort((a, b) => a.name.localeCompare(b.name));
-        });
-
-        return newPreset;
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to save preset'));
-        return null;
-      }
-    },
-    []
-  );
-
-  // Delete a preset
-  const deletePreset = useCallback(async (presetId: string): Promise<boolean> => {
-    try {
+function useDeleteLayoutPreset() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (presetId) => {
       const { error: deleteError } = await supabase
         .from('layout_presets')
         .delete()
         .eq('id', presetId);
 
       if (deleteError) throw new Error(deleteError.message);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.layoutPresets.all }),
+  });
+}
 
-      setPresets((prev) => prev.filter((p) => p.id !== presetId));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to delete preset'));
-      return false;
-    }
-  }, []);
+export function useLayoutPresets(): UseLayoutPresetsReturn {
+  const query = useQuery<LayoutPreset[], Error>({
+    queryKey: queryKeys.layoutPresets.all,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('layout_presets')
+        .select('*')
+        .order('name', { ascending: true });
+      if (error) throw new Error(error.message);
+      return (data ?? []).map((p) => dbToLayoutPreset(p as DbLayoutPreset));
+    },
+  });
+
+  const saveMutation = useSaveLayoutPreset();
+  const deleteMutation = useDeleteLayoutPreset();
+
+  const { mutateAsync: saveAsync } = saveMutation;
+  const { mutateAsync: deleteAsync } = deleteMutation;
+  const { refetch: refetchQuery } = query;
+
+  // Wrappers preserve the legacy result contract (null / boolean instead of throw)
+  // so the sole consumer (SeatingChartView) is untouched.
+  const savePreset = useCallback(
+    async (name: string, chart: SeatingChart): Promise<LayoutPreset | null> => {
+      try {
+        return await saveAsync({ name, chart });
+      } catch {
+        return null;
+      }
+    },
+    [saveAsync]
+  );
+
+  const deletePreset = useCallback(
+    async (presetId: string): Promise<boolean> => {
+      try {
+        await deleteAsync(presetId);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [deleteAsync]
+  );
+
+  const refetch = useCallback(async (): Promise<void> => {
+    await refetchQuery();
+  }, [refetchQuery]);
 
   return {
-    presets,
-    loading,
-    error,
+    presets: query.data ?? [],
+    loading: query.isPending,
+    error: query.error ?? saveMutation.error ?? deleteMutation.error,
     savePreset,
     deletePreset,
-    refetch: fetchPresets,
+    refetch,
   };
 }
