@@ -27,9 +27,9 @@ import type { PointTransaction as DbPointTransaction } from '../types/database';
 // .on('postgres_changes', config, handler) registers a record; removeChannel marks
 // it inactive (so the count is StrictMode/remount-safe). After #23 the unique
 // signature of a useStudents mount is its { table: 'students' } subscription —
-// useTransactions watches point_transactions (useTransactions.ts:56), useLayoutPresets
-// watches layout_presets, and useClassrooms no longer subscribes (resolved deferred
-// #4) — so net-active students-table subs == live useStudents mounts.
+// useTransactions watches point_transactions (useTransactions.ts:56), and
+// useClassrooms no longer subscribes (resolved deferred #4) — so net-active
+// students-table subs == live useStudents mounts.
 
 interface ChannelRecord {
   config: { table?: string; event?: string } | null;
