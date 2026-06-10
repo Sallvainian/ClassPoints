@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import type { Student } from '../types';
-import type { UpdateSeatingChart } from '../types/database';
+import type { Json, UpdateSeatingChart } from '../types/database';
 import type {
   SeatingChart,
   SeatingGroup,
@@ -582,18 +582,17 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     { chartId: string; studentId: string; seatId: string; currentSeatId: string | null },
     GroupsContext
   >({
-    mutationFn: async ({ studentId, seatId, currentSeatId }) => {
-      // Deliberately unchecked, matching the original: the clear-write on the
-      // student's previous seat never had error handling.
-      if (currentSeatId) {
-        await supabase.from('seating_seats').update({ student_id: null }).eq('id', currentSeatId);
-      }
-
-      const { error: updateError } = await supabase
-        .from('seating_seats')
-        .update({ student_id: studentId })
-        .eq('id', seatId);
-      if (updateError) throw new Error(updateError.message);
+    // Single-transaction RPC (deferred #27): clear-then-set commits atomically;
+    // the server clears by student + chart scope, so `currentSeatId` is a dead
+    // input kept only to leave the mutation input type and wrapper untouched.
+    // Raw PostgREST error preserved (`throw error`) so `.code`/`details` survive.
+    mutationFn: async ({ chartId: id, studentId, seatId }) => {
+      const { error: rpcError } = await supabase.rpc('seating_assign_student', {
+        p_chart_id: id,
+        p_seat_id: seatId,
+        p_student_id: studentId,
+      });
+      if (rpcError) throw rpcError;
     },
     // Synchronous patch for instant feedback (see moveGroup's onMutate note).
     onMutate: ({ chartId: id, studentId, seatId }) => {
@@ -711,25 +710,16 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     },
     GroupsContext
   >({
-    mutationFn: async ({ seatId1, seatId2, student1Id, student2Id }) => {
-      // Clear both seats first to avoid unique constraint violation
-      await supabase
-        .from('seating_seats')
-        .update({ student_id: null })
-        .in('id', [seatId1, seatId2]);
-
-      // Then set the swapped values
-      const { error: error1 } = await supabase
-        .from('seating_seats')
-        .update({ student_id: student2Id })
-        .eq('id', seatId1);
-
-      const { error: error2 } = await supabase
-        .from('seating_seats')
-        .update({ student_id: student1Id })
-        .eq('id', seatId2);
-
-      if (error1 || error2) throw new Error('Failed to swap students');
+    // Single-transaction RPC (deferred #27): the server reads both occupants
+    // under FOR UPDATE and swaps atomically — no half-swap. `student1Id` /
+    // `student2Id` are NOT sent (server reads truth) but stay in the input
+    // type because onMutate's optimistic patch reads them.
+    mutationFn: async ({ seatId1, seatId2 }) => {
+      const { error: rpcError } = await supabase.rpc('seating_swap_students', {
+        p_seat_id_1: seatId1,
+        p_seat_id_2: seatId2,
+      });
+      if (rpcError) throw rpcError;
     },
     onMutate: ({ chartId: id, seatId1, seatId2, student1Id, student2Id }) => {
       const key = queryKeys.seatingChart.groupsByChart(id);
@@ -790,24 +780,20 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     { chartId: string; seatIds: string[]; assignments: { seatId: string; studentId: string }[] },
     GroupsContext
   >({
-    mutationFn: async ({ seatIds, assignments }) => {
-      // Batch clear all seats first (single query)
-      const { error: clearError } = await supabase
-        .from('seating_seats')
-        .update({ student_id: null })
-        .in('id', seatIds);
-
-      if (clearError) throw new Error(clearError.message);
-
-      // Batch assign students using individual updates (Supabase doesn't support
-      // bulk update with different values), run in parallel via Promise.all
-      const results = await Promise.all(
-        assignments.map(({ seatId, studentId }) =>
-          supabase.from('seating_seats').update({ student_id: studentId }).eq('id', seatId)
-        )
-      );
-      const failedAssign = results.find((r) => r.error);
-      if (failedAssign?.error) throw new Error(failedAssign.error.message);
+    // Single-transaction RPC (deferred #27): clear-all + apply commit
+    // atomically — no partial assignment. Wire format is snake_case keys
+    // matching the server recordset ({seatId, studentId} → {seat_id,
+    // student_id}). The server clears ALL chart seats itself, so `seatIds` is
+    // a dead input kept only to leave the input type and wrapper untouched.
+    mutationFn: async ({ chartId: id, assignments }) => {
+      const { error: rpcError } = await supabase.rpc('seating_randomize', {
+        p_chart_id: id,
+        p_assignments: assignments.map(({ seatId, studentId }) => ({
+          seat_id: seatId,
+          student_id: studentId,
+        })),
+      });
+      if (rpcError) throw rpcError;
     },
     onMutate: ({ chartId: id, assignments }) => {
       const key = queryKeys.seatingChart.groupsByChart(id);
@@ -1228,64 +1214,21 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
   // ============================================
 
   const applyPresetMutation = useMutation<void, Error, { chartId: string; preset: LayoutPreset }>({
-    // Write sequence preserved from the hand-rolled version, but EVERY write's
-    // { error } is checked and thrown: the failure toast must be reachable, and
-    // an unchecked mid-flight failure would silently destroy the chart (deletes
-    // committed, inserts lost, no signal). Atomicity itself is deferred (#27);
-    // onSettled invalidation converges the caches either way.
+    // Single-transaction RPC (deferred #27): settings update, group/element
+    // deletes, and reinserts commit atomically — a mid-sequence failure rolls
+    // back EVERYTHING (deletes included), so the chart can no longer be wiped
+    // by a partial apply. The server validates the layout jsonb shape BEFORE
+    // any write (#27 addendum, edge-5) and its RAISE messages surface via the
+    // actionError toast; onSettled invalidation converges the caches either way.
     mutationFn: async ({ chartId: id, preset }) => {
-      // Update chart settings
-      const { error: settingsError } = await supabase
-        .from('seating_charts')
-        .update({
-          snap_enabled: preset.layoutData.settings.snapEnabled,
-          grid_size: preset.layoutData.settings.gridSize,
-          canvas_width: preset.layoutData.settings.canvasWidth,
-          canvas_height: preset.layoutData.settings.canvasHeight,
-        })
-        .eq('id', id);
-      if (settingsError) throw new Error(settingsError.message);
-
-      // Delete all existing groups (cascades to seats)
-      const { error: deleteGroupsError } = await supabase
-        .from('seating_groups')
-        .delete()
-        .eq('seating_chart_id', id);
-      if (deleteGroupsError) throw new Error(deleteGroupsError.message);
-
-      // Delete all existing room elements
-      const { error: deleteElementsError } = await supabase
-        .from('room_elements')
-        .delete()
-        .eq('seating_chart_id', id);
-      if (deleteElementsError) throw new Error(deleteElementsError.message);
-
-      // Create new groups from preset
-      for (const groupData of preset.layoutData.groups) {
-        const { error: insertGroupError } = await supabase.from('seating_groups').insert({
-          seating_chart_id: id,
-          letter: groupData.letter,
-          position_x: groupData.x,
-          position_y: groupData.y,
-          rotation: groupData.rotation,
-        });
-        if (insertGroupError) throw new Error(insertGroupError.message);
-      }
-
-      // Create new room elements from preset
-      for (const elementData of preset.layoutData.roomElements) {
-        const { error: insertElementError } = await supabase.from('room_elements').insert({
-          seating_chart_id: id,
-          element_type: elementData.type,
-          label: elementData.label,
-          position_x: elementData.x,
-          position_y: elementData.y,
-          width: elementData.width,
-          height: elementData.height,
-          rotation: elementData.rotation,
-        });
-        if (insertElementError) throw new Error(insertElementError.message);
-      }
+      // layoutData is sent AS-IS (camelCase keys; the server maps them to
+      // columns). The Json cast mirrors the layout_data write boundary in
+      // useLayoutPresets (:68) — runtime validation of this JSONB is #15.
+      const { error: rpcError } = await supabase.rpc('seating_apply_preset', {
+        p_chart_id: id,
+        p_layout: preset.layoutData as unknown as Json,
+      });
+      if (rpcError) throw rpcError;
     },
     // Invalidate-only refresh: the caches repopulate in the background while the
     // previous data stays mounted, so the Editor never unmounts (no loading
@@ -1299,8 +1242,10 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
   const applyPreset = useCallback(
     async (preset: LayoutPreset) => {
       if (!chart) return;
-      // Re-entry guard: the write sequence is destructive and non-atomic — two
-      // concurrent applies would interleave deletes/inserts into a corrupt mix.
+      // Re-entry guard: the RPC is atomic and serializes on the chart row, so
+      // interleaved corruption is off the table — the guard remains to avoid
+      // firing a redundant second RPC (and its extra invalidation round) on a
+      // double-click.
       if (applyPresetPending) return;
       try {
         await applyPresetAsync({ chartId: chart.id, preset });

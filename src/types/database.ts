@@ -418,6 +418,38 @@ export interface Database {
           this_week_total: number;
         }[];
       };
+      // Atomic seating multi-write RPCs (deferred #27) — all RETURNS void.
+      seating_assign_student: {
+        Args: {
+          p_chart_id: string;
+          p_seat_id: string;
+          p_student_id: string;
+        };
+        Returns: undefined;
+      };
+      seating_swap_students: {
+        Args: {
+          p_seat_id_1: string;
+          p_seat_id_2: string;
+        };
+        Returns: undefined;
+      };
+      seating_randomize: {
+        Args: {
+          p_chart_id: string;
+          // jsonb array of { seat_id: uuid, student_id: uuid }
+          p_assignments: Json;
+        };
+        Returns: undefined;
+      };
+      seating_apply_preset: {
+        Args: {
+          p_chart_id: string;
+          // layout_data jsonb, camelCase keys as stored
+          p_layout: Json;
+        };
+        Returns: undefined;
+      };
     };
     Enums: {
       behavior_category: BehaviorCategory;
