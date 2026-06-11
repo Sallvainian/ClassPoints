@@ -1222,8 +1222,10 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     // actionError toast; onSettled invalidation converges the caches either way.
     mutationFn: async ({ chartId: id, preset }) => {
       // layoutData is sent AS-IS (camelCase keys; the server maps them to
-      // columns). The Json cast mirrors the layout_data write boundary in
-      // useLayoutPresets (:68) — runtime validation of this JSONB is #15.
+      // columns). The payload comes from the list cache, already Zod-validated
+      // at the queryFn boundary (#15, implemented). The Json cast mirrors the
+      // layout_data write boundary in useLayoutPresets (:86) — write-direction
+      // serialization of already-validated data.
       const { error: rpcError } = await supabase.rpc('seating_apply_preset', {
         p_chart_id: id,
         p_layout: preset.layoutData as unknown as Json,

@@ -2,11 +2,17 @@
 // ClassPoints - Seating Chart Type Definitions
 // ============================================
 
+import { z } from 'zod';
+
 // View mode for dashboard display
 export type ViewMode = 'alphabetical' | 'seating';
 
-// Room element types
-export type RoomElementType = 'teacher_desk' | 'door' | 'window' | 'countertop' | 'sink';
+// Room element types. Single const array derives BOTH the TS union and the
+// z.enum so they cannot drift. Adding a value is a coordinated change: this
+// array and the DB enum migration ship together (stale clients FILTER, not
+// crash on, presets containing newer types — see the queryFn safe-failure path).
+export const ROOM_ELEMENT_TYPES = ['teacher_desk', 'door', 'window', 'countertop', 'sink'] as const;
+export type RoomElementType = (typeof ROOM_ELEMENT_TYPES)[number];
 
 // Seating chart settings
 export interface SeatingChartSettings {
@@ -69,30 +75,43 @@ export interface LayoutPreset {
   createdAt: number;
 }
 
-// Layout preset data (positions only, no student assignments)
-export interface LayoutPresetData {
-  groups: Array<{
-    letter: string;
-    x: number;
-    y: number;
-    rotation: number;
-  }>;
-  roomElements: Array<{
-    type: RoomElementType;
-    label?: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    rotation: number;
-  }>;
-  settings: {
-    snapEnabled: boolean;
-    gridSize: number;
-    canvasWidth: number;
-    canvasHeight: number;
-  };
-}
+// Layout preset data (positions only, no student assignments).
+// Runtime schema for the layout_data JSONB column — the type below is derived
+// via z.infer from this same definition, so type and check cannot drift (#15).
+// STRICT on types, LENIENT on ranges: no range checks here — the apply-time
+// server RPC owns apply semantics, and read-side rejection of currently-loadable
+// rows would be a regression. Unknown keys are stripped (Zod default).
+// `label` is nullish: stored rows have the key ABSENT (postgrest drops
+// undefined keys); null is never written but tolerated.
+export const layoutPresetDataSchema = z.object({
+  groups: z.array(
+    z.object({
+      letter: z.string(),
+      x: z.number(),
+      y: z.number(),
+      rotation: z.number(),
+    })
+  ),
+  roomElements: z.array(
+    z.object({
+      type: z.enum(ROOM_ELEMENT_TYPES),
+      label: z.string().nullish(),
+      x: z.number(),
+      y: z.number(),
+      width: z.number(),
+      height: z.number(),
+      rotation: z.number(),
+    })
+  ),
+  settings: z.object({
+    snapEnabled: z.boolean(),
+    gridSize: z.number(),
+    canvasWidth: z.number(),
+    canvasHeight: z.number(),
+  }),
+});
+
+export type LayoutPresetData = z.infer<typeof layoutPresetDataSchema>;
 
 // Database row types (snake_case, matching Supabase)
 // Using index signature for compatibility with realtime subscription hook
@@ -147,7 +166,7 @@ export type DbLayoutPreset = {
   id: string;
   user_id: string;
   name: string;
-  layout_data: unknown; // JSON from database, needs casting
+  layout_data: unknown; // JSONB from database — validated by layoutPresetDataSchema in dbToLayoutPreset (#15)
   created_at: string;
   [key: string]: unknown;
 };
@@ -203,12 +222,34 @@ export function dbToRoomElement(element: DbRoomElement): RoomElement {
   };
 }
 
+// Named throw for layout_data validation failures (#15). Carries the preset
+// identity + ZodError so the queryFn boundary can filter-and-warn per row.
+export class LayoutPresetValidationError extends Error {
+  readonly presetId: string;
+  readonly presetName: string;
+  readonly zodError: z.ZodError;
+
+  constructor(presetId: string, presetName: string, zodError: z.ZodError) {
+    super(
+      `Invalid layout_data for preset ${presetId} (${presetName}): ${z.prettifyError(zodError)}`
+    );
+    this.name = 'LayoutPresetValidationError';
+    this.presetId = presetId;
+    this.presetName = presetName;
+    this.zodError = zodError;
+  }
+}
+
 export function dbToLayoutPreset(preset: DbLayoutPreset): LayoutPreset {
+  const parsed = layoutPresetDataSchema.safeParse(preset.layout_data);
+  if (!parsed.success) {
+    throw new LayoutPresetValidationError(preset.id, preset.name, parsed.error);
+  }
   return {
     id: preset.id,
     userId: preset.user_id,
     name: preset.name,
-    layoutData: preset.layout_data as LayoutPresetData,
+    layoutData: parsed.data,
     createdAt: new Date(preset.created_at).getTime(),
   };
 }
