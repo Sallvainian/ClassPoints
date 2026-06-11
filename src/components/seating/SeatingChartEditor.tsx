@@ -4,8 +4,12 @@ import {
   DragStartEvent,
   DragEndEvent,
   DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
   pointerWithin,
   useDraggable,
+  useSensor,
+  useSensors,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { Student } from '../../types';
@@ -622,6 +626,19 @@ export function SeatingChartEditor({
   const [draggingStudent, setDraggingStudent] = useState<Student | null>(null);
   const [scale, setScale] = useState(1);
 
+  // Supplying `sensors` REPLACES dnd-kit's defaults, so this set is the defaults
+  // plus the activation constraint: PointerSensor requires 5px of movement before
+  // a drag activates (sub-5px presses stay clicks — native click bubbles to the
+  // existing onSelect wiring instead of being swallowed by dnd-kit's
+  // click-suppressor), and KeyboardSensor is re-added deliberately (dropping it
+  // would be a silent a11y regression — Enter/Space keyboard drags are live today
+  // via its onKeyDown activator delivered through the spread {...listeners};
+  // {...attributes} only carries role/tabIndex/aria).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor)
+  );
+
   const draggingRaw = draggingStudent
     ? draggingStudent.avatarColor || getAvatarColorForName(draggingStudent.name)
     : '#6b7280';
@@ -873,6 +890,10 @@ export function SeatingChartEditor({
       if (group) {
         const newX = snapToGrid(group.x + delta.x);
         const newY = snapToGrid(group.y + delta.y);
+        // No-op belt: skip the move when the snapped target equals the group's
+        // current cached position (deliberately NOT raw delta === 0 — a small
+        // drag that snaps back to the origin is also a no-op).
+        if (newX === group.x && newY === group.y) return;
         await onMoveGroup(data.groupId, newX, newY);
       }
       return;
@@ -884,6 +905,9 @@ export function SeatingChartEditor({
       if (element) {
         const newX = snapToGrid(element.x + delta.x);
         const newY = snapToGrid(element.y + delta.y);
+        // No-op belt: skip the move when the snapped target equals the element's
+        // current cached position (deliberately NOT raw delta === 0).
+        if (newX === element.x && newY === element.y) return;
         await onMoveRoomElement(data.elementId, newX, newY);
       }
     }
@@ -900,6 +924,7 @@ export function SeatingChartEditor({
 
   return (
     <DndContext
+      sensors={sensors}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       collisionDetection={pointerWithin}
