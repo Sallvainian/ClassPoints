@@ -157,7 +157,7 @@ supabase/
     ├── 008_add_seating_charts.sql          # seating_charts (1:1 classroom), seating_groups, seating_seats, room_elements, layout_presets
     ├── 009_fix_room_element_dimensions.sql # Backfill + new defaults for teacher_desk / door
     ├── 010_add_room_element_types.sql      # ALTER TYPE room_element_type ADD VALUE — window, countertop, sink
-    ├── 011_add_student_point_totals.sql    # students.point_total/positive_total/negative_total + DB trigger + get_student_time_totals RPC
+    ├── 011_add_student_point_totals.sql    # students.point_total/positive_total/negative_total + DB trigger + get_student_time_totals RPC (RPC since dropped — superseded by the batched 20260611145458 function)
     ├── 012_add_insubordination_behavior.sql           # Insubordination default (-5, negative); idempotent INSERT...WHERE NOT EXISTS
     └── 20260429181608_harden_database_linter_findings.sql  # Supabase-CLI-generated (timestamp prefix): DROP pg_graphql, private schema, SET search_path='' on functions, tighten RPC/trigger grants
 ```

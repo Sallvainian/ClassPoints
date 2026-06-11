@@ -215,13 +215,13 @@ RLS: 4 policies — `user_id = auth.uid()`.
 
 ## RPC functions
 
-### `get_student_time_totals(p_classroom_id, p_start_of_today, p_start_of_week) → (student_id, today_total, this_week_total)[]`
+### `get_student_time_totals_all_for_user(p_start_of_today, p_start_of_week) → (classroom_id, student_id, today_total, this_week_total)[]`
 
-Returns per-student aggregates for `today_total` and `this_week_total` based on `point_transactions` since the given boundaries. Pre-filters on `created_at >= p_start_of_week` for performance.
+Returns per-student aggregates for `today_total` and `this_week_total` based on `point_transactions` since the given boundaries, for EVERY student in EVERY classroom the caller owns — ownership is bounded by the `point_transactions` RLS policy under explicit `SECURITY INVOKER` (there is no classroom param to spoof). Pre-filters on `created_at >= p_start_of_week` for performance (served by `idx_transactions_created_at`).
 
-Called by `useStudents.queryFn` (single classroom) and `useClassrooms.queryFn` (Promise.all per classroom for the home view aggregates).
+Called ONCE by `useStudents.queryFn` (rows filtered to its classroom client-side) and ONCE by `useClassrooms.queryFn` (home view aggregates). It replaced the per-classroom `get_student_time_totals(p_classroom_id, …)` — migration `20260611145458_batch_time_totals_rpc.sql` (deferred #8) created the batched function and DROPPED the legacy one in the same migration, collapsing the prior Promise.all per-classroom fan-out to one round-trip.
 
-The harden migration recreated this RPC with `SET search_path = ''` and tightened its grants: EXECUTE is revoked from `anon`/`PUBLIC` and granted explicitly to `authenticated` and `service_role`. It is the only app-facing RPC; the `update_*` and `private.*` trigger functions have EXECUTE revoked from all client roles (they run only as trigger bodies).
+Grants follow the harden-migration conventions: `SET search_path = ''`, EXECUTE revoked from `anon`/`PUBLIC` and granted explicitly to `authenticated` and `service_role`. Alongside the four atomic seating RPCs (`20260610224711`), it forms the app-facing RPC surface; the `update_*` and `private.*` trigger functions have EXECUTE revoked from all client roles (they run only as trigger bodies).
 
 ## Schema hardening (`20260429181608_harden_database_linter_findings.sql`)
 
@@ -265,7 +265,7 @@ Function schemas reflect the harden migration (`20260429181608_*`): trigger-only
 
 ## Type-system overview
 
-- `src/types/database.ts` — auto-generated Postgres types. Pattern: `Database['public']['Tables']['X']['Row' | 'Insert' | 'Update']`. Convenience aliases: `Classroom`, `NewClassroom`, `UpdateClassroom`, etc. Function aliases: `Database['public']['Functions']['get_student_time_totals']['Args' | 'Returns']`.
+- `src/types/database.ts` — auto-generated Postgres types. Pattern: `Database['public']['Tables']['X']['Row' | 'Insert' | 'Update']`. Convenience aliases: `Classroom`, `NewClassroom`, `UpdateClassroom`, etc. Function aliases: `Database['public']['Functions']['get_student_time_totals_all_for_user']['Args' | 'Returns']`.
 - `src/types/index.ts` — camelCase app shapes (`Behavior`, `Student`, `Classroom`, `PointTransaction`, `AppState`, `StudentPoints`, `UndoableAction`). `PointTransaction` carries a synthetic, session-ephemeral `failed?` marker (`:36`) set ONLY on client-side rows injected by `DashboardView` from `failedBatchStore` — never on a real DB transaction. Re-exports `*` from `./seatingChart` (cleanup target; the explicit-export rule applies to new code).
 - `src/types/seatingChart.ts` — DB types, app types, AND transforms colocated in one file (predates the boundary-separation pattern; left as-is for that domain).
 - `src/types/transforms.ts` — forward `dbToBehavior`, `dbToClassroom` (with `ClassroomAggregate` payload), `dbToStudent` (with `timeTotals` payload), `dbToPointTransaction` (passthrough — the Db shape leaks intentionally; consumers read `DbPointTransaction` directly via `useTransactions`), plus the Phase-4 app-shape (camelCase) transforms `dbStudentToApp` (`:113`) and `dbClassroomToApp` (`:134`), relocated from the dissolved AppContext `mapped*` bridges (consumed by `useAppClassrooms`/`useActiveClassroom`; thin and transitional).

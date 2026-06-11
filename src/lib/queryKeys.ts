@@ -9,8 +9,9 @@ export const queryKeys = {
   },
   students: {
     all: ['students'] as const,
-    // Phase 3: keyed payload merges students-table columns + get_student_time_totals RPC
-    // results in `useStudents.queryFn`. The prior `timeTotalsByClassroom` separate-key
+    // Phase 3: keyed payload merges students-table columns + the batched
+    // get_student_time_totals_all_for_user RPC results (filtered to this classroom)
+    // in `useStudents.queryFn`. The prior `timeTotalsByClassroom` separate-key
     // shape was never used at a call site and is dropped — time totals live inside the
     // `byClassroom` cache and are refreshed wholesale by invalidate-and-refetch on any
     // students-table realtime event (ADR-005 §7).

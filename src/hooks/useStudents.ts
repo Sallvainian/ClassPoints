@@ -6,18 +6,18 @@ import { useRealtimeSubscription } from './useRealtimeSubscription';
 import { getRandomAvatarColor } from '../utils';
 import { getDateBoundaries } from '../utils/dateUtils';
 import { dbToStudent, type StudentWithPoints } from '../types/transforms';
-import type { Student as DbStudent, NewStudent, UpdateStudent } from '../types/database';
+import type { Database, Student as DbStudent, NewStudent, UpdateStudent } from '../types/database';
 
 // Re-export so hooks/index.ts can keep the public surface intact post-migration
 // (the type itself was relocated to src/types/transforms.ts so dbToStudent and
 // useAwardPoints can import it without going through the hook layer).
 export type { StudentWithPoints };
 
-interface TimeTotalsRow {
-  student_id: string;
-  today_total: number;
-  this_week_total: number;
-}
+// Row shape of the batched time-totals RPC (deferred #8) — derived ONCE from the
+// generated Functions entry so this hook, useClassrooms, and the test mocks
+// cannot drift from src/types/database.ts.
+export type TimeTotalsRow =
+  Database['public']['Functions']['get_student_time_totals_all_for_user']['Returns'][number];
 
 export function useStudents(
   classroomId: string | null
@@ -28,12 +28,13 @@ export function useStudents(
   // SINGLE owner — useClassrooms no longer subscribes (entry #4 RESOLVED).
   // Invalidate-not-merge: any students-table realtime event (INSERT/UPDATE/DELETE)
   // refetches the list rather than hand-merging the payload. The refetch re-reads
-  // the authoritative all-time columns AND re-runs get_student_time_totals, so
-  // every counter (all-time, today, week, roster) refreshes identically. The DB
-  // trigger emits a students UPDATE on every point_transactions INSERT/DELETE
-  // (011:45-47), so this one event covers cross-device awards, undos, and roster
-  // changes. Also invalidate classrooms.all so cross-hook aggregates refresh.
-  // The per-tap get_student_time_totals refetch cost is accepted (ADR-005 §7).
+  // the authoritative all-time columns AND re-runs the batched time-totals RPC,
+  // so every counter (all-time, today, week, roster) refreshes identically. The
+  // DB trigger emits a students UPDATE on every point_transactions INSERT/DELETE
+  // (011:45-47), so this one event
+  // covers cross-device awards, undos, and roster changes. Also invalidate
+  // classrooms.all so cross-hook aggregates refresh. Per-tap refetch cost is ~1
+  // batched RPC per invalidated queryFn, O(1) in classroom count (deferred #8).
   // onReconnect runs the same refresh so events missed during a realtime drop
   // (CHANNEL_ERROR / TIMED_OUT / CLOSED → SUBSCRIBED) get a catch-up refetch —
   // this channel is now the sole cross-device refresh path.
@@ -83,23 +84,29 @@ export function useStudents(
 
       const { startOfToday, startOfWeek } = getDateBoundaries();
       // Deliberately NOT unwrap(): this RPC is a non-fatal warn-and-fallback regime — totals degrade to 0 rather than failing the roster query.
-      const { data: timeTotals, error: rpcError } = await supabase.rpc('get_student_time_totals', {
-        p_classroom_id: classroomId,
-        p_start_of_today: startOfToday.toISOString(),
-        p_start_of_week: startOfWeek.toISOString(),
-      });
+      // Batched RPC (deferred #8): returns rows for EVERY classroom the user
+      // owns; filter to this hook's classroom client-side.
+      const { data: timeTotals, error: rpcError } = await supabase.rpc(
+        'get_student_time_totals_all_for_user',
+        {
+          p_start_of_today: startOfToday.toISOString(),
+          p_start_of_week: startOfWeek.toISOString(),
+        }
+      );
       if (rpcError) {
         // Non-fatal: time totals fall back to 0; lifetime totals from columns are unaffected.
         console.warn('Failed to fetch time-based totals:', rpcError.message);
       }
 
       const timeTotalsMap = new Map<string, { today_total: number; this_week_total: number }>();
-      ((timeTotals ?? []) as TimeTotalsRow[]).forEach((t) => {
-        timeTotalsMap.set(t.student_id, {
-          today_total: t.today_total,
-          this_week_total: t.this_week_total,
+      (timeTotals ?? [])
+        .filter((t: TimeTotalsRow) => t.classroom_id === classroomId)
+        .forEach((t) => {
+          timeTotalsMap.set(t.student_id, {
+            today_total: t.today_total,
+            this_week_total: t.this_week_total,
+          });
         });
-      });
 
       return (data ?? []).map((row) =>
         dbToStudent(row, timeTotalsMap.get(row.id) ?? { today_total: 0, this_week_total: 0 })
