@@ -8,9 +8,10 @@ import * as batchKindStore from '../../lib/batchKindStore';
 import type { StudentWithPoints } from '../../types/transforms';
 import type { PointTransaction as DbPointTransaction } from '../../types/database';
 
-// useUndoableAction calls useTransactions + useStudents, both of which open
-// realtime channels and a query. Stub the supabase client so neither hits the
-// network; seeded cache data (with staleTime: Infinity) is what the hook reads.
+// useUndoableAction calls useTransactions (one realtime channel + one query);
+// the students roster is read straight from the cache via qc.getQueryData — no
+// useStudents mount. Stub the supabase client so nothing hits the network;
+// seeded cache data (with staleTime: Infinity) is what the hook reads.
 // The underlying query hooks unwrap results via unwrap() from this module, so the
 // factory spreads the REAL exports and overrides only the client. Env is stubbed
 // BEFORE importOriginal — src/lib/supabase.ts throws at eval without creds (CI's
@@ -199,6 +200,18 @@ describe('useUndoableAction.getRecentUndoableAction', () => {
       isClassWide: false,
       studentCount: 2,
     });
+  });
+
+  it('exposes the already-mounted transactions query so consumers need no second mount (deferred #22)', () => {
+    const qc = makeClient();
+    const rows = [txn({ id: 't2' }), txn({ id: 't1' })];
+    seed(qc, rows, [student()]);
+    const { result } = renderHook(() => useUndoableAction(CLASSROOM_ID), {
+      wrapper: makeWrapper(qc),
+    });
+    expect(result.current.transactionsQuery.data).toEqual(rows);
+    expect(result.current.transactionsQuery.isLoading).toBe(false);
+    expect(result.current.transactionsQuery.error).toBeNull();
   });
 
   it('falls back to "Entire Class" for an untagged batch (cross-device limitation)', () => {

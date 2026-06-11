@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { DashboardView } from '../components/dashboard/DashboardView';
 import { useStudents } from '../hooks/useStudents';
+import { useTransactions } from '../hooks/useTransactions';
 import { AppProvider } from '../contexts/AppContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { queryKeys } from '../lib/queryKeys';
@@ -41,6 +42,14 @@ const realtime = vi.hoisted(() => ({ records: [] as ChannelRecord[] }));
 
 function studentsSubscriptions(): ChannelRecord[] {
   return realtime.records.filter((r) => r.active && r.config?.table === 'students');
+}
+
+// Deferred #22 companion pin: the dashboard mounts useTransactions exactly once
+// (inside useUndoableAction, which exposes its query — DashboardView's former
+// direct mount is gone), so net-active point_transactions-table subs == live
+// useTransactions mounts. Same generic table-config capture as above.
+function pointTransactionsSubscriptions(): ChannelRecord[] {
+  return realtime.records.filter((r) => r.active && r.config?.table === 'point_transactions');
 }
 
 // The query hooks unwrap results via unwrap() from this module, so the factory
@@ -254,5 +263,30 @@ describe('Single useStudents mount per dashboard screen (IO-5 / Finding A)', () 
     );
 
     await waitFor(() => expect(studentsSubscriptions()).toHaveLength(2));
+  });
+
+  it('[P0][#22] DashboardView opens exactly one point_transactions subscription', async () => {
+    renderDashboard(makeClient());
+
+    // Reaches the main render (the student card, not the loading state).
+    expect(await screen.findByRole('button', { name: /Aaliyah/i })).toBeInTheDocument();
+
+    await waitFor(() => expect(pointTransactionsSubscriptions()).toHaveLength(1));
+  });
+
+  it('[P0][#22] control: the counter detects a second useTransactions mount (pin is not vacuous)', async () => {
+    const qc = makeClient();
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    renderHook(
+      () => {
+        useTransactions(CLASSROOM_ID);
+        useTransactions(CLASSROOM_ID);
+      },
+      { wrapper }
+    );
+
+    await waitFor(() => expect(pointTransactionsSubscriptions()).toHaveLength(2));
   });
 });
