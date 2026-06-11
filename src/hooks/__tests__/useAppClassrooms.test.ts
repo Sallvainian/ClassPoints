@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { useActiveClassroom, useAppClassrooms } from '../useAppClassrooms';
-import type { TimeTotalsRow } from '../useStudents';
+import type { TimeTotalsRow } from '../../types/database';
 
 // Closes IO-6 (the no-active-classroom no-hang guard dropped in the dissolve)
 // and pins the deferred-#8 fan-out collapse (one batched totals RPC).

@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
-import { useStudents, type TimeTotalsRow } from '../useStudents';
+import { useStudents } from '../useStudents';
+import type { TimeTotalsRow } from '../../types/database';
 import { queryKeys } from '../../lib/queryKeys';
 
 type MockPostgresPayload = {

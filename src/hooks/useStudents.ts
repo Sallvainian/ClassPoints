@@ -6,18 +6,17 @@ import { useRealtimeSubscription } from './useRealtimeSubscription';
 import { getRandomAvatarColor } from '../utils';
 import { getDateBoundaries } from '../utils/dateUtils';
 import { dbToStudent, type StudentWithPoints } from '../types/transforms';
-import type { Database, Student as DbStudent, NewStudent, UpdateStudent } from '../types/database';
+import type {
+  Student as DbStudent,
+  NewStudent,
+  TimeTotalsRow,
+  UpdateStudent,
+} from '../types/database';
 
 // Re-export so hooks/index.ts can keep the public surface intact post-migration
 // (the type itself was relocated to src/types/transforms.ts so dbToStudent and
 // useAwardPoints can import it without going through the hook layer).
 export type { StudentWithPoints };
-
-// Row shape of the batched time-totals RPC (deferred #8) — derived ONCE from the
-// generated Functions entry so this hook, useClassrooms, and the test mocks
-// cannot drift from src/types/database.ts.
-export type TimeTotalsRow =
-  Database['public']['Functions']['get_student_time_totals_all_for_user']['Returns'][number];
 
 export function useStudents(
   classroomId: string | null

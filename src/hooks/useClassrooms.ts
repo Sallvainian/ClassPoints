@@ -3,8 +3,12 @@ import { supabase, unwrap } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import { getDateBoundaries } from '../utils/dateUtils';
 import { dbToClassroom, type ClassroomWithCount, type StudentSummary } from '../types/transforms';
-import type { TimeTotalsRow } from './useStudents';
-import type { Classroom as DbClassroom, NewClassroom, UpdateClassroom } from '../types/database';
+import type {
+  Classroom as DbClassroom,
+  NewClassroom,
+  TimeTotalsRow,
+  UpdateClassroom,
+} from '../types/database';
 
 // Re-exports preserved for Phase 0/1 consumers that imported these types from this module.
 export type { ClassroomWithCount, StudentSummary };

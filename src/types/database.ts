@@ -506,3 +506,9 @@ export type UpdateRoomElement = Database['public']['Tables']['room_elements']['U
 export type LayoutPresetRow = Database['public']['Tables']['layout_presets']['Row'];
 export type NewLayoutPreset = Database['public']['Tables']['layout_presets']['Insert'];
 export type UpdateLayoutPreset = Database['public']['Tables']['layout_presets']['Update'];
+
+// Row shape of the batched time-totals RPC (deferred #8) — derived ONCE from the
+// Functions entry above so useStudents, useClassrooms, and the test mocks
+// cannot drift from it.
+export type TimeTotalsRow =
+  Database['public']['Functions']['get_student_time_totals_all_for_user']['Returns'][number];
