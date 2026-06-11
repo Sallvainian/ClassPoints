@@ -3,13 +3,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import type { Json } from '../types/database';
-import type {
-  LayoutPreset,
-  LayoutPresetData,
-  SeatingChart,
-  DbLayoutPreset,
+import type { LayoutPreset, LayoutPresetData, SeatingChart } from '../types/seatingChart';
+import {
+  dbToLayoutPreset,
+  layoutPresetDataSchema,
+  LayoutPresetValidationError,
 } from '../types/seatingChart';
-import { dbToLayoutPreset } from '../types/seatingChart';
+
+// Once-per-session warn dedupe for corrupt presets (CAP-3 safe-failure).
+// Module-level on purpose: refetches and remounts must not re-warn.
+// NOT dev-gated — prod corruption is exactly when the breadcrumb matters.
+const warnedInvalidPresetIds = new Set<string>();
 
 interface UseLayoutPresetsReturn {
   presets: LayoutPreset[];
@@ -54,6 +58,18 @@ function useSaveLayoutPreset() {
         },
       };
 
+      // Orphan prevention (#15): a NaN/Infinity coordinate JSON-serializes to
+      // null and would fail the read-side schema only AFTER persisting — an
+      // invisible, UI-undeletable row. Parse with the SAME schema BEFORE the
+      // insert so zero rows are written; the throw follows the existing
+      // wrapper contract (savePreset → null, error set).
+      const layoutParse = layoutPresetDataSchema.safeParse(layoutData);
+      if (!layoutParse.success) {
+        // Same named error as the read/return paths (unified taxonomy).
+        // No row id exists yet — sentinel id + the requested preset name.
+        throw new LayoutPresetValidationError('(pre-insert)', name, layoutParse.error);
+      }
+
       // Get current user ID for RLS
       const {
         data: { user },
@@ -65,14 +81,21 @@ function useSaveLayoutPreset() {
         .insert({
           name,
           user_id: user.id,
-          layout_data: layoutData as unknown as Json,
+          // The VALIDATED object — what is persisted is exactly what the
+          // schema passed (unknown-key stripping applies to writes too).
+          layout_data: layoutParse.data as unknown as Json,
         })
         .select()
         .single();
 
       if (insertError) throw new Error(insertError.message);
 
-      return dbToLayoutPreset(data as DbLayoutPreset);
+      // Validates the returned row's layout_data through the same schema
+      // (named throw on failure). The pre-insert parse rules out CLIENT-side
+      // garbage orphans; a server-side rewrite of layout_data between insert
+      // and return (no such trigger exists today) could still throw here.
+      // Only layout_data is schema-checked — id/name/created_at pass through.
+      return dbToLayoutPreset(data);
     },
     // RETURNING the invalidate promise makes mutateAsync await the list refetch,
     // so callers observe the refreshed (server-sorted) list on settle.
@@ -104,7 +127,32 @@ export function useLayoutPresets(): UseLayoutPresetsReturn {
         .select('*')
         .order('name', { ascending: true });
       if (error) throw new Error(error.message);
-      return (data ?? []).map((p) => dbToLayoutPreset(p as DbLayoutPreset));
+      // Per-row safe-failure (CAP-3): a corrupt layout_data row is FILTERED
+      // (valid presets still render, no query error) and warned once per
+      // preset id per session. Anything other than the named validation
+      // error still throws.
+      const presets: LayoutPreset[] = [];
+      for (const row of data ?? []) {
+        try {
+          presets.push(dbToLayoutPreset(row));
+        } catch (err) {
+          // instanceof + name fallback: under Vite HMR / duplicated module
+          // instances class identity can differ, and one corrupt row must
+          // never error the whole list.
+          const isValidationError =
+            err instanceof LayoutPresetValidationError ||
+            (err as Error | null)?.name === 'LayoutPresetValidationError';
+          if (!isValidationError) throw err;
+          const invalid = err as LayoutPresetValidationError;
+          if (!warnedInvalidPresetIds.has(invalid.presetId)) {
+            warnedInvalidPresetIds.add(invalid.presetId);
+            // invalid.message already embeds id + name + the prettified
+            // issue summary — log it once, in one coherent line.
+            console.warn(`[layout-presets] dropped invalid preset: ${invalid.message}`);
+          }
+        }
+      }
+      return presets;
     },
   });
 

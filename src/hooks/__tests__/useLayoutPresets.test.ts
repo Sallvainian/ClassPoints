@@ -289,6 +289,90 @@ describe('useLayoutPresets', () => {
     expect(useLayoutPresetsSource).not.toMatch(/\.channel\(/);
   });
 
+  // --- #15 runtime validation boundary (spec-payload-runtime-validation) ---
+  // NOTE: the once-per-session warn dedupe is a module-level Set shared across
+  // tests in this file — each test below uses UNIQUE corrupt preset ids.
+
+  it('[P1][CAP-3] filters a corrupt row, keeps valid presets, warns once incl. on refetch (no query error)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const corrupt = dbPreset({
+      id: 'corrupt-list-1',
+      name: 'Mangled',
+      layout_data: { bogus: 1 }, // missing groups/roomElements/settings
+    });
+    mocks.listResult.mockResolvedValue({
+      data: [dbPreset({ id: 'preset-1', name: 'Alpha' }), corrupt],
+      error: null,
+    });
+
+    const { result } = renderHook(() => useLayoutPresets(), { wrapper: makeWrapper(makeClient()) });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Corrupt preset FILTERED; valid preset still renders; no query error.
+    expect(result.current.presets.map((p) => p.id)).toEqual(['preset-1']);
+    expect(result.current.error).toBeNull();
+
+    // Exactly ONE warn — a single coherent line carrying id + name + issue summary.
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]).toHaveLength(1);
+    expect(warnSpy.mock.calls[0][0]).toContain('corrupt-list-1');
+    expect(warnSpy.mock.calls[0][0]).toContain('Mangled');
+    expect(warnSpy.mock.calls[0][0]).toContain('groups');
+
+    // Refetch re-runs the queryFn over the same corrupt row: deduped, no second warn.
+    await act(async () => {
+      await result.current.refetch();
+    });
+    expect(mocks.listResult).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    warnSpy.mockRestore();
+  });
+
+  it('[P1][CAP-3] savePreset with NaN geometry fails BEFORE the insert: no row written, null returned, error set', async () => {
+    mocks.listResult.mockResolvedValue({ data: [], error: null });
+    const chart = makeChart();
+    chart.groups[0].x = Number.NaN; // JSON-serializes to null — the orphan-row class
+
+    const { result } = renderHook(() => useLayoutPresets(), { wrapper: makeWrapper(makeClient()) });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let saved: LayoutPreset | null = null;
+    await act(async () => {
+      saved = await result.current.savePreset('Alpha', chart);
+    });
+
+    expect(saved).toBeNull();
+    // Pre-insert parse failed → the insert chain was never invoked (zero rows written).
+    expect(mocks.insertPayload).not.toHaveBeenCalled();
+    // Unified taxonomy: the pre-insert path throws the same named error,
+    // with the sentinel id (no row exists yet) and the requested name.
+    await waitFor(() => expect(result.current.error?.name).toBe('LayoutPresetValidationError'));
+    expect(result.current.error?.message).toContain('(pre-insert)');
+    expect(result.current.error?.message).toContain('Alpha');
+  });
+
+  it('[P1][CAP-3] savePreset returns null and sets the named error when the insert returns a corrupt row', async () => {
+    mocks.listResult.mockResolvedValue({ data: [], error: null });
+    mocks.insertSingle.mockResolvedValue({
+      data: dbPreset({ id: 'corrupt-return-1', name: 'Broken', layout_data: null }),
+      error: null,
+    });
+
+    const { result } = renderHook(() => useLayoutPresets(), { wrapper: makeWrapper(makeClient()) });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let saved: LayoutPreset | null = null;
+    await act(async () => {
+      saved = await result.current.savePreset('Alpha', makeChart());
+    });
+
+    // Save-return mapping validates through dbToLayoutPreset: wrapper contract holds.
+    expect(saved).toBeNull();
+    await waitFor(() => expect(result.current.error?.name).toBe('LayoutPresetValidationError'));
+    expect(result.current.error?.message).toContain('corrupt-return-1');
+    expect(result.current.error?.message).toContain('Broken');
+  });
+
   it('[P1][CAP-1] surfaces a list query error: error set, presets empty, loading ends false', async () => {
     mocks.listResult.mockResolvedValue({ data: null, error: new Error('fetch failed') });
 
