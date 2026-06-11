@@ -363,7 +363,9 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
           .single()
       );
 
-      // Seats are auto-created by trigger, fetch them
+      // Seats are auto-created by trigger, fetch them. Deliberately NOT
+      // unwrap(): the seat fetch is non-fatal — the group degrades to empty
+      // seats on a transient failure and self-heals on the next refetch.
       const { data: seatsData } = await supabase
         .from('seating_seats')
         .select('*')

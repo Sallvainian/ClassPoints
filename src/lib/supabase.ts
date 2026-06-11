@@ -76,23 +76,34 @@ export function unwrap<T>(result: PostgrestSingleResponse<T>): T {
 }
 
 /**
+ * The shape the guard below can actually promise. `details`/`hint` are
+ * nullable here — PostgREST emits null for both in RAISE-error JSON, and the
+ * structural fallback deliberately accepts that. Everything unwrap() throws
+ * is hydrated to strings, so for post-unwrap errors the fields are plain
+ * strings in practice; the nullable type keeps the predicate sound for raw
+ * literals that never passed through unwrap().
+ */
+export type PostgrestErrorLike = {
+  message: string;
+  code: string;
+  details: string | null;
+  hint: string | null;
+};
+
+/**
  * Typed guard for PostgREST errors — gives `.code`/`details`/`hint` access
  * without casts. `instanceof` fast-path plus a structural fallback with NO
  * `name` requirement: plain error literals from postgrest-js carry
- * message/details/hint/code but no `name`. The fallback checks only the
- * PRESENCE of details/hint, deliberately accepting `null` (PostgREST emits
- * null details/hint in RAISE-error JSON). Everything unwrap() throws is
- * hydrated to strings, so the narrowed string-typed fields are truthful for
- * post-unwrap errors.
+ * message/details/hint/code but no `name`.
  */
-export function isPostgrestError(err: unknown): err is PostgrestError {
+export function isPostgrestError(err: unknown): err is PostgrestErrorLike {
   if (err instanceof PostgrestError) return true;
   if (typeof err !== 'object' || err === null) return false;
-  const candidate = err as { code?: unknown; message?: unknown };
+  const candidate = err as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
   return (
     typeof candidate.code === 'string' &&
     typeof candidate.message === 'string' &&
-    'details' in candidate &&
-    'hint' in candidate
+    (typeof candidate.details === 'string' || candidate.details === null) &&
+    (typeof candidate.hint === 'string' || candidate.hint === null)
   );
 }
