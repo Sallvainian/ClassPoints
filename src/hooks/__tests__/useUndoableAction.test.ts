@@ -11,24 +11,34 @@ import type { PointTransaction as DbPointTransaction } from '../../types/databas
 // useUndoableAction calls useTransactions + useStudents, both of which open
 // realtime channels and a query. Stub the supabase client so neither hits the
 // network; seeded cache data (with staleTime: Infinity) is what the hook reads.
-vi.mock('../../lib/supabase', () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({ order: vi.fn(() => Promise.resolve({ data: [], error: null })) })),
+// The underlying query hooks unwrap results via unwrap() from this module, so the
+// factory spreads the REAL exports and overrides only the client. Env is stubbed
+// BEFORE importOriginal — src/lib/supabase.ts throws at eval without creds (CI's
+// Unit Tests step runs credless).
+vi.mock('../../lib/supabase', async (importOriginal) => {
+  vi.stubEnv('VITE_SUPABASE_URL', 'http://127.0.0.1:54321');
+  vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'local-test-anon-key');
+  const actual = await importOriginal<typeof import('../../lib/supabase')>();
+  return {
+    ...actual,
+    supabase: {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({ order: vi.fn(() => Promise.resolve({ data: [], error: null })) })),
+        })),
       })),
-    })),
-    rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),
-    channel: vi.fn(() => {
-      const channel = {
-        on: vi.fn(() => channel),
-        subscribe: vi.fn(() => channel),
-      };
-      return channel;
-    }),
-    removeChannel: vi.fn(),
-  },
-}));
+      rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),
+      channel: vi.fn(() => {
+        const channel = {
+          on: vi.fn(() => channel),
+          subscribe: vi.fn(() => channel),
+        };
+        return channel;
+      }),
+      removeChannel: vi.fn(),
+    },
+  };
+});
 
 const CLASSROOM_ID = 'classroom-1';
 

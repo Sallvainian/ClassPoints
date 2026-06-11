@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, unwrap } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import { MANUAL_ADJUSTMENT_NAME, MANUAL_ADJUSTMENT_ICON } from '../lib/manualAdjustmentConstants';
 import { useRealtimeSubscription } from './useRealtimeSubscription';
@@ -83,12 +83,13 @@ export function useTransactions(
     enabled: !!classroomId,
     queryFn: async () => {
       if (!classroomId) return [];
-      const { data, error } = await supabase
-        .from('point_transactions')
-        .select('*')
-        .eq('classroom_id', classroomId)
-        .order('created_at', { ascending: false });
-      if (error) throw new Error(error.message);
+      const data = unwrap(
+        await supabase
+          .from('point_transactions')
+          .select('*')
+          .eq('classroom_id', classroomId)
+          .order('created_at', { ascending: false })
+      );
       return (data ?? []).map(dbToPointTransaction);
     },
   });
@@ -121,12 +122,9 @@ export function useAwardPoints() {
         note: input.note ?? null,
         batch_id: input.batchId ?? null,
       };
-      const { data, error } = await supabase
-        .from('point_transactions')
-        .insert(payload)
-        .select()
-        .single();
-      if (error) throw new Error(error.message);
+      const data = unwrap(
+        await supabase.from('point_transactions').insert(payload).select().single()
+      );
       return dbToPointTransaction(data);
     },
     onMutate: async (input) => {
@@ -275,11 +273,12 @@ export function useAwardPointsBatch() {
       }));
       // ONE statement → atomic all-or-none. Bare `.select()`, NOT `.single()`:
       // N rows are expected, and `.single()` throws on count ≠ 1 (a manufactured
-      // false-positive failure surface). Throw the RAW error (not
-      // `new Error(error.message)`): the PostgREST `.code` (SQLSTATE) must survive
-      // for useBatchAward's failure classification (SPEC §3) — do not "tidy" it.
-      const { data, error } = await supabase.from('point_transactions').insert(rows).select();
-      if (error) throw error;
+      // false-positive failure surface). unwrap() preserves the PostgREST error
+      // metadata (Error instances rethrown by identity; plain literals hydrated
+      // into a real PostgrestError): the SQLSTATE `.code` must survive for
+      // useBatchAward's failure classification (SPEC §3) — never flatten it to
+      // `new Error(error.message)`.
+      const data = unwrap(await supabase.from('point_transactions').insert(rows).select());
       return (data ?? []).map(dbToPointTransaction);
     },
     onMutate: async (input) => {
@@ -402,8 +401,7 @@ export function useUndoTransaction() {
   const qc = useQueryClient();
   return useMutation<void, Error, string>({
     mutationFn: async (id) => {
-      const { error } = await supabase.from('point_transactions').delete().eq('id', id);
-      if (error) throw new Error(error.message);
+      unwrap(await supabase.from('point_transactions').delete().eq('id', id));
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
@@ -417,11 +415,7 @@ export function useClearStudentPoints() {
   const qc = useQueryClient();
   return useMutation<void, Error, string>({
     mutationFn: async (studentId) => {
-      const { error } = await supabase
-        .from('point_transactions')
-        .delete()
-        .eq('student_id', studentId);
-      if (error) throw new Error(error.message);
+      unwrap(await supabase.from('point_transactions').delete().eq('student_id', studentId));
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
@@ -444,6 +438,7 @@ export function useUndoBatchTransaction() {
       // Guard explicitly; wrappers should never reach this path, but defense in depth.
       if (!batchId) throw new Error('useUndoBatchTransaction: batchId required');
       const { error } = await supabase.from('point_transactions').delete().eq('batch_id', batchId);
+      // Deliberate curated copy that REPLACES the PostgREST message (user-facing UX) — out of unwrap()'s scope.
       if (error) {
         throw new Error('Failed to undo class award. Please try again or refresh the page.');
       }
@@ -468,6 +463,7 @@ export function useResetClassroomPoints() {
         .from('point_transactions')
         .delete()
         .eq('classroom_id', classroomId);
+      // Deliberate curated copy that REPLACES the PostgREST message (user-facing UX) — out of unwrap()'s scope.
       if (error) throw new Error('Failed to reset points. Please try again.');
     },
     onSettled: () => {
@@ -513,6 +509,7 @@ export function useAdjustStudentPoints() {
         .select()
         .single();
 
+      // Deliberate curated copy that REPLACES the PostgREST message (user-facing UX) — out of unwrap()'s scope.
       if (error) throw new Error('Failed to adjust points. Please try again.');
       return dbToPointTransaction(data);
     },

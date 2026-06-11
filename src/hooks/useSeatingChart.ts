@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, unwrap } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import type { Student } from '../types';
 import type { Json, UpdateSeatingChart } from '../types/database';
@@ -112,13 +112,13 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     queryFn: async () => {
       if (!classroomId) return null;
 
-      const { data, error: chartError } = await supabase
-        .from('seating_charts')
-        .select('*')
-        .eq('classroom_id', classroomId)
-        .maybeSingle();
-
-      if (chartError) throw new Error(chartError.message);
+      const data = unwrap(
+        await supabase
+          .from('seating_charts')
+          .select('*')
+          .eq('classroom_id', classroomId)
+          .maybeSingle()
+      );
       if (!data) return null;
 
       // Meta row only — groups/roomElements live in their own caches and are
@@ -135,24 +135,24 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     queryFn: async () => {
       if (!chartId) return [];
 
-      const { data: groupsData, error: groupsError } = await supabase
-        .from('seating_groups')
-        .select('*')
-        .eq('seating_chart_id', chartId)
-        .order('letter', { ascending: true });
-
-      if (groupsError) throw new Error(groupsError.message);
+      const groupsData = unwrap(
+        await supabase
+          .from('seating_groups')
+          .select('*')
+          .eq('seating_chart_id', chartId)
+          .order('letter', { ascending: true })
+      );
 
       const groupIds = (groupsData ?? []).map((g) => g.id);
       let seatsData: DbSeatingSeat[] = [];
       if (groupIds.length > 0) {
-        const { data: seats, error: seatsError } = await supabase
-          .from('seating_seats')
-          .select('*')
-          .in('seating_group_id', groupIds)
-          .order('position_in_group', { ascending: true });
-
-        if (seatsError) throw new Error(seatsError.message);
+        const seats = unwrap(
+          await supabase
+            .from('seating_seats')
+            .select('*')
+            .in('seating_group_id', groupIds)
+            .order('position_in_group', { ascending: true })
+        );
         seatsData = seats ?? [];
       }
 
@@ -166,12 +166,9 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     queryFn: async () => {
       if (!chartId) return [];
 
-      const { data, error: elementsError } = await supabase
-        .from('room_elements')
-        .select('*')
-        .eq('seating_chart_id', chartId);
-
-      if (elementsError) throw new Error(elementsError.message);
+      const data = unwrap(
+        await supabase.from('room_elements').select('*').eq('seating_chart_id', chartId)
+      );
       return (data ?? []).map((e) => dbToRoomElement(e));
     },
   });
@@ -208,20 +205,20 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     mutationFn: async (name) => {
       if (!classroomId) throw new Error('No classroom selected');
 
-      const { data, error: insertError } = await supabase
-        .from('seating_charts')
-        .insert({
-          classroom_id: classroomId,
-          name,
-          snap_enabled: DEFAULT_SEATING_CHART_SETTINGS.snapEnabled,
-          grid_size: DEFAULT_SEATING_CHART_SETTINGS.gridSize,
-          canvas_width: DEFAULT_SEATING_CHART_SETTINGS.canvasWidth,
-          canvas_height: DEFAULT_SEATING_CHART_SETTINGS.canvasHeight,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw new Error(insertError.message);
+      const data = unwrap(
+        await supabase
+          .from('seating_charts')
+          .insert({
+            classroom_id: classroomId,
+            name,
+            snap_enabled: DEFAULT_SEATING_CHART_SETTINGS.snapEnabled,
+            grid_size: DEFAULT_SEATING_CHART_SETTINGS.gridSize,
+            canvas_width: DEFAULT_SEATING_CHART_SETTINGS.canvasWidth,
+            canvas_height: DEFAULT_SEATING_CHART_SETTINGS.canvasHeight,
+          })
+          .select()
+          .single()
+      );
       return dbToSeatingChart(data, [], []);
     },
     // Seed all 3 caches synchronously (matches the old synchronous state write)
@@ -272,11 +269,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     }
   >({
     mutationFn: async ({ chartId: id, updates }) => {
-      const { error: updateError } = await supabase
-        .from('seating_charts')
-        .update(updates)
-        .eq('id', id);
-      if (updateError) throw new Error(updateError.message);
+      unwrap(await supabase.from('seating_charts').update(updates).eq('id', id));
     },
     // Post-write patch reproducing the old `{ ...prev, ...settings }` state write:
     // invalidate-only would bounce the snap toggle / grid inputs for a refetch
@@ -320,8 +313,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
 
   const deleteChartMutation = useMutation<void, Error, { chartId: string; classroomId: string }>({
     mutationFn: async ({ chartId: id }) => {
-      const { error: deleteError } = await supabase.from('seating_charts').delete().eq('id', id);
-      if (deleteError) throw new Error(deleteError.message);
+      unwrap(await supabase.from('seating_charts').delete().eq('id', id));
     },
     // Post-write patch reproducing the old chart-to-null state write: the chart disappears
     // immediately instead of after the refetch RTT.
@@ -357,19 +349,19 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     { chartId: string; letter: string; x: number; y: number }
   >({
     mutationFn: async ({ chartId: id, letter, x, y }) => {
-      const { data, error: insertError } = await supabase
-        .from('seating_groups')
-        .insert({
-          seating_chart_id: id,
-          letter,
-          position_x: x,
-          position_y: y,
-          rotation: 0,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw new Error(insertError.message);
+      const data = unwrap(
+        await supabase
+          .from('seating_groups')
+          .insert({
+            seating_chart_id: id,
+            letter,
+            position_x: x,
+            position_y: y,
+            rotation: 0,
+          })
+          .select()
+          .single()
+      );
 
       // Seats are auto-created by trigger, fetch them
       const { data: seatsData } = await supabase
@@ -430,11 +422,12 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     GroupsContext
   >({
     mutationFn: async ({ groupId, x, y }) => {
-      const { error: updateError } = await supabase
-        .from('seating_groups')
-        .update({ position_x: x, position_y: y })
-        .eq('id', groupId);
-      if (updateError) throw new Error(updateError.message);
+      unwrap(
+        await supabase
+          .from('seating_groups')
+          .update({ position_x: x, position_y: y })
+          .eq('id', groupId)
+      );
     },
     // Synchronous onMutate (no awaits before the patch): the Editor's drag-end
     // reconciliation must see the committed position on drop, otherwise the
@@ -490,11 +483,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
 
   const deleteGroupMutation = useMutation<void, Error, { chartId: string; groupId: string }>({
     mutationFn: async ({ groupId }) => {
-      const { error: deleteError } = await supabase
-        .from('seating_groups')
-        .delete()
-        .eq('id', groupId);
-      if (deleteError) throw new Error(deleteError.message);
+      unwrap(await supabase.from('seating_groups').delete().eq('id', groupId));
     },
     // Post-write filter reproducing the old `groups.filter(...)` state write.
     onSuccess: (_data, vars) => {
@@ -528,11 +517,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     { chartId: string; groupId: string; rotation: number }
   >({
     mutationFn: async ({ groupId, rotation }) => {
-      const { error: updateError } = await supabase
-        .from('seating_groups')
-        .update({ rotation })
-        .eq('id', groupId);
-      if (updateError) throw new Error(updateError.message);
+      unwrap(await supabase.from('seating_groups').update({ rotation }).eq('id', groupId));
     },
     // Post-write patch reproducing the old rotation state write:
     // invalidate-only loses a turn on rapid clicks (the second click would
@@ -585,14 +570,15 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     // Single-transaction RPC (deferred #27): clear-then-set commits atomically;
     // the server clears by student + chart scope, so `currentSeatId` is a dead
     // input kept only to leave the mutation input type and wrapper untouched.
-    // Raw PostgREST error preserved (`throw error`) so `.code`/`details` survive.
+    // Errors flow through the unwrap helper, so `.code`/`details` survive.
     mutationFn: async ({ chartId: id, studentId, seatId }) => {
-      const { error: rpcError } = await supabase.rpc('seating_assign_student', {
-        p_chart_id: id,
-        p_seat_id: seatId,
-        p_student_id: studentId,
-      });
-      if (rpcError) throw rpcError;
+      unwrap(
+        await supabase.rpc('seating_assign_student', {
+          p_chart_id: id,
+          p_seat_id: seatId,
+          p_student_id: studentId,
+        })
+      );
     },
     // Synchronous patch for instant feedback (see moveGroup's onMutate note).
     onMutate: ({ chartId: id, studentId, seatId }) => {
@@ -656,11 +642,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     GroupsContext
   >({
     mutationFn: async ({ seatId }) => {
-      const { error: updateError } = await supabase
-        .from('seating_seats')
-        .update({ student_id: null })
-        .eq('id', seatId);
-      if (updateError) throw new Error(updateError.message);
+      unwrap(await supabase.from('seating_seats').update({ student_id: null }).eq('id', seatId));
     },
     onMutate: ({ chartId: id, seatId }) => {
       const key = queryKeys.seatingChart.groupsByChart(id);
@@ -715,11 +697,12 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     // `student2Id` are NOT sent (server reads truth) but stay in the input
     // type because onMutate's optimistic patch reads them.
     mutationFn: async ({ seatId1, seatId2 }) => {
-      const { error: rpcError } = await supabase.rpc('seating_swap_students', {
-        p_seat_id_1: seatId1,
-        p_seat_id_2: seatId2,
-      });
-      if (rpcError) throw rpcError;
+      unwrap(
+        await supabase.rpc('seating_swap_students', {
+          p_seat_id_1: seatId1,
+          p_seat_id_2: seatId2,
+        })
+      );
     },
     onMutate: ({ chartId: id, seatId1, seatId2, student1Id, student2Id }) => {
       const key = queryKeys.seatingChart.groupsByChart(id);
@@ -786,14 +769,15 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     // student_id}). The server clears ALL chart seats itself, so `seatIds` is
     // a dead input kept only to leave the input type and wrapper untouched.
     mutationFn: async ({ chartId: id, assignments }) => {
-      const { error: rpcError } = await supabase.rpc('seating_randomize', {
-        p_chart_id: id,
-        p_assignments: assignments.map(({ seatId, studentId }) => ({
-          seat_id: seatId,
-          student_id: studentId,
-        })),
-      });
-      if (rpcError) throw rpcError;
+      unwrap(
+        await supabase.rpc('seating_randomize', {
+          p_chart_id: id,
+          p_assignments: assignments.map(({ seatId, studentId }) => ({
+            seat_id: seatId,
+            student_id: studentId,
+          })),
+        })
+      );
     },
     onMutate: ({ chartId: id, assignments }) => {
       const key = queryKeys.seatingChart.groupsByChart(id);
@@ -877,22 +861,22 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     }
   >({
     mutationFn: async ({ chartId: id, type, label, x, y, width, height }) => {
-      const { data, error: insertError } = await supabase
-        .from('room_elements')
-        .insert({
-          seating_chart_id: id,
-          element_type: type,
-          label,
-          position_x: x,
-          position_y: y,
-          width,
-          height,
-          rotation: 0,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw new Error(insertError.message);
+      const data = unwrap(
+        await supabase
+          .from('room_elements')
+          .insert({
+            seating_chart_id: id,
+            element_type: type,
+            label,
+            position_x: x,
+            position_y: y,
+            width,
+            height,
+            rotation: 0,
+          })
+          .select()
+          .single()
+      );
       return dbToRoomElement(data);
     },
     // Post-write append reproducing the old `[...roomElements, newElement]` state write.
@@ -956,11 +940,9 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     RoomElementsContext
   >({
     mutationFn: async ({ id, x, y }) => {
-      const { error: updateError } = await supabase
-        .from('room_elements')
-        .update({ position_x: x, position_y: y })
-        .eq('id', id);
-      if (updateError) throw new Error(updateError.message);
+      unwrap(
+        await supabase.from('room_elements').update({ position_x: x, position_y: y }).eq('id', id)
+      );
     },
     // Synchronous patch — same drag-end reconciliation seam as moveGroup.
     onMutate: ({ chartId: cid, id, x, y }) => {
@@ -1025,11 +1007,12 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
     RoomElementsContext
   >({
     mutationFn: async ({ id, width, height, x, y }) => {
-      const { error: updateError } = await supabase
-        .from('room_elements')
-        .update({ width, height, position_x: x, position_y: y })
-        .eq('id', id);
-      if (updateError) throw new Error(updateError.message);
+      unwrap(
+        await supabase
+          .from('room_elements')
+          .update({ width, height, position_x: x, position_y: y })
+          .eq('id', id)
+      );
     },
     // Synchronous patch — same drag-end reconciliation seam as moveGroup.
     onMutate: ({ chartId: cid, id, width, height, x, y }) => {
@@ -1091,8 +1074,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
 
   const deleteRoomElementMutation = useMutation<void, Error, { chartId: string; id: string }>({
     mutationFn: async ({ id }) => {
-      const { error: deleteError } = await supabase.from('room_elements').delete().eq('id', id);
-      if (deleteError) throw new Error(deleteError.message);
+      unwrap(await supabase.from('room_elements').delete().eq('id', id));
     },
     // Post-write filter reproducing the old `roomElements.filter(...)` state write.
     onSuccess: (_data, vars) => {
@@ -1144,11 +1126,7 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
         updateData.position_y = y;
       }
 
-      const { error: updateError } = await supabase
-        .from('room_elements')
-        .update(updateData)
-        .eq('id', id);
-      if (updateError) throw new Error(updateError.message);
+      unwrap(await supabase.from('room_elements').update(updateData).eq('id', id));
     },
     // Post-write patch reproducing the old rotation/position state write:
     // invalidate-only loses a turn on rapid clicks (stale-cache read during the
@@ -1226,11 +1204,12 @@ export function useSeatingChart(classroomId: string | null): UseSeatingChartRetu
       // at the queryFn boundary (#15, implemented). The Json cast mirrors the
       // layout_data write boundary in useLayoutPresets (:86) — write-direction
       // serialization of already-validated data.
-      const { error: rpcError } = await supabase.rpc('seating_apply_preset', {
-        p_chart_id: id,
-        p_layout: preset.layoutData as unknown as Json,
-      });
-      if (rpcError) throw rpcError;
+      unwrap(
+        await supabase.rpc('seating_apply_preset', {
+          p_chart_id: id,
+          p_layout: preset.layoutData as unknown as Json,
+        })
+      );
     },
     // Invalidate-only refresh: the caches repopulate in the background while the
     // previous data stays mounted, so the Editor never unmounts (no loading

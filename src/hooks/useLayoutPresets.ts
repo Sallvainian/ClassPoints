@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, unwrap } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import type { Json } from '../types/database';
 import type { LayoutPreset, LayoutPresetData, SeatingChart } from '../types/seatingChart';
@@ -76,19 +76,19 @@ function useSaveLayoutPreset() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error: insertError } = await supabase
-        .from('layout_presets')
-        .insert({
-          name,
-          user_id: user.id,
-          // The VALIDATED object — what is persisted is exactly what the
-          // schema passed (unknown-key stripping applies to writes too).
-          layout_data: layoutParse.data as unknown as Json,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw new Error(insertError.message);
+      const data = unwrap(
+        await supabase
+          .from('layout_presets')
+          .insert({
+            name,
+            user_id: user.id,
+            // The VALIDATED object — what is persisted is exactly what the
+            // schema passed (unknown-key stripping applies to writes too).
+            layout_data: layoutParse.data as unknown as Json,
+          })
+          .select()
+          .single()
+      );
 
       // Validates the returned row's layout_data through the same schema
       // (named throw on failure). The pre-insert parse rules out CLIENT-side
@@ -107,12 +107,7 @@ function useDeleteLayoutPreset() {
   const qc = useQueryClient();
   return useMutation<void, Error, string>({
     mutationFn: async (presetId) => {
-      const { error: deleteError } = await supabase
-        .from('layout_presets')
-        .delete()
-        .eq('id', presetId);
-
-      if (deleteError) throw new Error(deleteError.message);
+      unwrap(await supabase.from('layout_presets').delete().eq('id', presetId));
     },
     onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.layoutPresets.all }),
   });
@@ -122,11 +117,9 @@ export function useLayoutPresets(): UseLayoutPresetsReturn {
   const query = useQuery<LayoutPreset[], Error>({
     queryKey: queryKeys.layoutPresets.all,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('layout_presets')
-        .select('*')
-        .order('name', { ascending: true });
-      if (error) throw new Error(error.message);
+      const data = unwrap(
+        await supabase.from('layout_presets').select('*').order('name', { ascending: true })
+      );
       // Per-row safe-failure (CAP-3): a corrupt layout_data row is FILTERED
       // (valid presets still render, no query error) and warned once per
       // preset id per session. Anything other than the named validation

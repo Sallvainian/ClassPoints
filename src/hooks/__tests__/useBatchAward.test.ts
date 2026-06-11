@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import { PostgrestError } from '@supabase/supabase-js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { useBatchAward } from '../useBatchAward';
@@ -24,9 +25,19 @@ vi.mock('../useTransactions', () => ({
 
 // Recovery reads chain `.from(t).select('id').eq(c, v).abortSignal(sig)`; the
 // terminal `.abortSignal` is the awaited thenable, so eqMock resolves there.
-vi.mock('../../lib/supabase', () => ({
-  supabase: { from: () => ({ select: () => ({ eq: () => ({ abortSignal: eqMock }) }) }) },
-}));
+// classifyAndRecover discriminates via isPostgrestError() from this module, so the
+// factory spreads the REAL exports (production guard stays under test) and overrides
+// only the client. Env is stubbed BEFORE importOriginal — src/lib/supabase.ts throws
+// at eval without creds (CI's Unit Tests step runs credless).
+vi.mock('../../lib/supabase', async (importOriginal) => {
+  vi.stubEnv('VITE_SUPABASE_URL', 'http://127.0.0.1:54321');
+  vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'local-test-anon-key');
+  const actual = await importOriginal<typeof import('../../lib/supabase')>();
+  return {
+    ...actual,
+    supabase: { from: () => ({ select: () => ({ eq: () => ({ abortSignal: eqMock }) }) }) },
+  };
+});
 
 const CLASSROOM_ID = 'classroom-1';
 
@@ -71,9 +82,12 @@ function seedRoster(qc: QueryClient, students: StudentWithPoints[]) {
   qc.setQueryData(queryKeys.students.byClassroom(CLASSROOM_ID), students);
 }
 
-// A server-reached failure: PostgrestError carries a SQLSTATE `.code`.
+// A server-reached failure: PostgrestError carries a SQLSTATE `.code`. A real
+// instance — exactly what the migrated mutationFn now rejects with (unwrap()
+// hydrates plain literals / rethrows instances), and what the real
+// isPostgrestError guard classifies as server-reached.
 function pgError(code: string, message = 'postgrest error') {
-  return Object.assign(new Error(message), { code });
+  return new PostgrestError({ message, details: '', hint: '', code });
 }
 
 describe('useBatchAward', () => {
@@ -205,6 +219,29 @@ describe('useBatchAward', () => {
     const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
 
     const txns = await result.current.awardClass(BEHAVIOR); // does NOT throw
+    expect(txns).toEqual([]);
+    const batchId = mockMutateAsync.mock.calls[0][0].batchId;
+    expect(batchKindStore.get(batchId)).toBe('class'); // tag kept — undo may apply
+    expect(failedBatchStore.getByClassroom(CLASSROOM_ID)).toHaveLength(0); // not recorded as failure
+  });
+
+  it("classifies a hydrated code:'' PostgrestError as network-class (pins the `code !== ''` clause)", async () => {
+    // unwrap() hydrates postgrest-js's fetch-failure / non-JSON-body literals
+    // into a real PostgrestError with `code: ''`. isPostgrestError(err) is TRUE
+    // for it, so ONLY the `&& err.code !== ''` clause keeps it network-class.
+    // Load-bearing pin: delete that clause and serverReached flips true → the
+    // roster-diff branch reads tx ids as roster ids → per-row throw → this test
+    // fails. (The TypeError-based CAP-6 test above fails isPostgrestError
+    // entirely and would NOT catch that regression.)
+    const qc = makeClient();
+    seedRoster(qc, [student({ id: 's1' }), student({ id: 's2' })]);
+    mockMutateAsync.mockRejectedValue(
+      new PostgrestError({ message: 'TypeError: Failed to fetch', details: '', hint: '', code: '' })
+    );
+    eqMock.mockResolvedValueOnce({ data: [{ id: 'tx-1' }, { id: 'tx-2' }], error: null }); // batch present
+    const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
+
+    const txns = await result.current.awardClass(BEHAVIOR); // lost-ack recovery ran → suppressed as success
     expect(txns).toEqual([]);
     const batchId = mockMutateAsync.mock.calls[0][0].batchId;
     expect(batchKindStore.get(batchId)).toBe('class'); // tag kept — undo may apply

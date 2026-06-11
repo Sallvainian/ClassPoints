@@ -55,7 +55,14 @@ vi.mock('../hooks/useSoundEffects', () => ({
   }),
 }));
 
-vi.mock('../lib/supabase', () => {
+// The query/mutation hooks unwrap results via unwrap() from this module, so the
+// factory spreads the REAL exports and overrides only the client. Env is stubbed
+// BEFORE importOriginal — src/lib/supabase.ts throws at eval without creds (CI's
+// Unit Tests step runs credless).
+vi.mock('../lib/supabase', async (importOriginal) => {
+  vi.stubEnv('VITE_SUPABASE_URL', 'http://127.0.0.1:54321');
+  vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'local-test-anon-key');
+  const actual = await importOriginal<typeof import('../lib/supabase')>();
   // Table-aware chain: behaviors SELECT -> behaviorRows; point_transactions
   // INSERT...single -> a real row; any other read -> []. channel is a bare spy so
   // the test can assert the modal opens ZERO realtime subscriptions (Finding A).
@@ -98,6 +105,7 @@ vi.mock('../lib/supabase', () => {
     return chain;
   }
   return {
+    ...actual,
     supabase: {
       from: vi.fn((table: string) => chainFor(table)),
       channel: mockChannel,

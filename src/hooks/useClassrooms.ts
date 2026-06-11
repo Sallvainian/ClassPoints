@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, unwrap } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import { getDateBoundaries } from '../utils/dateUtils';
 import { dbToClassroom, type ClassroomWithCount, type StudentSummary } from '../types/transforms';
@@ -25,11 +25,11 @@ export function useClassrooms(): UseQueryResult<ClassroomWithCount[], Error> {
           ),
       ]);
 
-      if (classroomsResult.error) throw new Error(classroomsResult.error.message);
-      if (studentsResult.error) throw new Error(studentsResult.error.message);
+      const classroomRows = unwrap(classroomsResult);
+      const studentRows = unwrap(studentsResult);
 
       const { startOfToday, startOfWeek } = getDateBoundaries();
-      const classroomIds = (classroomsResult.data ?? []).map((c) => c.id);
+      const classroomIds = (classroomRows ?? []).map((c) => c.id);
 
       const timeTotalsResults = await Promise.all(
         classroomIds.map((classroomId) =>
@@ -57,7 +57,7 @@ export function useClassrooms(): UseQueryResult<ClassroomWithCount[], Error> {
         string,
         { total: number; positive: number; negative: number; students: StudentSummary[] }
       >();
-      (studentsResult.data ?? []).forEach((s) => {
+      (studentRows ?? []).forEach((s) => {
         const current = classroomData.get(s.classroom_id) || {
           total: 0,
           positive: 0,
@@ -81,7 +81,7 @@ export function useClassrooms(): UseQueryResult<ClassroomWithCount[], Error> {
         classroomData.set(s.classroom_id, current);
       });
 
-      return (classroomsResult.data ?? []).map((c) => {
+      return (classroomRows ?? []).map((c) => {
         const data = classroomData.get(c.id) || {
           total: 0,
           positive: 0,
@@ -104,9 +104,7 @@ export function useCreateClassroom() {
   const qc = useQueryClient();
   return useMutation<DbClassroom, Error, NewClassroom>({
     mutationFn: async (input) => {
-      const { data, error } = await supabase.from('classrooms').insert(input).select().single();
-      if (error) throw new Error(error.message);
-      return data;
+      return unwrap(await supabase.from('classrooms').insert(input).select().single());
     },
     onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.classrooms.all }),
   });
@@ -123,14 +121,9 @@ export function useUpdateClassroom() {
     mutationFn: async ({ id, updates }) => {
       // Typed UpdateClassroom payload per supabase-js RejectExcessProperties
       // (reference: src/hooks/useSeatingChart.ts).
-      const { data, error } = await supabase
-        .from('classrooms')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw new Error(error.message);
-      return data;
+      return unwrap(
+        await supabase.from('classrooms').update(updates).eq('id', id).select().single()
+      );
     },
     onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.classrooms.all }),
   });
@@ -140,8 +133,7 @@ export function useDeleteClassroom() {
   const qc = useQueryClient();
   return useMutation<void, Error, string>({
     mutationFn: async (id) => {
-      const { error } = await supabase.from('classrooms').delete().eq('id', id);
-      if (error) throw new Error(error.message);
+      unwrap(await supabase.from('classrooms').delete().eq('id', id));
     },
     onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.classrooms.all }),
   });
