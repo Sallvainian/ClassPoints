@@ -14,22 +14,32 @@ import type { ClassroomWithCount, StudentSummary, StudentWithPoints } from '../.
 const mockInsertResponse =
   vi.fn<() => Promise<{ data: DbPointTransaction | null; error: Error | null }>>();
 
-vi.mock('../../lib/supabase', () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      insert: vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn(() => mockInsertResponse()),
+// The hook unwraps results via unwrap() from this module, so the factory spreads
+// the REAL exports (production unwrap stays under test) and overrides only the
+// client. Env is stubbed BEFORE importOriginal — src/lib/supabase.ts throws at
+// eval without creds (CI's Unit Tests step runs credless).
+vi.mock('../../lib/supabase', async (importOriginal) => {
+  vi.stubEnv('VITE_SUPABASE_URL', 'http://127.0.0.1:54321');
+  vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'local-test-anon-key');
+  const actual = await importOriginal<typeof import('../../lib/supabase')>();
+  return {
+    ...actual,
+    supabase: {
+      from: vi.fn(() => ({
+        insert: vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: vi.fn(() => mockInsertResponse()),
+          })),
         })),
       })),
-    })),
-    channel: vi.fn(() => ({
-      on: vi.fn().mockReturnThis(),
-      subscribe: vi.fn(),
-    })),
-    removeChannel: vi.fn(),
-  },
-}));
+      channel: vi.fn(() => ({
+        on: vi.fn().mockReturnThis(),
+        subscribe: vi.fn(),
+      })),
+      removeChannel: vi.fn(),
+    },
+  };
+});
 
 const STUDENT_ID = 'student-1';
 const CLASSROOM_ID = 'classroom-1';

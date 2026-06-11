@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAwardPointsBatch } from './useTransactions';
-import { supabase } from '../lib/supabase';
+import { supabase, isPostgrestError } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import * as batchKindStore from '../lib/batchKindStore';
 import type { BatchKind } from '../lib/batchKindStore';
@@ -60,19 +60,27 @@ type RecoverResult =
 // honest "could not confirm" state within ~2s (cf. the bounded fetch in AuthContext).
 const RECOVERY_TIMEOUT_MS = 2000;
 
-// §3 classification. The bulk mutationFn throws the raw error, so a server-reached
-// failure is a PostgrestError carrying a SQLSTATE `.code`; a network-class failure
-// (fetch rejected, no ack) has no such code. Both recovery reads are bounded by
-// AbortSignal.timeout and wrapped so an abort/throw degrades to a definite outcome
-// rather than escaping past the caller's catch.
+// §3 classification. The bulk mutationFn throws via unwrap() (metadata preserved),
+// so a server-reached failure is a PostgrestError carrying a SQLSTATE `.code`.
+// Network-class failures (no server ack — MUST trigger the lost-ack recovery,
+// CAP-6) arrive through TWO distinct mechanisms, and the guard below needs both
+// of its clauses to catch them:
+//   (i) PostgREST fetch-failure / non-JSON-body literals, hydrated by unwrap()
+//       into a PostgrestError with `code: ''` — caught by the `code !== ''`
+//       clause (isPostgrestError is TRUE for these);
+//  (ii) raw non-PostgREST rejections (TypeError 'Failed to fetch', AbortError)
+//       that fail isPostgrestError entirely — "simplifying" the guard to
+//       `err.code === ''` would break this path.
+// Both recovery reads are bounded by AbortSignal.timeout and wrapped so an
+// abort/throw degrades to a definite outcome rather than escaping past the
+// caller's catch.
 async function classifyAndRecover(
   classroomId: string,
   batchId: string,
   attempted: StudentWithPoints[],
   err: unknown
 ): Promise<RecoverResult> {
-  const code = (err as { code?: unknown } | null)?.code;
-  const serverReached = typeof code === 'string' && code !== '';
+  const serverReached = isPostgrestError(err) && err.code !== '';
 
   if (!serverReached) {
     // Network-class: no server ack. Did the rows commit anyway (at-least-once)?

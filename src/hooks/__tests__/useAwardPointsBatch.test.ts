@@ -22,20 +22,30 @@ const mockInsertResponse =
     () => Promise<{ data: DbPointTransaction[] | null; error: (Error & { code?: string }) | null }>
   >();
 
-vi.mock('../../lib/supabase', () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      insert: vi.fn(() => ({
-        select: vi.fn(() => mockInsertResponse()),
+// The mutationFn unwraps results via unwrap() from this module, so the factory
+// spreads the REAL exports (production unwrap stays under test) and overrides only
+// the client. Env is stubbed BEFORE importOriginal — src/lib/supabase.ts throws at
+// eval without creds (CI's Unit Tests step runs credless).
+vi.mock('../../lib/supabase', async (importOriginal) => {
+  vi.stubEnv('VITE_SUPABASE_URL', 'http://127.0.0.1:54321');
+  vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'local-test-anon-key');
+  const actual = await importOriginal<typeof import('../../lib/supabase')>();
+  return {
+    ...actual,
+    supabase: {
+      from: vi.fn(() => ({
+        insert: vi.fn(() => ({
+          select: vi.fn(() => mockInsertResponse()),
+        })),
       })),
-    })),
-    channel: vi.fn(() => ({
-      on: vi.fn().mockReturnThis(),
-      subscribe: vi.fn(),
-    })),
-    removeChannel: vi.fn(),
-  },
-}));
+      channel: vi.fn(() => ({
+        on: vi.fn().mockReturnThis(),
+        subscribe: vi.fn(),
+      })),
+      removeChannel: vi.fn(),
+    },
+  };
+});
 
 const CLASSROOM_ID = 'classroom-1';
 const BATCH_ID = 'batch-abc';
@@ -158,12 +168,13 @@ describe('useAwardPointsBatch — CAP-1 / ADR-005 §4 atomic-batch contract guar
     mockInsertResponse.mockReset();
   });
 
-  // BATCH.01-UNIT-01 — CAP-1 / SPEC §2 / failure-handling §1: the mutationFn does
-  // `if (error) throw error` (useTransactions.ts:282), throwing the RAW PostgREST error
-  // rather than `new Error(error.message)`. The SQLSTATE `.code` (e.g. 23503 FK violation
-  // from a concurrent student delete) MUST survive so useBatchAward's §3 failure
-  // classification can discriminate per-row vs ambient causes. A "tidy-up" to
-  // `new Error(error.message)` would strip `.code` and silently break that classification.
+  // BATCH.01-UNIT-01 — CAP-1 / SPEC §2 / failure-handling §1: the mutationFn unwraps
+  // the bulk insert via unwrap() (useTransactions.ts), which rethrows Error-instance
+  // failures BY IDENTITY and hydrates plain literals into a real PostgrestError.
+  // The SQLSTATE `.code` (e.g. 23503 FK violation from a concurrent student delete)
+  // MUST survive so useBatchAward's §3 failure classification can discriminate
+  // per-row vs ambient causes. A "tidy-up" to `new Error(error.message)` would strip
+  // `.code` and silently break that classification.
   describe('raw-error passthrough preserves SQLSTATE code', () => {
     it('[P0][BATCH.01-UNIT-01] rejects with the RAW error, preserving .code (SQLSTATE 23503)', async () => {
       const rawError = Object.assign(new Error('fk violation'), { code: '23503' });
@@ -173,8 +184,9 @@ describe('useAwardPointsBatch — CAP-1 / ADR-005 §4 atomic-batch contract guar
       const { result } = renderHook(() => useAwardPointsBatch(), { wrapper: makeWrapper(qc) });
 
       // toMatchObject is unreliable against Error subclasses; catch-to-value and assert
-      // the fields directly. `.code` is the load-bearing pin; `.message` proves it is the
-      // original error object, not a re-wrapped `new Error(error.message)`.
+      // the fields directly. `.code` is the load-bearing pin; `.message` proves unwrap()
+      // rethrew the original Error instance by identity, not a re-wrapped
+      // `new Error(error.message)`.
       let caught: unknown;
       await act(async () => {
         caught = await result.current.mutateAsync(input).catch((e) => e);

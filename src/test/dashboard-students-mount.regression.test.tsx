@@ -43,7 +43,14 @@ function studentsSubscriptions(): ChannelRecord[] {
   return realtime.records.filter((r) => r.active && r.config?.table === 'students');
 }
 
-vi.mock('../lib/supabase', () => {
+// The query hooks unwrap results via unwrap() from this module, so the factory
+// spreads the REAL exports and overrides only the client. Env is stubbed BEFORE
+// importOriginal — src/lib/supabase.ts throws at eval without creds (CI's Unit
+// Tests step runs credless).
+vi.mock('../lib/supabase', async (importOriginal) => {
+  vi.stubEnv('VITE_SUPABASE_URL', 'http://127.0.0.1:54321');
+  vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'local-test-anon-key');
+  const actual = await importOriginal<typeof import('../lib/supabase')>();
   // Caches are pre-seeded with staleTime Infinity, so queryFns should not run;
   // this permissive stub only prevents a crash if one ever does.
   const queryStub = () => {
@@ -63,6 +70,7 @@ vi.mock('../lib/supabase', () => {
     return chain;
   };
   return {
+    ...actual,
     supabase: {
       from: vi.fn(() => queryStub()),
       rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),

@@ -35,19 +35,29 @@ const mocks = vi.hoisted(() => ({
   getUser: vi.fn<() => Promise<{ data: { user: { id: string } | null } }>>(),
 }));
 
-vi.mock('../../lib/supabase', () => ({
-  supabase: {
-    auth: { getUser: mocks.getUser },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({ order: mocks.listResult })),
-      insert: vi.fn((payload: unknown) => {
-        mocks.insertPayload(payload);
-        return { select: vi.fn(() => ({ single: mocks.insertSingle })) };
-      }),
-      delete: vi.fn(() => ({ eq: mocks.deleteEq })),
-    })),
-  },
-}));
+// The hook unwraps results via unwrap() from this module, so the factory spreads
+// the REAL exports and overrides only the client. Env is stubbed BEFORE
+// importOriginal — src/lib/supabase.ts throws at eval without creds (CI's Unit
+// Tests step runs credless).
+vi.mock('../../lib/supabase', async (importOriginal) => {
+  vi.stubEnv('VITE_SUPABASE_URL', 'http://127.0.0.1:54321');
+  vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'local-test-anon-key');
+  const actual = await importOriginal<typeof import('../../lib/supabase')>();
+  return {
+    ...actual,
+    supabase: {
+      auth: { getUser: mocks.getUser },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({ order: mocks.listResult })),
+        insert: vi.fn((payload: unknown) => {
+          mocks.insertPayload(payload);
+          return { select: vi.fn(() => ({ single: mocks.insertSingle })) };
+        }),
+        delete: vi.fn(() => ({ eq: mocks.deleteEq })),
+      })),
+    },
+  };
+});
 
 const USER_ID = 'user-1';
 

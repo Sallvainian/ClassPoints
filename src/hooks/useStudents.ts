@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, unwrap } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import { useRealtimeSubscription } from './useRealtimeSubscription';
 import { getRandomAvatarColor } from '../utils';
@@ -73,14 +73,16 @@ export function useStudents(
     queryFn: async () => {
       if (!classroomId) return [];
 
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('classroom_id', classroomId)
-        .order('name', { ascending: true });
-      if (error) throw new Error(error.message);
+      const data = unwrap(
+        await supabase
+          .from('students')
+          .select('*')
+          .eq('classroom_id', classroomId)
+          .order('name', { ascending: true })
+      );
 
       const { startOfToday, startOfWeek } = getDateBoundaries();
+      // Deliberately NOT unwrap(): this RPC is a non-fatal warn-and-fallback regime — totals degrade to 0 rather than failing the roster query.
       const { data: timeTotals, error: rpcError } = await supabase.rpc('get_student_time_totals', {
         p_classroom_id: classroomId,
         p_start_of_today: startOfToday.toISOString(),
@@ -125,9 +127,7 @@ export function useAddStudent() {
         name: input.name,
         avatar_color: input.avatarColor ?? getRandomAvatarColor(),
       };
-      const { data, error } = await supabase.from('students').insert(payload).select().single();
-      if (error) throw new Error(error.message);
-      return data;
+      return unwrap(await supabase.from('students').insert(payload).select().single());
     },
     onSettled: (_data, _err, input) => {
       qc.invalidateQueries({ queryKey: queryKeys.students.byClassroom(input.classroomId) });
@@ -150,8 +150,7 @@ export function useAddStudents() {
         name,
         avatar_color: getRandomAvatarColor(),
       }));
-      const { data, error } = await supabase.from('students').insert(payload).select();
-      if (error) throw new Error(error.message);
+      const data = unwrap(await supabase.from('students').insert(payload).select());
       return data ?? [];
     },
     onSettled: (_data, _err, input) => {
@@ -172,14 +171,7 @@ export function useUpdateStudent() {
     mutationFn: async ({ id, updates }) => {
       // Typed UpdateStudent payload per supabase-js RejectExcessProperties
       // (reference: src/hooks/useSeatingChart.ts).
-      const { data, error } = await supabase
-        .from('students')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw new Error(error.message);
-      return data;
+      return unwrap(await supabase.from('students').update(updates).eq('id', id).select().single());
     },
     onSettled: () => {
       // Update doesn't carry classroomId in input; broader invalidation is acceptable
@@ -194,8 +186,7 @@ export function useRemoveStudent() {
   const qc = useQueryClient();
   return useMutation<void, Error, string>({
     mutationFn: async (id) => {
-      const { error } = await supabase.from('students').delete().eq('id', id);
-      if (error) throw new Error(error.message);
+      unwrap(await supabase.from('students').delete().eq('id', id));
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.students.all });
