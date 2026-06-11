@@ -1,10 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { useUndoableAction } from '../useUndoableAction';
 import { queryKeys } from '../../lib/queryKeys';
-import * as batchKindStore from '../../lib/batchKindStore';
 import type { StudentWithPoints } from '../../types/transforms';
 import type { PointTransaction as DbPointTransaction } from '../../types/database';
 
@@ -97,11 +96,6 @@ function seed(qc: QueryClient, transactions: DbPointTransaction[], students: Stu
 describe('useUndoableAction.getRecentUndoableAction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    batchKindStore.clear();
-  });
-
-  afterEach(() => {
-    batchKindStore.clear();
   });
 
   it('returns null when there are no transactions', () => {
@@ -152,18 +146,17 @@ describe('useUndoableAction.getRecentUndoableAction', () => {
     expect(result.current.getRecentUndoableAction()).toBeNull();
   });
 
-  it('labels a class batch "Entire Class" (default when untagged) and sums points', () => {
+  it('labels a class batch "Entire Class" from the rows\' batch_kind and sums points', () => {
     const qc = makeClient();
     const batchId = 'batch-class';
     seed(
       qc,
       [
-        txn({ id: 't1', student_id: 's1', batch_id: batchId, points: 1 }),
-        txn({ id: 't2', student_id: 's2', batch_id: batchId, points: 1 }),
+        txn({ id: 't1', student_id: 's1', batch_id: batchId, batch_kind: 'class', points: 1 }),
+        txn({ id: 't2', student_id: 's2', batch_id: batchId, batch_kind: 'class', points: 1 }),
       ],
       [student({ id: 's1' }), student({ id: 's2', name: 'Bo' })]
     );
-    batchKindStore.tag(batchId, 'class');
     const { result } = renderHook(() => useUndoableAction(CLASSROOM_ID), {
       wrapper: makeWrapper(qc),
     });
@@ -177,18 +170,17 @@ describe('useUndoableAction.getRecentUndoableAction', () => {
     });
   });
 
-  it('labels a subset batch "N students" when tagged subset', () => {
+  it('labels a subset batch "N students" from the rows\' batch_kind', () => {
     const qc = makeClient();
     const batchId = 'batch-subset';
     seed(
       qc,
       [
-        txn({ id: 't1', student_id: 's1', batch_id: batchId, points: 2 }),
-        txn({ id: 't2', student_id: 's2', batch_id: batchId, points: 2 }),
+        txn({ id: 't1', student_id: 's1', batch_id: batchId, batch_kind: 'subset', points: 2 }),
+        txn({ id: 't2', student_id: 's2', batch_id: batchId, batch_kind: 'subset', points: 2 }),
       ],
       [student({ id: 's1' }), student({ id: 's2', name: 'Bo' })]
     );
-    batchKindStore.tag(batchId, 'subset');
     const { result } = renderHook(() => useUndoableAction(CLASSROOM_ID), {
       wrapper: makeWrapper(qc),
     });
@@ -214,15 +206,34 @@ describe('useUndoableAction.getRecentUndoableAction', () => {
     expect(result.current.transactionsQuery.error).toBeNull();
   });
 
-  it('falls back to "Entire Class" for an untagged batch (cross-device limitation)', () => {
+  it('labels a subset batch from the row alone — no in-memory state (cross-device contract, deferred #7)', () => {
+    // FLIPPED from the old cross-device-limitation test: the kind now rides the
+    // row's batch_kind column, so a watching device (or a reload mid-window) that
+    // never ran the award still labels the subset correctly.
     const qc = makeClient();
-    const batchId = 'batch-untagged';
+    const batchId = 'batch-cross-device';
     seed(
       qc,
-      [txn({ id: 't1', student_id: 's1', batch_id: batchId, points: 1 })],
+      [txn({ id: 't1', student_id: 's1', batch_id: batchId, batch_kind: 'subset', points: 1 })],
       [student({ id: 's1' })]
     );
-    // No batchKindStore.tag — simulates undo on a different device / after reload.
+    const { result } = renderHook(() => useUndoableAction(CLASSROOM_ID), {
+      wrapper: makeWrapper(qc),
+    });
+    expect(result.current.getRecentUndoableAction()).toMatchObject({
+      studentName: '1 student',
+      isClassWide: false,
+    });
+  });
+
+  it('falls back to "Entire Class" for a NULL-kind batch row (legacy / old-bundle deploy window)', () => {
+    const qc = makeClient();
+    const batchId = 'batch-null-kind';
+    seed(
+      qc,
+      [txn({ id: 't1', student_id: 's1', batch_id: batchId, batch_kind: null, points: 1 })],
+      [student({ id: 's1' })]
+    );
     const { result } = renderHook(() => useUndoableAction(CLASSROOM_ID), {
       wrapper: makeWrapper(qc),
     });

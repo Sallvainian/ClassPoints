@@ -69,6 +69,7 @@ export interface Database {
       point_transactions: {
         Row: {
           batch_id: string | null;
+          batch_kind: string | null;
           behavior_icon: string;
           behavior_id: string | null;
           behavior_name: string;
@@ -81,6 +82,7 @@ export interface Database {
         };
         Insert: {
           batch_id?: string | null;
+          batch_kind?: string | null;
           behavior_icon: string;
           behavior_id?: string | null;
           behavior_name: string;
@@ -93,6 +95,7 @@ export interface Database {
         };
         Update: {
           batch_id?: string | null;
+          batch_kind?: string | null;
           behavior_icon?: string;
           behavior_id?: string | null;
           behavior_name?: string;
@@ -462,6 +465,11 @@ export interface Database {
     };
   };
 }
+
+// Value domain of point_transactions.batch_kind (deferred #7): which award entry
+// point produced a batch — 'class' (entire class) vs 'subset' (multi-select).
+// NULL on the row = single award / legacy batch → readers fall back to class-wide.
+export type BatchKind = 'class' | 'subset';
 
 // Convenience type aliases for Row types
 export type Classroom = Database['public']['Tables']['classrooms']['Row'];

@@ -3,18 +3,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAwardPointsBatch } from './useTransactions';
 import { supabase, isPostgrestError } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
-import * as batchKindStore from '../lib/batchKindStore';
-import type { BatchKind } from '../lib/batchKindStore';
 import * as failedBatchStore from '../lib/failedBatchStore';
 import type { BatchFailureClassification } from '../lib/failedBatchStore';
 import type { StudentWithPoints } from '../types/transforms';
-import type { PointTransaction as DbPointTransaction } from '../types/database';
+import type { BatchKind, PointTransaction as DbPointTransaction } from '../types/database';
 import type { Behavior as AppBehavior } from '../types';
 
 // Batch-award orchestrator (class-wide `awardClass`, multi-select `awardSubset`).
 // Reads the roster from the useStudents cache (no second subscription), mints one
-// shared batchId + timestamp, tags the kind in batchKindStore for the undo toast,
-// and fires ONE atomic multi-row insert via useAwardPointsBatch.
+// shared batchId + timestamp, and fires ONE atomic multi-row insert via
+// useAwardPointsBatch. The kind ('class' | 'subset') rides every row as the DB
+// `batch_kind` column (deferred #7) — optimistic AND committed — so the undo
+// toast labels correctly on every device; there is no in-memory kind store.
 //
 // All-or-nothing (SPEC cluster #2 fix): the prior per-student fan-out with a silent
 // `.catch(() => null)` filter is gone. awardClass/awardSubset THROW on any failure.
@@ -181,10 +181,6 @@ export function useBatchAward(classroomId: string): {
       const batchId = crypto.randomUUID();
       const timestamp = Date.now();
 
-      // Tag AFTER the caller's early-return guards (handled in awardClass/awardSubset)
-      // so no-op calls never reach here and never leak a Map entry.
-      batchKindStore.tag(batchId, kind);
-
       try {
         return await batchMutation.mutateAsync({
           classroomId,
@@ -193,20 +189,17 @@ export function useBatchAward(classroomId: string): {
           behavior,
           note,
           studentIds: attempted.map((s) => s.id),
+          batchKind: kind,
         });
       } catch (err) {
         const result = await classifyAndRecover(classroomId, batchId, attempted, err);
 
         if (result.outcome === 'committed') {
-          // CAP-6: a lost ack hid a server-side commit. Keep the tag (undo may
-          // apply) and treat as success — the mutation's onSettled invalidation
-          // already refetched the committed rows into the cache.
+          // CAP-6: a lost ack hid a server-side commit. Treat as success — the
+          // mutation's onSettled invalidation already refetched the committed
+          // rows (which carry batch_kind, so undo labels correctly) into the cache.
           return [];
         }
-
-        // Real failure → zero rows written, so undo will never reference this
-        // batchId; drop the tag to avoid a batchKindStore leak.
-        batchKindStore.forget(batchId);
 
         const message = buildMessage(result, kind, attempted.length);
         failedBatchStore.record({

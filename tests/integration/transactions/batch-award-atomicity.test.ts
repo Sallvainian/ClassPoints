@@ -66,7 +66,8 @@ async function seedStudent(classroomId: string): Promise<string> {
 // positive points so the totals trigger bumps point_total/positive_total.
 // Required NOT-NULL columns: behavior_name, behavior_icon, points,
 // classroom_id, student_id (001_initial_schema.sql:54-59). behavior_id is
-// nullable (line 56), batch_id is the CAP-5 correlation key.
+// nullable (line 56), batch_id is the CAP-5 correlation key, batch_kind is the
+// deferred-#7 undo-label kind persisted on every batch row.
 function buildBatchRows(classroomId: string, studentIds: string[], batchId: string) {
   return studentIds.map((studentId) => ({
     student_id: studentId,
@@ -77,6 +78,7 @@ function buildBatchRows(classroomId: string, studentIds: string[], batchId: stri
     points: 1,
     note: null,
     batch_id: batchId,
+    batch_kind: 'class',
   }));
 }
 
@@ -110,8 +112,11 @@ describe('Batch award atomicity integration', () => {
       expect(data).toHaveLength(studentIds.length);
 
       // CAP-5: every committed row carries the single shared batch_id.
+      // Deferred #7: every committed row also persists the batch_kind it was
+      // inserted with — the durable cross-device undo-label source.
       for (const row of data!) {
         expect(row.batch_id).toBe(batchId);
+        expect(row.batch_kind).toBe('class');
       }
 
       // SPEC success signal: SELECT WHERE batch_id = X shows exactly N rows.
@@ -234,6 +239,48 @@ describe('Batch award atomicity integration', () => {
         expect(after.positive_total).toBe(preBatch[i].positive_total);
         expect(after.negative_total).toBe(preBatch[i].negative_total);
       }
+    } finally {
+      await classrooms.cleanup();
+      await users.cleanup();
+    }
+  });
+
+  it('[P1][BATCH.01-INT-04] rejects a bogus batch_kind with CHECK 23514 on the named constraint (deferred #7)', async () => {
+    // Pins migration 20260611173650_add_batch_kind.sql: batch_kind is constrained
+    // to ('class','subset') OR NULL by the NAMED constraint
+    // point_transactions_batch_kind_check. A direct insert with any other value
+    // must fail with Postgres 23514 (check_violation) and write zero rows.
+    const users = new UserFactory();
+    const classrooms = new ClassroomFactory();
+
+    try {
+      const user = await users.create();
+      const classroom = await classrooms.create({ userId: user.id });
+      const studentId = await seedStudent(classroom.id);
+
+      const batchId = crypto.randomUUID();
+      const { data, error } = await supabaseAdmin()
+        .from('point_transactions')
+        .insert({
+          student_id: studentId,
+          classroom_id: classroom.id,
+          behavior_id: null,
+          behavior_name: 'Participation',
+          behavior_icon: 'star',
+          points: 1,
+          note: null,
+          batch_id: batchId,
+          batch_kind: 'bogus',
+        })
+        .select();
+
+      expect(data).toBeNull();
+      expect(error).toBeTruthy();
+      expect(error?.code).toBe('23514');
+      expect(error?.message).toContain('point_transactions_batch_kind_check');
+
+      // CHECK rejection wrote nothing.
+      expect(await fetchBatchRowIds(batchId)).toHaveLength(0);
     } finally {
       await classrooms.cleanup();
       await users.cleanup();

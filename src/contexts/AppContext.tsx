@@ -7,7 +7,7 @@ const ACTIVE_CLASSROOM_STORAGE_KEY = 'app:activeClassroomId';
 // transactions, the ~20 mutation wrappers, the point/transaction selectors, the
 // undo-window machinery, and the camelCase `mapped*` bridges all moved to direct
 // TanStack hooks + thin wrapper hooks/utils (useAppClassrooms, useUndoableAction,
-// useBatchAward, pointSelectors, batchKindStore). AppProvider
+// useBatchAward, pointSelectors). AppProvider
 // now holds only the active-classroom selection — genuine UI/session state.
 export function AppProvider({ children }: { children: ReactNode }) {
   const [activeClassroomId, setActiveClassroomId] = useState<string | null>(() => {
