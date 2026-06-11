@@ -79,9 +79,10 @@ export function dbToPointTransaction(row: DbPointTransaction): DbPointTransactio
 }
 
 // Extended student shape: lifetime totals from the row's stored columns (DB-trigger
-// maintained), time-windowed totals from the `get_student_time_totals` RPC merged
-// in `useStudents.queryFn`. New students with no cached totals receive 0 for the
-// time-windowed fields — RPC result keyed by student_id, missing rows default here.
+// maintained), time-windowed totals from the batched `get_student_time_totals_all_for_user`
+// RPC merged (filtered to the classroom) in `useStudents.queryFn`. New students with no
+// cached totals receive 0 for the time-windowed fields — RPC result keyed by student_id,
+// missing rows default here.
 export interface StudentWithPoints extends DbStudent {
   point_total: number;
   positive_total: number;

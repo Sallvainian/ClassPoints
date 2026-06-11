@@ -3,7 +3,12 @@ import { supabase, unwrap } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import { getDateBoundaries } from '../utils/dateUtils';
 import { dbToClassroom, type ClassroomWithCount, type StudentSummary } from '../types/transforms';
-import type { Classroom as DbClassroom, NewClassroom, UpdateClassroom } from '../types/database';
+import type {
+  Classroom as DbClassroom,
+  NewClassroom,
+  TimeTotalsRow,
+  UpdateClassroom,
+} from '../types/database';
 
 // Re-exports preserved for Phase 0/1 consumers that imported these types from this module.
 export type { ClassroomWithCount, StudentSummary };
@@ -29,29 +34,37 @@ export function useClassrooms(): UseQueryResult<ClassroomWithCount[], Error> {
       const studentRows = unwrap(studentsResult);
 
       const { startOfToday, startOfWeek } = getDateBoundaries();
-      const classroomIds = (classroomRows ?? []).map((c) => c.id);
 
-      const timeTotalsResults = await Promise.all(
-        classroomIds.map((classroomId) =>
-          supabase.rpc('get_student_time_totals', {
-            p_classroom_id: classroomId,
+      // Keyed by classroom_id:student_id — the batched RPC returns all
+      // classrooms' rows in one payload.
+      const timeTotalsMap = new Map<string, { today: number; week: number }>();
+
+      // Zero classrooms → zero RPCs (matches the old fan-out's Promise.all over
+      // an empty array). Otherwise ONE batched RPC for every classroom the user
+      // owns (deferred #8 — was a Promise.all fan-out of one per-classroom
+      // time-totals call). Deliberately NOT unwrap(): this RPC is a non-fatal
+      // warn-and-fallback regime — totals degrade to 0 rather than failing the
+      // classrooms query (same contract as useStudents.queryFn).
+      if ((classroomRows ?? []).length > 0) {
+        const { data: timeTotalsRows, error: rpcError } = await supabase.rpc(
+          'get_student_time_totals_all_for_user',
+          {
             p_start_of_today: startOfToday.toISOString(),
             p_start_of_week: startOfWeek.toISOString(),
-          })
-        )
-      );
-
-      const timeTotalsMap = new Map<string, { today: number; week: number }>();
-      timeTotalsResults.forEach((result) => {
-        (result.data ?? []).forEach(
-          (row: { student_id: string; today_total: number; this_week_total: number }) => {
-            timeTotalsMap.set(row.student_id, {
-              today: row.today_total || 0,
-              week: row.this_week_total || 0,
-            });
           }
         );
-      });
+        if (rpcError) {
+          // Non-fatal: time totals fall back to 0; lifetime totals from columns are unaffected.
+          console.warn('Failed to fetch time-based totals:', rpcError.message);
+        }
+
+        (timeTotalsRows ?? []).forEach((row: TimeTotalsRow) => {
+          timeTotalsMap.set(`${row.classroom_id}:${row.student_id}`, {
+            today: row.today_total || 0,
+            week: row.this_week_total || 0,
+          });
+        });
+      }
 
       const classroomData = new Map<
         string,
@@ -67,7 +80,7 @@ export function useClassrooms(): UseQueryResult<ClassroomWithCount[], Error> {
         current.total += s.point_total || 0;
         current.positive += s.positive_total || 0;
         current.negative += s.negative_total || 0;
-        const timeTotals = timeTotalsMap.get(s.id);
+        const timeTotals = timeTotalsMap.get(`${s.classroom_id}:${s.id}`);
         current.students.push({
           id: s.id,
           name: s.name,

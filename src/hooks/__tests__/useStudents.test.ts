@@ -3,6 +3,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { useStudents } from '../useStudents';
+import type { TimeTotalsRow } from '../../types/database';
 import { queryKeys } from '../../lib/queryKeys';
 
 type MockPostgresPayload = {
@@ -26,12 +27,16 @@ declare global {
 }
 
 const mockStudentsOrder = vi.hoisted(() =>
-  vi.fn<() => Promise<{ data: never[]; error: null }>>(() =>
+  vi.fn<() => Promise<{ data: Record<string, unknown>[]; error: null }>>(() =>
     Promise.resolve({ data: [], error: null })
   )
 );
+// Batched-RPC mock (deferred #8): the RPC returns rows for EVERY classroom the
+// user owns in one call and the queryFn filters client-side. Row shape is the
+// hook's own TimeTotalsRow (derived from the generated Functions entry) so the
+// mock cannot drift from src/types/database.ts.
 const mockRpc = vi.hoisted(() =>
-  vi.fn<() => Promise<{ data: never[]; error: null }>>(() =>
+  vi.fn<() => Promise<{ data: TimeTotalsRow[]; error: null }>>(() =>
     Promise.resolve({ data: [], error: null })
   )
 );
@@ -165,6 +170,60 @@ describe('useStudents students-table realtime invalidate-not-merge', () => {
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: queryKeys.classrooms.all,
+    });
+  });
+
+  it('[P0][BATCH8-UNIT-03] queryFn calls the batched totals RPC without a classroom arg and filters rows to its classroom', async () => {
+    mockStudentsOrder.mockResolvedValue({
+      data: [
+        {
+          id: 'student-1',
+          classroom_id: CLASSROOM_ID,
+          name: 'Ann',
+          avatar_color: null,
+          point_total: 5,
+          positive_total: 5,
+          negative_total: 0,
+        },
+      ],
+      error: null,
+    });
+    // The shared payload carries OTHER classrooms' rows too (deferred #8). The
+    // foreign row deliberately reuses student-1's id: an implementation that
+    // skipped the classroom_id filter would last-write-wins to 99/99, so the
+    // merged-value assertion below genuinely pins the client-side filter.
+    mockRpc.mockResolvedValue({
+      data: [
+        {
+          classroom_id: CLASSROOM_ID,
+          student_id: 'student-1',
+          today_total: 3,
+          this_week_total: 7,
+        },
+        {
+          classroom_id: 'classroom-other',
+          student_id: 'student-1',
+          today_total: 99,
+          this_week_total: 99,
+        },
+      ],
+      error: null,
+    });
+
+    const { result } = renderHook(() => useStudents(CLASSROOM_ID), {
+      wrapper: makeWrapper(makeClient()),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+    expect(mockRpc).toHaveBeenCalledWith('get_student_time_totals_all_for_user', {
+      p_start_of_today: expect.any(String),
+      p_start_of_week: expect.any(String),
+    });
+    expect(result.current.data?.[0]).toMatchObject({
+      id: 'student-1',
+      today_total: 3,
+      this_week_total: 7,
     });
   });
 });

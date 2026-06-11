@@ -84,39 +84,39 @@ queryKeys.seatingChart.groupsByChart(chartId);
 queryKeys.seatingChart.roomElementsByChart(chartId);
 ```
 
-Note: `students.byClassroom` deliberately keys ONLY on classroom id (no extra "list" segment) because Phase 3 merges the students-table columns + `get_student_time_totals` RPC into a single `byClassroom` cache (`queryKeys.ts:12-16`). The prior `timeTotalsByClassroom` separate key was never used at a call site and is dropped — don't reintroduce it.
+Note: `students.byClassroom` deliberately keys ONLY on classroom id (no extra "list" segment) because Phase 3 merges the students-table columns + the batched `get_student_time_totals_all_for_user` RPC results (filtered to the classroom) into a single `byClassroom` cache (`queryKeys.ts:12-17`). The prior `timeTotalsByClassroom` separate key was never used at a call site and is dropped — don't reintroduce it.
 
 ## Migrated hooks (TanStack)
 
 ### `useClassrooms` (`src/hooks/useClassrooms.ts`)
 
-Returns `UseQueryResult<ClassroomWithCount[], Error>`. **NO realtime subscription** (`:12-14`) — `useStudents` is the single owner; `useClassrooms` refreshes via cross-hook invalidation. The `queryFn` (`:16-100`):
+Returns `UseQueryResult<ClassroomWithCount[], Error>`. **NO realtime subscription** (`:13-15`) — `useStudents` is the single owner; `useClassrooms` refreshes via cross-hook invalidation. The `queryFn` (`:19-108`):
 
 1. Two parallel `.select()` queries: classrooms (with embedded `students(count)`) and ALL students (only the columns needed for aggregation).
-2. `Promise.all` over `get_student_time_totals` per classroom (one RPC per classroom for the home view).
+2. ONE batched `get_student_time_totals_all_for_user` call covering every classroom (deferred #8 collapsed the prior per-classroom `Promise.all` fan-out; non-fatal — an `rpcError` warns and time totals fall back to 0). The totals map is keyed `classroom_id:student_id`.
 3. Builds a per-classroom aggregate (lifetime totals from `students.point_total/positive_total/negative_total`, plus per-student `today_total / this_week_total` from RPC).
 4. Maps each classroom row through `dbToClassroom` with the precomputed `ClassroomAggregate`.
 
-Mutations: `useCreateClassroom`, `useUpdateClassroom`, `useDeleteClassroom` (`:103-148`). All invalidate `queryKeys.classrooms.all`.
+Mutations: `useCreateClassroom`, `useUpdateClassroom`, `useDeleteClassroom` (`:112-149`). All invalidate `queryKeys.classrooms.all`.
 
 ### `useStudents` (`src/hooks/useStudents.ts`)
 
-Returns `UseQueryResult<StudentWithPoints[], Error>`. The SINGLE realtime owner of the `students` table (`:45-51`).
+Returns `UseQueryResult<StudentWithPoints[], Error>`. The SINGLE realtime owner of the `students` table (`:46-52`).
 
-`queryFn` (`:70-106`):
+`queryFn` (`:74-114`):
 
 1. `.select('*')` of `students` filtered by `classroom_id`, ordered by name.
-2. `get_student_time_totals` RPC for the same classroom (non-fatal: a `rpcError` warns and time totals fall back to 0; lifetime columns are unaffected, `:89-92`).
+2. The same batched `get_student_time_totals_all_for_user` RPC, rows filtered to this classroom client-side (non-fatal: a `rpcError` warns and time totals fall back to 0; lifetime columns are unaffected).
 3. Map each student row through `dbToStudent` with the timeTotals payload (defaults to `{ today_total: 0, this_week_total: 0 }` for students with no rows).
 
 **Realtime — invalidate-not-merge (refactored in `ea9f406`).** This is the key change from the prior doc: there is no longer a merge-on-update path and no separate `point_transactions` DELETE subscription in `useStudents`.
 
-- A single `students`-table subscription with `onChange` AND `onReconnect` both wired to one `refresh` function (`:40-51`).
-- `refresh` (`:40-44`) calls ONLY `qc.invalidateQueries` for `students.byClassroom(classroomId)` and `classrooms.all` — never `setQueryData`. The refetch re-reads the authoritative all-time columns AND re-runs `get_student_time_totals`, so every counter (all-time, today, week, roster) refreshes identically.
-- The DB trigger emits a `students` UPDATE on every `point_transactions` INSERT/DELETE (migration `011:45-47`), so this one channel covers cross-device **awards AND undos** plus roster changes. The per-tap RPC refetch cost is accepted (ADR-005 §7).
+- A single `students`-table subscription with `onChange` AND `onReconnect` both wired to one `refresh` function (`:41-52`).
+- `refresh` (`:41-45`) calls ONLY `qc.invalidateQueries` for `students.byClassroom(classroomId)` and `classrooms.all` — never `setQueryData`. The refetch re-reads the authoritative all-time columns AND re-runs the batched `get_student_time_totals_all_for_user` RPC, so every counter (all-time, today, week, roster) refreshes identically.
+- The DB trigger emits a `students` UPDATE on every `point_transactions` INSERT/DELETE (migration `011:45-47`), so this one channel covers cross-device **awards AND undos** plus roster changes. Per-tap refetch cost is ~1 batched RPC per invalidated queryFn, O(1) in classroom count (ADR-005 §7; deferred #8 pulled 2026-06-11).
 - `onReconnect` runs the same `refresh` so events missed during a realtime drop (CHANNEL_ERROR / TIMED_OUT / CLOSED → SUBSCRIBED) get a catch-up refetch — this channel is the sole cross-device refresh path for student totals.
 
-Visibility-change effect (`:56-68`): on `visibilitychange → visible`, invalidate the byClassroom key — covers cross-midnight and cross-Sunday transitions that produce no realtime event.
+Visibility-change effect (`:57-69`): on `visibilitychange → visible`, invalidate the byClassroom key — covers cross-midnight and cross-Sunday transitions that produce no realtime event.
 
 Mutations: `useAddStudent`, `useAddStudents`, `useUpdateStudent`, `useRemoveStudent`. All invalidate `students.byClassroom` (or `students.all`) AND `classrooms.all`.
 

@@ -109,9 +109,12 @@ test('#23: award on one device updates today/week on another via realtime (no re
   const pageB = await ctxB.newPage();
 
   // Count the time-totals RPC on the watcher — the cost the review flagged.
+  // Prefix-safe substring: the legacy per-classroom RPC name was a PREFIX of
+  // the batched replacement (deferred #8), so matching on the full new name
+  // matters — a bare-prefix substring would have silently matched both.
   let watcherRpcCount = 0;
   pageB.on('request', (r) => {
-    if (r.url().includes('/rpc/get_student_time_totals')) watcherRpcCount += 1;
+    if (r.url().includes('/rpc/get_student_time_totals_all_for_user')) watcherRpcCount += 1;
   });
 
   try {
@@ -146,9 +149,8 @@ test('#23: award on one device updates today/week on another via realtime (no re
     // Device B, NO reload: today returns to 0 → badge disappears.
     await expect(cardB.getByText(/today/)).toHaveCount(0, { timeout: 15_000 });
 
-     
     console.log(
-      `[#23] watcher get_student_time_totals RPC count over load+award+undo: ${watcherRpcCount}`
+      `[#23/#8] watcher get_student_time_totals_all_for_user RPC count over load+award+undo: ${watcherRpcCount}`
     );
   } finally {
     await ctxB.close();
