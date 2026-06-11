@@ -4,12 +4,8 @@ import type { Student, PointTransaction } from '../../types';
 import type { CardSize } from '../../hooks/useDisplaySettings';
 import { useApp } from '../../contexts/useApp';
 import { useActiveClassroom } from '../../hooks/useAppClassrooms';
-import {
-  useTransactions,
-  useUndoTransaction,
-  useUndoBatchTransaction,
-} from '../../hooks/useTransactions';
-import { useUndoableAction } from '../../hooks/useUndoableAction';
+import { useUndoTransaction, useUndoBatchTransaction } from '../../hooks/useTransactions';
+import { useUndoableAction, UNDO_WINDOW_MS } from '../../hooks/useUndoableAction';
 import { useFailedBatches } from '../../hooks/useFailedBatches';
 import { classroomTransactions } from '../../utils/pointSelectors';
 import { mergeFailedIntoFeed } from '../../utils/activityFeed';
@@ -34,6 +30,12 @@ interface DashboardViewProps {
 
 const CARD_SIZES: CardSize[] = ['small', 'medium', 'large'];
 
+// Padding added to the undo-expiry timeout so the wall clock is strictly PAST
+// `timestamp + UNDO_WINDOW_MS` when the one-shot fires (the window comparison in
+// getRecentUndoableAction is strict; a boundary-exact fire would re-derive
+// non-null). The counter-dep on the timer effect is the backstop either way.
+const UNDO_EXPIRY_EPSILON_MS = 25;
+
 export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const { activeClassroomId } = useApp();
   const {
@@ -41,9 +43,16 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     isLoading: classroomLoading,
     error: classroomError,
   } = useActiveClassroom(activeClassroomId);
-  const transactionsQuery = useTransactions(activeClassroomId);
   const failedBatches = useFailedBatches(activeClassroomId);
-  const { getRecentUndoableAction, forget: forgetBatchKind } = useUndoableAction(activeClassroomId);
+  // Single transactions-query mount for the whole dashboard (deferred #22):
+  // useUndoableAction exposes its already-mounted query; the feed, the
+  // failed-batches merge, and the loading/error gates below all read this one
+  // observer — no direct second mount here.
+  const {
+    getRecentUndoableAction,
+    forget: forgetBatchKind,
+    transactionsQuery,
+  } = useUndoableAction(activeClassroomId);
   const undoTransactionMutation = useUndoTransaction();
   const undoBatchTransactionMutation = useUndoBatchTransaction();
 
@@ -67,19 +76,18 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   // Derived undoable action.
   // `getRecentUndoableAction` is a useCallback over the TanStack-cached
   // transactions/students (via useUndoableAction), so it updates immediately
-  // when they change — no setTimeout dance needed in close handlers. The 1s tick
-  // re-evaluates the wall-clock
-  // UNDO_WINDOW_MS so the toast disappears when the window expires even
-  // without a state change. `dismissedTxnRef` hides the toast for one render
-  // after the user presses undo, in case the cache update lags.
-  const [tick, setTick] = useState(0);
+  // when they change — no setTimeout dance needed in close handlers. The
+  // wall-clock expiry is event-driven (deferred #6): a single self-rescheduling
+  // one-shot timeout (effect below) bumps `expiryBump` when the window ends, so
+  // the toast disappears with ZERO idle re-renders — no 1s interval. ACCEPTED
+  // trade-off: TodaySummary's relative-time labels no longer refresh at 1Hz
+  // while idle; they update on the next data-driven render. `dismissedTxnRef`
+  // hides the toast for one render after the user presses undo, in case the
+  // cache update lags.
+  const [expiryBump, setExpiryBump] = useState(0);
   const dismissedTxnRef = useRef<string | null>(null);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => (t + 1) % 1_000_000), 1000);
-    return () => clearInterval(id);
-  }, []);
   const undoableAction = useMemo(() => {
-    void tick;
+    void expiryBump;
     const action = getRecentUndoableAction();
     // dismissedTxnRef intentionally read here to hide the toast for one render
     // after undo until the cache update propagates (see comment above). Promoting
@@ -87,7 +95,46 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     // eslint-disable-next-line react-hooks/refs
     if (action && action.transactionId === dismissedTxnRef.current) return null;
     return action;
-  }, [getRecentUndoableAction, tick]);
+  }, [getRecentUndoableAction, expiryBump]);
+
+  // Identity key for the derived action. DELIBERATELY not UndoToast's
+  // `batchId ?? timestamp` key: appending `timestamp` makes the optimistic→real
+  // `created_at` swap reschedule promptly even under a stable `batchId`; the
+  // `expiryBump` dep is the backstop either way. `action.timestamp` is already
+  // epoch ms — no re-parsing.
+  const actionExpiryKey = undoableAction
+    ? `${undoableAction.batchId ?? undoableAction.transactionId ?? ''}:${undoableAction.timestamp}`
+    : null;
+  const actionTimestamp = undoableAction?.timestamp ?? null;
+
+  // Self-rescheduling one-shot expiry timer (deferred #6). Depends on BOTH the
+  // action identity key AND `expiryBump`: the callback only bumps the counter
+  // (async setState — no synchronous setState in the effect body), the re-run
+  // re-derives, and if the derivation is somehow still non-null (boundary-exact
+  // fire; timestamp moved later under a stable key) it reschedules against the
+  // CURRENT remaining window — never a stuck toast. `actionTimestamp` is a pure
+  // component of `actionExpiryKey` (the key changes whenever it does), listed
+  // only to satisfy exhaustive-deps. Timeout-schedule + cleanup per the
+  // ErrorToast precedent.
+  useEffect(() => {
+    // !Number.isFinite: corrupt created_at parses to NaN — schedule nothing
+    // (the derivation's strict window check already resolves NaN to null).
+    if (actionExpiryKey === null || actionTimestamp === null || !Number.isFinite(actionTimestamp))
+      return;
+    // Upper clamp: a cached `created_at` far in the FUTURE (extreme cross-device
+    // clock skew) would otherwise schedule a huge timeout — and past 2^31-1 ms
+    // setTimeout overflows to an IMMEDIATE fire, whose re-run derives non-null
+    // and reschedules → busy loop. Clamped, the timer re-fires at most once per
+    // window under skew (bounded, self-terminating).
+    const remainingMs = Math.min(
+      UNDO_WINDOW_MS + UNDO_EXPIRY_EPSILON_MS,
+      Math.max(0, actionTimestamp + UNDO_WINDOW_MS - Date.now()) + UNDO_EXPIRY_EPSILON_MS
+    );
+    const id = setTimeout(() => {
+      setExpiryBump((n) => (n + 1) % 1_000_000);
+    }, remainingMs);
+    return () => clearTimeout(id);
+  }, [actionExpiryKey, actionTimestamp, expiryBump]);
 
   const selectedStudents = useMemo(() => {
     if (!activeClassroom) return [];
@@ -163,7 +210,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
         // Hide the toast immediately; the next derivation pass will see
         // either a different recent action or null once the cache catches up.
         dismissedTxnRef.current = actionToUndo.transactionId;
-        setTick((t) => (t + 1) % 1_000_000);
+        setExpiryBump((n) => (n + 1) % 1_000_000);
       } catch (err) {
         console.error('Failed to undo transaction:', err);
         setOperationError(ERROR_MESSAGES.UNDO);
