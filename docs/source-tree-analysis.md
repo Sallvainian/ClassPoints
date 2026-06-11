@@ -113,7 +113,6 @@ src/
 │   ├── supabase.ts             # createClient<Database>; window.__SUPABASE_CLIENT__ for migration scripts
 │   ├── queryClient.ts          # ADR-005 defaults: staleTime 30s, gcTime 10min, refetchOnWindowFocus false
 │   ├── queryKeys.ts            # Single source of truth for query keys (use BOTH for read AND invalidate)
-│   ├── batchKindStore.ts       # Phase 4 — module-level Map<batchId, 'class'|'subset'>; written by useBatchAward, read by useUndoableAction
 │   ├── failedBatchStore.ts     # Cluster #2 — module-level FAILED-batch notices keyed by classroomId; useSyncExternalStore source
 │   └── manualAdjustmentConstants.ts
 │

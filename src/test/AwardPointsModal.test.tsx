@@ -81,6 +81,7 @@ vi.mock('../lib/supabase', async (importOriginal) => {
           points: 2,
           note: null,
           batch_id: null,
+          batch_kind: null,
           created_at: '2026-05-01T00:00:00.000Z',
         };
         return { data: row, error: null };

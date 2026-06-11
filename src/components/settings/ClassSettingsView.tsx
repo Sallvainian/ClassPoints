@@ -13,7 +13,6 @@ import {
   useResetClassroomPoints,
   AdjustNoOpError,
 } from '../../hooks/useTransactions';
-import * as batchKindStore from '../../lib/batchKindStore';
 import { useTheme } from '../../contexts/useTheme';
 import { resolveAvatarDisplay } from '../../hooks';
 import { getAvatarColorForName } from '../../utils';
@@ -401,8 +400,6 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
         onClose={() => setIsResetModalOpen(false)}
         onConfirm={async (classroomId) => {
           await resetClassroomPointsMutation.mutateAsync({ classroomId });
-          // Reset wipes every transaction in the classroom; all batch_ids are now stale.
-          batchKindStore.clear();
         }}
       />
     </div>

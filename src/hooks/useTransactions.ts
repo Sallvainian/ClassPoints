@@ -9,6 +9,7 @@ import {
   type StudentWithPoints,
 } from '../types/transforms';
 import type {
+  BatchKind,
   PointTransaction as DbPointTransaction,
   NewPointTransaction,
 } from '../types/database';
@@ -50,6 +51,9 @@ export interface BatchAwardInput {
   note?: string | null;
   // One row per id. All rows carry the same behavior/batchId/timestamp.
   studentIds: string[];
+  // 'class' vs 'subset' — persisted on every row (DB batch_kind column, deferred
+  // #7) so the undo toast labels correctly cross-device and after a reload.
+  batchKind: BatchKind;
 }
 
 interface AwardPointsContext {
@@ -159,6 +163,9 @@ export function useAwardPoints() {
           points: input.behavior.points,
           note: input.note ?? null,
           batch_id: input.batchId ?? null,
+          // Row-required field; singles aren't batches, so the kind is NULL —
+          // matching what the server insert (which omits the column) produces.
+          batch_kind: null,
           created_at: new Date(input.timestamp).toISOString(),
         };
 
@@ -270,6 +277,7 @@ export function useAwardPointsBatch() {
         points: input.behavior.points,
         note: input.note ?? null,
         batch_id: input.batchId,
+        batch_kind: input.batchKind,
       }));
       // ONE statement → atomic all-or-none. Bare `.select()`, NOT `.single()`:
       // N rows are expected, and `.single()` throws on count ≠ 1 (a manufactured
@@ -318,6 +326,9 @@ export function useAwardPointsBatch() {
           points,
           note: input.note ?? null,
           batch_id: input.batchId,
+          // Same kind the server rows will carry — the optimistic rows ARE the
+          // in-flight label source for useUndoableAction (deferred #7).
+          batch_kind: input.batchKind,
           created_at: new Date(input.timestamp).toISOString(),
         }));
 

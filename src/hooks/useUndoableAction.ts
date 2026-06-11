@@ -2,7 +2,6 @@ import { useCallback, useMemo } from 'react';
 import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useTransactions } from './useTransactions';
 import { queryKeys } from '../lib/queryKeys';
-import * as batchKindStore from '../lib/batchKindStore';
 import type { StudentWithPoints } from '../types/transforms';
 import type { PointTransaction as DbPointTransaction } from '../types/database';
 import type { UndoableAction } from '../types';
@@ -15,17 +14,15 @@ export const UNDO_WINDOW_MS = 10000;
 // The undo-window machinery extracted from AppContext (CAP-4). Mounts the ONE
 // dashboard `useTransactions` query (exposed as `transactionsQuery` so consumers
 // don't open a redundant second `point_transactions` channel — deferred #22) and
-// reads the batch-kind tags from the module-level batchKindStore. The
-// single-student name lookup reads the students roster straight from the cache
-// via `qc.getQueryData` inside the callback — like the original AppContext read
-// the one shared `students` array — it does NOT mount `useStudents`, so it opens
-// no second realtime channel.
-// `getRecentUndoableAction` is relocated verbatim from AppContext.tsx:474-530;
-// `forget`/`clear` expose the cleanup the undo/clear/reset paths perform.
+// reads the batch kind straight off the cached rows' `batch_kind` column
+// (deferred #7) — optimistic rows during flight, server rows after — so the
+// label is correct cross-device and after a reload. The single-student name
+// lookup reads the students roster straight from the cache via `qc.getQueryData`
+// inside the callback — like the original AppContext read the one shared
+// `students` array — it does NOT mount `useStudents`, so it opens no second
+// realtime channel.
 export function useUndoableAction(classroomId: string | null): {
   getRecentUndoableAction: () => UndoableAction | null;
-  forget: (batchId: string) => void;
-  clear: () => void;
   transactionsQuery: UseQueryResult<DbPointTransaction[], Error>;
 } {
   const qc = useQueryClient();
@@ -52,12 +49,11 @@ export function useUndoableAction(classroomId: string | null): {
       const totalPoints = batchTransactions.reduce((sum, t) => sum + t.points, 0);
       const studentCount = batchTransactions.length;
 
-      // Acknowledged limitation: batchKindStore is local to the originating device.
-      // Cross-device undo (teacher awards on phone, undoes on laptop within 10s)
-      // and page-reload-mid-window both fall back to 'Entire Class'. Solving
-      // requires persisting batch_kind as a DB column — schema change, out of
-      // Phase 2.5 scope.
-      const kind = batchKindStore.get(recent.batch_id);
+      // The kind rides the row itself (DB batch_kind column, deferred #7): the
+      // batch insert stamps it on optimistic AND committed rows, so cross-device
+      // undo and reload-mid-window label correctly. NULL/unknown (legacy rows,
+      // the old-bundle deploy window) falls back to the class-wide label.
+      const kind = recent.batch_kind;
       const studentName =
         kind === 'subset'
           ? `${studentCount} student${studentCount === 1 ? '' : 's'}`
@@ -94,8 +90,5 @@ export function useUndoableAction(classroomId: string | null): {
     };
   }, [transactions, qc, classroomId]);
 
-  const forget = useCallback((batchId: string) => batchKindStore.forget(batchId), []);
-  const clear = useCallback(() => batchKindStore.clear(), []);
-
-  return { getRecentUndoableAction, forget, clear, transactionsQuery };
+  return { getRecentUndoableAction, transactionsQuery };
 }

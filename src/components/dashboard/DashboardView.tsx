@@ -48,11 +48,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   // useUndoableAction exposes its already-mounted query; the feed, the
   // failed-batches merge, and the loading/error gates below all read this one
   // observer — no direct second mount here.
-  const {
-    getRecentUndoableAction,
-    forget: forgetBatchKind,
-    transactionsQuery,
-  } = useUndoableAction(activeClassroomId);
+  const { getRecentUndoableAction, transactionsQuery } = useUndoableAction(activeClassroomId);
   const undoTransactionMutation = useUndoTransaction();
   const undoBatchTransactionMutation = useUndoBatchTransaction();
 
@@ -203,7 +199,6 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       try {
         if (actionToUndo.isBatch && actionToUndo.batchId) {
           await undoBatchTransactionMutation.mutateAsync({ batchId: actionToUndo.batchId });
-          forgetBatchKind(actionToUndo.batchId);
         } else {
           await undoTransactionMutation.mutateAsync(transactionId);
         }
@@ -216,7 +211,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
         setOperationError(ERROR_MESSAGES.UNDO);
       }
     },
-    [undoTransactionMutation, undoBatchTransactionMutation, forgetBatchKind, undoableAction]
+    [undoTransactionMutation, undoBatchTransactionMutation, undoableAction]
   );
 
   const transactions: PointTransaction[] = useMemo(() => {

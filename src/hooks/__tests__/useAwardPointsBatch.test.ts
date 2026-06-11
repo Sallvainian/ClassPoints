@@ -22,6 +22,10 @@ const mockInsertResponse =
     () => Promise<{ data: DbPointTransaction[] | null; error: (Error & { code?: string }) | null }>
   >();
 
+// Captures the rows array passed to .insert(rows) so tests can assert every row
+// carries the persisted batch_kind (deferred #7) alongside batch_id.
+const mockInsertRows = vi.fn();
+
 // The mutationFn unwraps results via unwrap() from this module, so the factory
 // spreads the REAL exports (production unwrap stays under test) and overrides only
 // the client. Env is stubbed BEFORE importOriginal — src/lib/supabase.ts throws at
@@ -34,9 +38,10 @@ vi.mock('../../lib/supabase', async (importOriginal) => {
     ...actual,
     supabase: {
       from: vi.fn(() => ({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => mockInsertResponse()),
-        })),
+        insert: vi.fn((rows: unknown) => {
+          mockInsertRows(rows);
+          return { select: vi.fn(() => mockInsertResponse()) };
+        }),
       })),
       channel: vi.fn(() => ({
         on: vi.fn().mockReturnThis(),
@@ -69,15 +74,18 @@ const behavior: Behavior = {
 };
 const P = behavior.points;
 
-// BatchAwardInput shape (useTransactions.ts:42-53): { classroomId, batchId, timestamp,
-// behavior, note?, studentIds[] } — batchId is REQUIRED (string), unlike the nullable
-// single-award batchId. Built fresh; not reusing the single-student award input.
+// BatchAwardInput shape (useTransactions.ts): { classroomId, batchId, timestamp,
+// behavior, note?, studentIds[], batchKind } — batchId is REQUIRED (string), unlike
+// the nullable single-award batchId; batchKind ('class' | 'subset') is persisted on
+// every row as the DB batch_kind column (deferred #7). Built fresh; not reusing the
+// single-student award input.
 const input = {
   classroomId: CLASSROOM_ID,
   batchId: BATCH_ID,
   timestamp: TIMESTAMP,
   behavior,
   studentIds: STUDENT_IDS,
+  batchKind: 'class' as const,
 };
 
 // (c) deterministic batch optimistic id: `optimistic-${batchId}-${studentId}`
@@ -145,6 +153,9 @@ function makeRealRow(studentId: string, id: string): DbPointTransaction {
     points: behavior.points,
     note: null,
     batch_id: BATCH_ID,
+    // The real .select() echoes the inserted kind back — mirror it so any
+    // post-settle cache assertion sees truthful server rows.
+    batch_kind: input.batchKind,
     created_at: '2026-04-28T00:00:00Z',
   };
 }
@@ -166,6 +177,7 @@ function makeWrapper(qc: QueryClient) {
 describe('useAwardPointsBatch — CAP-1 / ADR-005 §4 atomic-batch contract guards', () => {
   beforeEach(() => {
     mockInsertResponse.mockReset();
+    mockInsertRows.mockReset();
   });
 
   // BATCH.01-UNIT-01 — CAP-1 / SPEC §2 / failure-handling §1: the mutationFn unwraps
@@ -220,6 +232,14 @@ describe('useAwardPointsBatch — CAP-1 / ADR-005 §4 atomic-batch contract guar
       expect(resolved).toHaveLength(N);
       expect(resolved?.[0]).toEqual(rowA);
       expect(resolved?.[1]).toEqual(rowB);
+
+      // Deferred #7: every INSERT row persists the kind alongside batch_id.
+      const insertedRows = mockInsertRows.mock.calls[0][0] as Array<Record<string, unknown>>;
+      expect(insertedRows).toHaveLength(N);
+      for (const row of insertedRows) {
+        expect(row.batch_kind).toBe(input.batchKind);
+        expect(row.batch_id).toBe(BATCH_ID);
+      }
     });
   });
 
@@ -254,6 +274,10 @@ describe('useAwardPointsBatch — CAP-1 / ADR-005 §4 atomic-batch contract guar
       // (4c) N optimistic rows prepended, each id = optimistic-<batchId>-<studentId>.
       const txs = qc.getQueryData<DbPointTransaction[]>(queryKeys.transactions.list(CLASSROOM_ID));
       expect(txs?.map((t) => t.id)).toEqual([optimisticId(STUDENT_A), optimisticId(STUDENT_B)]);
+
+      // Deferred #7: the optimistic rows carry the same batch_kind the server rows
+      // will — they ARE useUndoableAction's in-flight label source.
+      expect(txs?.map((t) => t.batch_kind)).toEqual([input.batchKind, input.batchKind]);
 
       // classrooms.all: aggregate moved by P*N; each targeted student_summary by P.
       const classrooms = qc.getQueryData<ClassroomWithCount[]>(queryKeys.classrooms.all);

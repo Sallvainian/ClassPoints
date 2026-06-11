@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { useBatchAward } from '../useBatchAward';
 import { queryKeys } from '../../lib/queryKeys';
-import * as batchKindStore from '../../lib/batchKindStore';
 import * as failedBatchStore from '../../lib/failedBatchStore';
 import type { StudentWithPoints } from '../../types/transforms';
 import type { Behavior } from '../../types';
@@ -92,7 +91,6 @@ function pgError(code: string, message = 'postgrest error') {
 
 describe('useBatchAward', () => {
   beforeEach(() => {
-    batchKindStore.clear();
     failedBatchStore.clear();
     mockMutateAsync.mockReset();
     // Default: the bulk insert succeeds, returning one row per targeted id.
@@ -104,13 +102,12 @@ describe('useBatchAward', () => {
   });
 
   afterEach(() => {
-    batchKindStore.clear();
     failedBatchStore.clear();
   });
 
   // ── Success / guard paths ────────────────────────────────────────────────
 
-  it('awardClass fires one atomic batch over the full roster and tags "class"', async () => {
+  it('awardClass fires one atomic batch over the full roster with batchKind "class"', async () => {
     const qc = makeClient();
     seedRoster(qc, [student({ id: 's1' }), student({ id: 's2', name: 'Bo' })]);
     const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
@@ -121,10 +118,11 @@ describe('useBatchAward', () => {
     const input = mockMutateAsync.mock.calls[0][0];
     expect(input.studentIds).toEqual(['s1', 's2']);
     expect(txns).toHaveLength(2);
-    expect(batchKindStore.get(input.batchId)).toBe('class');
+    // The kind rides the mutation input (→ batch_kind on every row, deferred #7).
+    expect(input.batchKind).toBe('class');
   });
 
-  it('awardClass with an empty roster awards nothing and tags nothing (no leak)', async () => {
+  it('awardClass with an empty roster awards nothing (guard returns before the insert)', async () => {
     const qc = makeClient();
     seedRoster(qc, []);
     const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
@@ -132,10 +130,10 @@ describe('useBatchAward', () => {
     const txns = await result.current.awardClass(BEHAVIOR);
 
     expect(txns).toEqual([]);
-    expect(mockMutateAsync).not.toHaveBeenCalled(); // guard returns before tagging
+    expect(mockMutateAsync).not.toHaveBeenCalled();
   });
 
-  it('awardSubset awards only the selected ids in one batch and tags "subset"', async () => {
+  it('awardSubset awards only the selected ids in one batch with batchKind "subset"', async () => {
     const qc = makeClient();
     seedRoster(qc, [student({ id: 's1' }), student({ id: 's2' }), student({ id: 's3' })]);
     const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
@@ -146,7 +144,8 @@ describe('useBatchAward', () => {
     const input = mockMutateAsync.mock.calls[0][0];
     expect([...input.studentIds].sort()).toEqual(['s1', 's3']);
     expect(txns).toHaveLength(2);
-    expect(batchKindStore.get(input.batchId)).toBe('subset');
+    // The kind rides the mutation input (→ batch_kind on every row, deferred #7).
+    expect(input.batchKind).toBe('subset');
   });
 
   it('awardSubset with no valid ids awards nothing', async () => {
@@ -168,18 +167,6 @@ describe('useBatchAward', () => {
     const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
 
     await expect(result.current.awardClass(BEHAVIOR)).rejects.toThrow();
-  });
-
-  it('forgets the batch tag when the batch fails (no batchKindStore leak)', async () => {
-    const qc = makeClient();
-    seedRoster(qc, [student({ id: 's1' })]);
-    mockMutateAsync.mockRejectedValue(pgError('42501', 'rls denied'));
-    eqMock.mockResolvedValueOnce({ data: [{ id: 's1' }], error: null }); // s1 still present → ambient
-    const { result } = renderHook(() => useBatchAward(CLASSROOM_ID), { wrapper: makeWrapper(qc) });
-
-    await expect(result.current.awardClass(BEHAVIOR)).rejects.toThrow();
-    const batchId = mockMutateAsync.mock.calls[0][0].batchId;
-    expect(batchKindStore.get(batchId)).toBeUndefined(); // tagged then forgotten
   });
 
   // ── §3 recovery (net-new coverage) ───────────────────────────────────────
@@ -220,8 +207,8 @@ describe('useBatchAward', () => {
 
     const txns = await result.current.awardClass(BEHAVIOR); // does NOT throw
     expect(txns).toEqual([]);
-    const batchId = mockMutateAsync.mock.calls[0][0].batchId;
-    expect(batchKindStore.get(batchId)).toBe('class'); // tag kept — undo may apply
+    // The kind rode the committed rows (batch_kind) — undo may apply.
+    expect(mockMutateAsync.mock.calls[0][0].batchKind).toBe('class');
     expect(failedBatchStore.getByClassroom(CLASSROOM_ID)).toHaveLength(0); // not recorded as failure
   });
 
@@ -243,8 +230,8 @@ describe('useBatchAward', () => {
 
     const txns = await result.current.awardClass(BEHAVIOR); // lost-ack recovery ran → suppressed as success
     expect(txns).toEqual([]);
-    const batchId = mockMutateAsync.mock.calls[0][0].batchId;
-    expect(batchKindStore.get(batchId)).toBe('class'); // tag kept — undo may apply
+    // The kind rode the committed rows (batch_kind) — undo may apply.
+    expect(mockMutateAsync.mock.calls[0][0].batchKind).toBe('class');
     expect(failedBatchStore.getByClassroom(CLASSROOM_ID)).toHaveLength(0); // not recorded as failure
   });
 

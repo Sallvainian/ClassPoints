@@ -121,6 +121,7 @@ function makeRealTransaction(overrides: Partial<DbPointTransaction> = {}): DbPoi
     points: behavior.points,
     note: null,
     batch_id: null,
+    batch_kind: null,
     created_at: '2026-04-28T00:00:00Z',
     ...overrides,
   };

@@ -1,8 +1,8 @@
 // Module-level (singleton) store of FAILED batch-award notices, keyed by
-// classroom_id. Mirrors batchKindStore: the writer (`useBatchAward`, mounted in
-// the award modals) and the reader (`DashboardView` via `useFailedBatches`) are
-// DIFFERENT component mounts, so the notices must live at module scope, not in
-// hook state — a per-hook ref/state would not be shared across the two mounts.
+// classroom_id. The writer (`useBatchAward`, mounted in the award modals) and
+// the reader (`DashboardView` via `useFailedBatches`) are DIFFERENT component
+// mounts, so the notices must live at module scope, not in hook state — a
+// per-hook ref/state would not be shared across the two mounts.
 //
 // An atomic batch failure writes ZERO `point_transactions` rows, so its
 // activity-feed visibility (SPEC CAP-3) is this client-side notice. Device-local
@@ -10,7 +10,7 @@
 // away + back) but is gone on reload. Durable / cross-device failed history is
 // explicitly out of scope.
 
-import type { BatchKind } from './batchKindStore';
+import type { BatchKind } from '../types/database';
 
 export type BatchFailureClassification = 'per-row' | 'ambient' | 'indeterminate';
 
