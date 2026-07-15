@@ -418,7 +418,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       {/* Body */}
       <div className="relative flex-1 overflow-hidden flex">
         <div
-          className={`flex-1 overflow-y-auto bg-surface-1 ${
+          className={`flex-1 overflow-y-auto overflow-x-hidden bg-surface-1 ${
             showActivity ? 'border-r border-hairline' : ''
           }`}
         >

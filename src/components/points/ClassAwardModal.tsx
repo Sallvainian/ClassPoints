@@ -92,11 +92,11 @@ export function ClassAwardModal({
         </p>
 
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-accent-500/10 text-accent-700 dark:text-accent-400 flex items-center justify-center text-2xl">
+          <div className="shrink-0 w-14 h-14 rounded-full bg-accent-500/10 text-accent-700 dark:text-accent-400 flex items-center justify-center text-2xl">
             ◎
           </div>
-          <div>
-            <h2 className="font-display text-2xl tracking-[-0.01em] text-ink-strong leading-tight">
+          <div className="min-w-0">
+            <h2 className="font-display text-2xl tracking-[-0.01em] text-ink-strong leading-tight truncate">
               {classroomName}
             </h2>
             <p className="mt-1 font-mono text-xs text-ink-muted">

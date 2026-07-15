@@ -39,7 +39,7 @@ export function LoginForm({ onSwitchToSignup, onForgotPassword }: LoginFormProps
   const displayError = formError || error?.message;
 
   return (
-    <div className="bg-surface-2 border border-hairline rounded-2xl p-8 shadow-[0_1px_0_rgba(255,255,255,0.4)_inset,0_20px_50px_-30px_rgba(0,0,0,0.2)]">
+    <div className="bg-surface-2 border border-hairline rounded-2xl p-6 sm:p-8 shadow-[0_1px_0_rgba(255,255,255,0.4)_inset,0_20px_50px_-30px_rgba(0,0,0,0.2)]">
       <div className="mb-8">
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-3">
           01 / Sign in

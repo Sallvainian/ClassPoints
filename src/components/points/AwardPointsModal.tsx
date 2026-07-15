@@ -101,13 +101,13 @@ export function AwardPointsModal({ isOpen, onClose, student, classroomId }: Awar
 
         <div className="flex items-center gap-4">
           <div
-            className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-semibold shadow-inner ${avatarTextClass}`}
+            className={`shrink-0 w-14 h-14 rounded-full flex items-center justify-center text-xl font-semibold shadow-inner ${avatarTextClass}`}
             style={{ backgroundColor: avatarBg }}
           >
             {student.name.charAt(0).toUpperCase()}
           </div>
-          <div>
-            <h2 className="font-display text-2xl tracking-[-0.01em] text-ink-strong leading-tight">
+          <div className="min-w-0">
+            <h2 className="font-display text-2xl tracking-[-0.01em] text-ink-strong leading-tight truncate">
               {student.name}
             </h2>
             <p className="mt-1 font-mono text-xs text-ink-muted">

@@ -126,7 +126,7 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
               day: 'numeric',
             })}
           </p>
-          <h1 className="font-display text-3xl md:text-4xl lg:text-5xl leading-[1.05] tracking-[-0.02em] text-ink-strong">
+          <h1 className="font-display text-3xl md:text-4xl lg:text-5xl leading-[1.05] tracking-[-0.02em] text-ink-strong break-words">
             Welcome back, {displayName}!
           </h1>
           <p className="mt-3 text-base text-ink-mid">

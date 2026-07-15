@@ -43,7 +43,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         <div className="px-6 pt-6 pb-2">
           <h2
             id="modal-title"
-            className="font-display text-2xl leading-tight text-ink-strong tracking-[-0.01em]"
+            className="font-display text-2xl leading-tight text-ink-strong tracking-[-0.01em] break-words"
           >
             {title}
           </h2>

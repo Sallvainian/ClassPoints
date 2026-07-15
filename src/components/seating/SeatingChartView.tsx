@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
+import { useState, useCallback, useRef, useLayoutEffect, lazy, Suspense } from 'react';
 import type { Student } from '../../types';
 import { useSeatingChart } from '../../hooks/useSeatingChart';
 import { useLayoutPresets } from '../../hooks/useLayoutPresets';
@@ -59,8 +59,10 @@ export function SeatingChartView({
   const MIN_ZOOM = 0.3;
   const MAX_ZOOM = 1.5;
 
-  // Calculate fit-to-screen scale on mount and resize
-  useEffect(() => {
+  // Calculate fit-to-screen scale on mount and resize. useLayoutEffect: the
+  // scale-1 default must never paint — a 1600px default canvas unscaled blows
+  // the pane wide on phones for one visible frame.
+  useLayoutEffect(() => {
     if (!chart || !containerRef.current) return;
 
     const updateFitScale = () => {
@@ -81,9 +83,12 @@ export function SeatingChartView({
     setScale((prev) => Math.min(MAX_ZOOM, prev + ZOOM_STEP));
   }, []);
 
+  // Zoom-out floor: fitScale when it is below MIN_ZOOM (phones — a 1600px
+  // chart fits 390-440pt only at ~0.20-0.24), else MIN_ZOOM. A fixed 0.3
+  // floor would strand phones wider than the viewport after one zoom-in.
   const handleZoomOut = useCallback(() => {
-    setScale((prev) => Math.max(MIN_ZOOM, prev - ZOOM_STEP));
-  }, []);
+    setScale((prev) => Math.max(Math.min(MIN_ZOOM, fitScale), prev - ZOOM_STEP));
+  }, [fitScale]);
 
   const handleFitToScreen = useCallback(() => {
     setScale(fitScale);
@@ -199,12 +204,12 @@ export function SeatingChartView({
       <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-2">{chart.name}</h2>
 
       {/* Controls - stacked above chart */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         {/* Zoom controls */}
         <div className="flex items-center gap-1 bg-gray-100 dark:bg-zinc-950 rounded-lg p-1">
           <button
             onClick={handleZoomOut}
-            disabled={scale <= MIN_ZOOM}
+            disabled={scale <= Math.min(MIN_ZOOM, fitScale)}
             className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
             title="Zoom out"
           >
@@ -242,21 +247,30 @@ export function SeatingChartView({
         </Button>
       </div>
 
-      {/* Seating chart canvas - scaled to fit container */}
-      <div
-        style={{
-          transform: `scale(${scale})`,
-          transformOrigin: 'top left',
-          height: chart.canvasHeight * scale + 80, // Adjust container height for scaled content
-        }}
-      >
-        <SeatingChartCanvas
-          chart={chart}
-          students={students}
-          onClickStudent={onClickStudent}
-          hideRoomElements={hideRoomElements}
-          showPointBreakdown={showPointBreakdown}
-        />
+      {/* Seating chart canvas - scaled to fit container. transform: scale()
+          is visual only — the canvas keeps its full layout width (1600px
+          default), so the sized wrapper must compensate WIDTH as well as
+          height or the dashboard pane scrolls sideways on anything narrower
+          than the canvas. Zooming past fit pans inside the local
+          overflow-x-auto scroller, never the page. */}
+      <div className="overflow-x-auto">
+        <div
+          style={{
+            width: chart.canvasWidth * scale,
+            height: chart.canvasHeight * scale + 80,
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+            <SeatingChartCanvas
+              chart={chart}
+              students={students}
+              onClickStudent={onClickStudent}
+              hideRoomElements={hideRoomElements}
+              showPointBreakdown={showPointBreakdown}
+            />
+          </div>
+        </div>
       </div>
       {actionErrorToast}
     </div>

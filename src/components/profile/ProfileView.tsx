@@ -203,7 +203,7 @@ export function ProfileView({ onClose }: ProfileViewProps) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
-                    <span className="text-ink-strong">{currentDisplayName}</span>
+                    <span className="min-w-0 truncate text-ink-strong">{currentDisplayName}</span>
                     <button
                       onClick={() => setIsEditingName(true)}
                       className="font-mono text-[11px] uppercase tracking-[0.14em] text-accent-600 hover:text-accent-700 transition-colors"

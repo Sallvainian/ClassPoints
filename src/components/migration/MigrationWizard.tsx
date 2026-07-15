@@ -281,7 +281,7 @@ export function MigrationWizard({ onComplete, onSkip }: MigrationWizardProps) {
 
         <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-lg p-3 mb-6 max-h-40 overflow-y-auto">
           <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">Errors:</p>
-          <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
+          <ul className="text-sm text-red-700 dark:text-red-300 space-y-1 break-words">
             {result.errors.map((error, i) => (
               <li key={i}>• {error}</li>
             ))}
