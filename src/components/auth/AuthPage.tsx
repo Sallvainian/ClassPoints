@@ -49,7 +49,7 @@ export function AuthPage() {
       </aside>
 
       {/* Form panel */}
-      <main className="flex items-center justify-center p-6 lg:p-10">
+      <main className="flex items-center justify-center p-6 lg:p-10 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
         <div className="w-full max-w-md animate-fade-up [animation-delay:120ms]">
           {/* Compact brand for mobile + form panel header */}
           <div className="lg:hidden text-center mb-6">

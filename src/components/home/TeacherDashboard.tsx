@@ -115,7 +115,9 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
 
   return (
     <div className="h-full overflow-y-auto bg-surface-1">
-      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-10">
+      {/* No header bar on this view, so the content itself must clear the
+          status bar / Dynamic Island (env() is 0 in regular browser tabs). */}
+      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-10 pt-[calc(1rem+env(safe-area-inset-top))] md:pt-[calc(1.5rem+env(safe-area-inset-top))] lg:pt-[calc(2.5rem+env(safe-area-inset-top))]">
         {/* Header */}
         <div className="mb-6 md:mb-10 animate-fade-up">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-muted mb-3">

@@ -929,7 +929,7 @@ export function SeatingChartEditor({
       onDragEnd={handleDragEnd}
       collisionDetection={pointerWithin}
     >
-      <div className="fixed inset-0 bg-gray-100 dark:bg-zinc-950 z-50 flex flex-col">
+      <div className="fixed inset-0 bg-gray-100 dark:bg-zinc-950 z-50 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
         {/* Header */}
         <div className="bg-white dark:bg-zinc-900 border-b px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
