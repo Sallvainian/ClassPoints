@@ -53,8 +53,8 @@ export function UndoToast({ action, onUndo, duration = 5000 }: UndoToastProps) {
   };
 
   return (
-    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 animate-slide-up">
-      <div className="min-w-[360px] rounded-xl border border-hairline bg-surface-2 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] overflow-hidden">
+    <div className="fixed bottom-[calc(var(--app-bottom-nav-h)+1.5rem)] left-1/2 transform -translate-x-1/2 z-50 animate-slide-up">
+      <div className="min-w-[min(360px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-xl border border-hairline bg-surface-2 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] overflow-hidden">
         {/* Progress bar */}
         <div className="h-[2px] bg-hairline">
           <div

@@ -27,12 +27,12 @@ function BottomToolbarComponent({
   if (!hasStudents) return null;
 
   return (
-    <div className="border-t border-hairline bg-surface-2 px-6 py-4 flex items-center justify-center">
+    <div className="border-t border-hairline bg-surface-2 px-3 py-2.5 md:px-6 md:py-4 flex items-center justify-center">
       {selectionMode ? (
         <div className="inline-flex items-center gap-1 rounded-2xl border border-hairline bg-surface-1 p-1 shadow-[0_4px_20px_-8px_rgba(0,0,0,0.15)]">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-accent-500/10">
             <span
-              className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent-700 dark:text-accent-400"
+              className="hidden sm:inline font-mono text-[10px] uppercase tracking-[0.16em] text-accent-700 dark:text-accent-400"
               aria-hidden="true"
             >
               Selected

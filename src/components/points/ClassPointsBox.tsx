@@ -12,11 +12,11 @@ export function ClassPointsBox({ classPoints, onClick }: ClassPointsBoxProps) {
   return (
     <button
       onClick={onClick}
-      className="group w-full text-left bg-surface-2 border border-hairline rounded-2xl p-5 transition-[border-color,transform,box-shadow] duration-200 hover:border-accent-500/40 hover:-translate-y-[1px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
+      className="group w-full text-left bg-surface-2 border border-hairline rounded-2xl p-4 sm:p-5 transition-[border-color,transform,box-shadow] duration-200 hover:border-accent-500/40 hover:-translate-y-[1px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="font-display text-3xl lg:text-4xl tracking-[-0.02em] text-ink-strong leading-[1.05]">
+          <h3 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[-0.02em] text-ink-strong leading-[1.05]">
             Class total
           </h3>
           <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-muted">
@@ -26,7 +26,7 @@ export function ClassPointsBox({ classPoints, onClick }: ClassPointsBoxProps) {
 
         <div className="text-right shrink-0">
           <div
-            className={`font-mono tabular-nums text-3xl font-medium tracking-[-0.02em] ${
+            className={`font-mono tabular-nums text-2xl sm:text-3xl font-medium tracking-[-0.02em] ${
               isPositive
                 ? 'text-emerald-600 dark:text-emerald-400'
                 : 'text-red-600 dark:text-red-400'

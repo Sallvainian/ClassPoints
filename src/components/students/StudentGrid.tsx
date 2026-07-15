@@ -15,15 +15,15 @@ interface StudentGridProps {
 }
 
 const GRID_COLUMNS = {
-  small: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10',
-  medium: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
-  large: 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+  small: 'grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10',
+  medium: 'grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
+  large: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
 };
 
 const GAP_SIZES = {
-  small: 'gap-2',
-  medium: 'gap-3',
-  large: 'gap-4',
+  small: 'gap-1.5 sm:gap-2',
+  medium: 'gap-2 sm:gap-3',
+  large: 'gap-3 sm:gap-4',
 };
 
 export function StudentGrid({

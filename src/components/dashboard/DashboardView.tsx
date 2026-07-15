@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, X } from 'lucide-react';
 import type { Student, PointTransaction } from '../../types';
 import type { CardSize } from '../../hooks/useDisplaySettings';
 import { useApp } from '../../contexts/useApp';
@@ -303,7 +303,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
     <div className="h-full flex flex-col bg-surface-1 text-ink-strong">
       {/* Header */}
       <header className="bg-surface-2 border-b border-hairline">
-        <div className="px-6 pt-5 pb-4">
+        <div className="px-4 md:px-6 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-1.5">
@@ -341,7 +341,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
                   </>
                 )}
               </p>
-              <h1 className="font-display text-3xl lg:text-4xl tracking-[-0.02em] leading-[1.05] text-ink-strong truncate">
+              <h1 className="font-display text-2xl md:text-3xl lg:text-4xl tracking-[-0.02em] leading-[1.05] text-ink-strong truncate">
                 {activeClassroom.name}
               </h1>
             </div>
@@ -354,13 +354,15 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
                 aria-label="Classroom settings"
               >
                 <SettingsIcon className="w-3.5 h-3.5" strokeWidth={1.75} />
-                <span className="font-mono uppercase tracking-[0.14em]">Settings</span>
+                <span className="hidden sm:inline font-mono uppercase tracking-[0.14em]">
+                  Settings
+                </span>
               </button>
             </div>
           </div>
 
           {/* Control strip */}
-          <div className="mt-4 flex items-center gap-2 flex-wrap">
+          <div className="mt-3 md:mt-4 flex items-center gap-1.5 md:gap-2 flex-wrap">
             {/* Card size segmented */}
             <div className="inline-flex items-center rounded-[10px] border border-hairline bg-surface-1 p-0.5">
               {CARD_SIZES.map((size) => {
@@ -414,7 +416,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
       </header>
 
       {/* Body */}
-      <div className="flex-1 overflow-hidden flex">
+      <div className="relative flex-1 overflow-hidden flex">
         <div
           className={`flex-1 overflow-y-auto bg-surface-1 ${
             showActivity ? 'border-r border-hairline' : ''
@@ -456,14 +458,24 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
         </div>
 
         {showActivity && (
-          <aside className="w-80 bg-surface-2 overflow-y-auto p-5">
-            <header className="mb-4">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">
-                Activity · today
-              </p>
-              <h2 className="mt-1 font-display text-2xl tracking-[-0.01em] text-ink-strong">
-                Recent
-              </h2>
+          /* Phone: full-area overlay over the grid; >=md: the classic side panel. */
+          <aside className="absolute inset-0 z-10 md:static md:inset-auto md:z-auto md:w-80 bg-surface-2 overflow-y-auto p-5 max-md:animate-fade-in">
+            <header className="mb-4 flex items-start justify-between">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">
+                  Activity · today
+                </p>
+                <h2 className="mt-1 font-display text-2xl tracking-[-0.01em] text-ink-strong">
+                  Recent
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowActivity(false)}
+                className="md:hidden p-2 -mr-2 rounded-[10px] text-ink-mid hover:bg-surface-3 hover:text-ink-strong transition-colors"
+                aria-label="Close activity"
+              >
+                <X className="w-4 h-4" strokeWidth={1.75} />
+              </button>
             </header>
             <TodaySummary
               transactions={transactions}

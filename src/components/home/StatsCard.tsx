@@ -32,20 +32,20 @@ function StatsCardComponent({ icon, label, value, subValue, tone = 'neutral' }: 
   const t = TONE_STYLES[tone];
   return (
     <div
-      className={`group relative bg-surface-2 border border-hairline rounded-2xl p-5 transition-colors ${t.ring}`}
+      className={`group relative bg-surface-2 border border-hairline rounded-2xl p-3 sm:p-5 transition-colors ${t.ring}`}
     >
       <div className="flex items-start justify-between">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">
             {label}
           </p>
-          <p className="mt-2 font-mono tabular-nums text-3xl font-medium tracking-[-0.02em] text-ink-strong">
+          <p className="mt-2 font-mono tabular-nums text-xl sm:text-3xl font-medium tracking-[-0.02em] text-ink-strong">
             {value}
           </p>
           {subValue && <p className="mt-1 text-xs text-ink-muted">{subValue}</p>}
         </div>
         <span
-          className={`inline-flex items-center justify-center w-9 h-9 rounded-full ${t.iconBg} ${t.iconColor} font-mono text-base leading-none`}
+          className={`hidden sm:inline-flex items-center justify-center w-9 h-9 rounded-full ${t.iconBg} ${t.iconColor} font-mono text-base leading-none`}
           aria-hidden="true"
         >
           {icon}

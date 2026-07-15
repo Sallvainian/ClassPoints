@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { Moon, Sun, LogOut } from 'lucide-react';
 import { useAuth } from '../../contexts/useAuth';
+import { useTheme } from '../../contexts/useTheme';
 import { useApp } from '../../contexts/useApp';
 import { useAppClassrooms } from '../../hooks/useAppClassrooms';
 import { useDeleteClassroom } from '../../hooks/useClassrooms';
@@ -26,7 +28,8 @@ function SectionLabel({ children, count }: { children: React.ReactNode; count?: 
 }
 
 export function ProfileView({ onClose }: ProfileViewProps) {
-  const { user, updatePassword } = useAuth();
+  const { user, updatePassword, signOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const { activeClassroomId, setActiveClassroom } = useApp();
   const { classrooms } = useAppClassrooms();
   const deleteClassroomMutation = useDeleteClassroom();
@@ -126,7 +129,7 @@ export function ProfileView({ onClose }: ProfileViewProps) {
   return (
     <div className="h-full flex flex-col bg-surface-1 text-ink-strong overflow-hidden">
       {/* Header */}
-      <header className="bg-surface-2 border-b border-hairline px-6 lg:px-10 py-5 flex items-center justify-between">
+      <header className="bg-surface-2 border-b border-hairline px-6 lg:px-10 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-5 flex items-center justify-between">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-1">
             Account
@@ -351,6 +354,38 @@ export function ProfileView({ onClose }: ProfileViewProps) {
                 })}
               </ul>
             )}
+          </section>
+
+          {/* Preferences — phone only. On >=md these live in the sidebar
+              footer, which is hidden behind md:flex on small screens. */}
+          <section className="md:hidden">
+            <SectionLabel>Preferences</SectionLabel>
+            <div className="bg-surface-2 border border-hairline rounded-2xl divide-y divide-hairline">
+              <button
+                onClick={toggleTheme}
+                className="w-full flex items-center justify-between gap-4 p-5 text-left"
+              >
+                <span className="text-sm text-ink-strong">Theme</span>
+                <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-mid">
+                  {theme === 'dark' ? (
+                    <>
+                      <Sun className="w-3.5 h-3.5" strokeWidth={1.75} /> Light
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="w-3.5 h-3.5" strokeWidth={1.75} /> Dark
+                    </>
+                  )}
+                </span>
+              </button>
+              <button
+                onClick={signOut}
+                className="w-full flex items-center justify-between gap-4 p-5 text-left"
+              >
+                <span className="text-sm text-red-600 dark:text-red-400">Sign out</span>
+                <LogOut className="w-3.5 h-3.5 text-red-600 dark:text-red-400" strokeWidth={1.75} />
+              </button>
+            </div>
           </section>
         </div>
       </div>

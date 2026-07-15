@@ -47,7 +47,7 @@ export function Dialog({
         aria-hidden="true"
       />
       <div
-        className={`relative bg-surface-2 border border-hairline rounded-2xl shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] w-full ${maxWidth} animate-scale-in overflow-hidden`}
+        className={`relative bg-surface-2 border border-hairline rounded-2xl shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] w-full ${maxWidth} max-h-[calc(100dvh-2rem)] flex flex-col animate-scale-in overflow-hidden`}
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}

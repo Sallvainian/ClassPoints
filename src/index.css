@@ -113,6 +113,19 @@ body {
   --chart-grid-line: #f0f0f0;
 }
 
+/* Height reserved by the phone bottom tab bar (BottomNav): 3.5rem = h-14, plus
+ * the home-indicator safe area. Fixed bottom-anchored layers (UndoToast,
+ * ErrorToast) offset by this var so one rule serves phone and desktop.
+ * The 48rem breakpoint MUST track Tailwind's `md` — BottomNav is md:hidden. */
+:root {
+  --app-bottom-nav-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 48rem) {
+  :root {
+    --app-bottom-nav-h: 0px;
+  }
+}
+
 /* Semantic-token + chart-grid dark-mode overrides — utilities resolve via var(). */
 .dark {
   --color-surface-1: #0a0a0b;
