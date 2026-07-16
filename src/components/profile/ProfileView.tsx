@@ -28,7 +28,7 @@ function SectionLabel({ children, count }: { children: React.ReactNode; count?: 
 }
 
 export function ProfileView({ onClose }: ProfileViewProps) {
-  const { user, updatePassword, signOut } = useAuth();
+  const { user, updatePassword, updateEmail, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { activeClassroomId, setActiveClassroom } = useApp();
   const { classrooms } = useAppClassrooms();
@@ -48,6 +48,15 @@ export function ProfileView({ onClose }: ProfileViewProps) {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  // Unlike the name/password successes this does NOT auto-clear: the change is
+  // only REQUESTED here — it stays pending until both confirmation links
+  // (current + new inbox, Supabase secure email change) are opened.
+  const [emailPending, setEmailPending] = useState(false);
 
   const [classroomToDelete, setClassroomToDelete] = useState<Classroom | null>(null);
 
@@ -89,6 +98,32 @@ export function ProfileView({ onClose }: ProfileViewProps) {
     } else {
       setNameSuccess(true);
       setIsEditingName(false);
+    }
+  };
+
+  const handleChangeEmail = async () => {
+    const trimmed = newEmail.trim();
+    if (!trimmed) return;
+
+    if (trimmed.toLowerCase() === userEmail.toLowerCase()) {
+      setEmailError('That is already your email address');
+      return;
+    }
+
+    setEmailSaving(true);
+    setEmailError(null);
+    setEmailPending(false);
+
+    const { success, error } = await updateEmail(trimmed);
+
+    setEmailSaving(false);
+
+    if (!success && error) {
+      setEmailError(error.message);
+    } else {
+      setEmailPending(true);
+      setNewEmail('');
+      setShowEmailForm(false);
     }
   };
 
@@ -218,6 +253,63 @@ export function ProfileView({ onClose }: ProfileViewProps) {
                 {nameSuccess && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2">
                     Display name updated.
+                  </p>
+                )}
+              </div>
+
+              <div className="border-t border-hairline pt-5">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-muted mb-2">
+                  Email
+                </p>
+                {showEmailForm ? (
+                  <div className="space-y-3">
+                    <Input
+                      type="email"
+                      placeholder="new@example.com"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      autoComplete="email"
+                      autoFocus
+                    />
+                    {emailError && (
+                      <p className="text-xs text-red-600 dark:text-red-400">{emailError}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleChangeEmail}
+                        size="sm"
+                        disabled={emailSaving || !newEmail.trim()}
+                      >
+                        {emailSaving ? 'Sending…' : 'Send confirmation'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowEmailForm(false);
+                          setNewEmail('');
+                          setEmailError(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <span className="min-w-0 truncate text-ink-strong">{userEmail}</span>
+                    <button
+                      onClick={() => setShowEmailForm(true)}
+                      className="font-mono text-[11px] uppercase tracking-[0.14em] text-accent-600 hover:text-accent-700 transition-colors"
+                    >
+                      Change
+                    </button>
+                  </div>
+                )}
+                {emailPending && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2">
+                    Confirmation email sent — open the link to complete the change. (If secure email
+                    change is enabled, both your current and new inboxes get one.)
                   </p>
                 )}
               </div>

@@ -1,6 +1,13 @@
 // PostgrestError is a RUNTIME import (needed for `instanceof` and the hydration
 // constructor in unwrap) — `import type` would break under isolatedModules.
-import { createClient, PostgrestError, SupabaseClient } from '@supabase/supabase-js';
+import {
+  AuthUnknownError,
+  createClient,
+  isAuthApiError,
+  isAuthRetryableFetchError,
+  PostgrestError,
+  SupabaseClient,
+} from '@supabase/supabase-js';
 import type { PostgrestSingleResponse } from '@supabase/supabase-js';
 import type { Database } from '../types/database';
 
@@ -106,4 +113,48 @@ export function isPostgrestError(err: unknown): err is PostgrestErrorLike {
     (typeof candidate.details === 'string' || candidate.details === null) &&
     (typeof candidate.hint === 'string' || candidate.hint === null)
   );
+}
+
+/**
+ * Sentinel for AuthContext's bounded session validation: `getUser()` accepts no
+ * AbortSignal, so boot races it against a timer and rejects with this class.
+ * A named class (vs the old anonymous `new Error('auth validation timeout')`)
+ * lets `isNetworkClassAuthError` recognize "the auth endpoint hung" as a
+ * transient failure instead of a session rejection.
+ */
+export class AuthValidationTimeoutError extends Error {
+  constructor() {
+    super('auth validation timeout');
+    this.name = 'AuthValidationTimeoutError';
+  }
+}
+
+/**
+ * Transient/network-class auth failure — the session was NOT proven invalid,
+ * so callers must keep it (in state and in storage) and let GoTrue's
+ * auto-refresh ticker recover once connectivity returns. Destroying a session
+ * on one of these logs a teacher out for being offline.
+ *
+ * WHITELIST semantics: anything unclassified is a genuine rejection (401/403
+ * AuthApiError, AuthSessionMissingError, unknown errors) and the caller purges.
+ * Defaulting the unknown case to "purge" preserves the original defense this
+ * validation exists for — a stale JWT must never brick boot in a refresh loop.
+ * The one deliberate fuzzy edge: TypeError (fetch's network-failure class) from
+ * our own code would be misread as transient, but that failure mode is "kept a
+ * session we couldn't validate", which the reconnect revalidation then settles.
+ */
+export function isNetworkClassAuthError(err: unknown): boolean {
+  if (err instanceof AuthValidationTimeoutError) return true;
+  if (err instanceof TypeError) return true;
+  if (isAuthRetryableFetchError(err)) return true;
+  // Server-side trouble (5xx) or throttling (429) says nothing about the
+  // session's validity.
+  if (isAuthApiError(err) && (err.status >= 500 || err.status === 429)) return true;
+  // Unparseable response body. auth-js only wraps 5xx as retryable BEFORE
+  // parsing; any other status with a non-JSON body (an HTML 403/429 block or
+  // challenge page from a school content filter or CDN WAF — infrastructure
+  // in FRONT of Supabase, not Supabase's verdict) lands here. GoTrue's own
+  // rejections are always JSON → AuthApiError, so genuine 401/403s still purge.
+  if (err instanceof AuthUnknownError) return true;
+  return false;
 }

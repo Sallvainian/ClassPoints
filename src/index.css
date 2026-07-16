@@ -1,5 +1,11 @@
 @import 'tailwindcss';
 
+/* Self-hosted fonts: the @fontsource imports live in src/main.tsx, NOT here —
+ * Tailwind v4's own @import resolver inlines node_modules CSS without rebasing
+ * its relative url(./files/…) font paths, so a CSS-level import ships broken
+ * URLs. The `--font-*` stacks in @theme below reference the families those
+ * imports declare ('Instrument Serif' / 'Geist' / 'JetBrains Mono'). */
+
 /* Class-based dark mode (Tailwind v4) — toggled by .dark on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
 
