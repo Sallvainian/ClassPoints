@@ -64,3 +64,4 @@ scripts/verify-*.ts
 .dmux/
 .coddo/
 .claude/
+.toddo/
