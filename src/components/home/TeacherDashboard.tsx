@@ -104,7 +104,11 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
           <p className="text-base text-ink-mid mb-8 max-w-md mx-auto leading-relaxed">
             Track student behavior and points with ease. Create your first classroom to get started.
           </p>
-          <Button onClick={handleCreateClassroom} size="lg">
+          <Button
+            onClick={handleCreateClassroom}
+            size="lg"
+            disabled={createClassroomMutation.isPending}
+          >
             + Create Your First Classroom
           </Button>
           {createError && <p className="font-mono text-xs text-red-600 mt-4">{createError}</p>}
@@ -186,7 +190,8 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
                   so give the home grid a create affordance. */}
               <button
                 onClick={handleCreateClassroom}
-                className="md:hidden rounded-2xl border border-dashed border-hairline-strong p-5 text-left text-ink-mid hover:border-accent-500/50 hover:text-ink-strong transition-colors"
+                disabled={createClassroomMutation.isPending}
+                className="md:hidden rounded-2xl border border-dashed border-hairline-strong p-5 text-left text-ink-mid hover:border-accent-500/50 hover:text-ink-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="font-mono text-[11px] uppercase tracking-[0.14em]">
                   + New classroom

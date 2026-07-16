@@ -21,6 +21,8 @@ export default tseslint.config(
       // Generated/config
       '*.config.js',
       '*.config.ts',
+      // Native platform shell (Capacitor) — Xcode project + local build output
+      'ios',
       // Supabase
       'supabase',
       // Scripts

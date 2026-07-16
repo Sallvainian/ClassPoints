@@ -62,6 +62,23 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
   const [isClassAwardModalOpen, setIsClassAwardModalOpen] = useState(false);
   const [isMultiAwardModalOpen, setIsMultiAwardModalOpen] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
+  const activityCloseRef = useRef<HTMLButtonElement>(null);
+
+  // Below md the activity panel is a modal-style overlay (aside in the body
+  // below), so give it Modal's dismissal affordances: focus the close button on
+  // open and close on Escape. At md+ it's an in-flow side panel with its own
+  // toggle — leave keyboard flow alone there. 48rem must track Tailwind `md`
+  // (same constraint as --app-bottom-nav-h in index.css).
+  useEffect(() => {
+    if (!showActivity) return;
+    if (window.matchMedia('(min-width: 48rem)').matches) return;
+    activityCloseRef.current?.focus();
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowActivity(false);
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [showActivity]);
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
@@ -470,6 +487,7 @@ export function DashboardView({ onOpenSettings }: DashboardViewProps) {
                 </h2>
               </div>
               <button
+                ref={activityCloseRef}
                 onClick={() => setShowActivity(false)}
                 className="md:hidden p-2 -mr-2 rounded-[10px] text-ink-mid hover:bg-surface-3 hover:text-ink-strong transition-colors"
                 aria-label="Close activity"

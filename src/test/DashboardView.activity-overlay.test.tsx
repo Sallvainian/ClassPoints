@@ -221,4 +221,46 @@ describe('DashboardView activity panel — phone overlay / desktop side panel', 
     expect(activityAside(container)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Close activity' })).not.toBeInTheDocument();
   });
+
+  // setup.ts's matchMedia mock returns matches:false for every query, so the
+  // component's `(min-width: 48rem)` probe reports "below md" — these tests run
+  // in phone-overlay mode without extra stubbing.
+  it('phone overlay: focus moves to the close button on open and Escape closes it', async () => {
+    const { container } = renderDashboard();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Activity' }));
+
+    expect(screen.getByRole('button', { name: 'Close activity' })).toHaveFocus();
+
+    await userEvent.keyboard('{Escape}');
+    expect(activityAside(container)).toBeNull();
+  });
+
+  it('md+ side panel: Escape does not close it and focus is not stolen', async () => {
+    const originalMatchMedia = window.matchMedia;
+    // Report md+ for the component's breakpoint probe (everything else stays false).
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(min-width: 48rem)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    try {
+      const { container } = renderDashboard();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Activity' }));
+
+      expect(screen.getByRole('button', { name: 'Close activity' })).not.toHaveFocus();
+
+      await userEvent.keyboard('{Escape}');
+      expect(activityAside(container)).not.toBeNull();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
 });
