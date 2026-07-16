@@ -104,7 +104,11 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
           <p className="text-base text-ink-mid mb-8 max-w-md mx-auto leading-relaxed">
             Track student behavior and points with ease. Create your first classroom to get started.
           </p>
-          <Button onClick={handleCreateClassroom} size="lg">
+          <Button
+            onClick={handleCreateClassroom}
+            size="lg"
+            disabled={createClassroomMutation.isPending}
+          >
             + Create Your First Classroom
           </Button>
           {createError && <p className="font-mono text-xs text-red-600 mt-4">{createError}</p>}
@@ -115,9 +119,11 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
 
   return (
     <div className="h-full overflow-y-auto bg-surface-1">
-      <div className="max-w-7xl mx-auto p-6 lg:p-10">
+      {/* No header bar on this view, so the content itself must clear the
+          status bar / Dynamic Island (env() is 0 in regular browser tabs). */}
+      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-10 pt-[calc(1rem+env(safe-area-inset-top))] md:pt-[calc(1.5rem+env(safe-area-inset-top))] lg:pt-[calc(2.5rem+env(safe-area-inset-top))]">
         {/* Header */}
-        <div className="mb-10 animate-fade-up">
+        <div className="mb-6 md:mb-10 animate-fade-up">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-muted mb-3">
             Today /{' '}
             {new Date().toLocaleDateString(undefined, {
@@ -126,7 +132,7 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
               day: 'numeric',
             })}
           </p>
-          <h1 className="font-display text-4xl lg:text-5xl leading-[1.05] tracking-[-0.02em] text-ink-strong">
+          <h1 className="font-display text-3xl md:text-4xl lg:text-5xl leading-[1.05] tracking-[-0.02em] text-ink-strong break-words">
             Welcome back, {displayName}!
           </h1>
           <p className="mt-3 text-base text-ink-mid">
@@ -135,7 +141,7 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8 animate-fade-up [animation-delay:80ms]">
+        <div className="grid grid-cols-3 gap-2 md:gap-3 mb-6 md:mb-8 animate-fade-up [animation-delay:80ms]">
           <StatsCard
             icon="✦"
             label="Total Points"
@@ -180,7 +186,21 @@ export function TeacherDashboard({ onSelectClassroom }: TeacherDashboardProps) {
                   onClick={handleClassroomClick}
                 />
               ))}
+              {/* Phone only: the sidebar's create button is hidden below md,
+                  so give the home grid a create affordance. */}
+              <button
+                onClick={handleCreateClassroom}
+                disabled={createClassroomMutation.isPending}
+                className="md:hidden rounded-2xl border border-dashed border-hairline-strong p-5 text-left text-ink-mid hover:border-accent-500/50 hover:text-ink-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="font-mono text-[11px] uppercase tracking-[0.14em]">
+                  + New classroom
+                </span>
+              </button>
             </div>
+            {createError && (
+              <p className="md:hidden font-mono text-xs text-red-600 mt-3">{createError}</p>
+            )}
           </div>
         </div>
       </div>

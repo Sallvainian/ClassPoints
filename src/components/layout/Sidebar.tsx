@@ -47,7 +47,7 @@ export function Sidebar({ onNavigateHome, onNavigateProfile, onSelectClassroom }
   };
 
   return (
-    <aside className="w-64 bg-surface-2 border-r border-hairline flex flex-col h-full">
+    <aside className="hidden md:flex w-64 bg-surface-2 border-r border-hairline flex-col h-full">
       {/* Brand */}
       <div className="px-5 pt-5 pb-4 border-b border-hairline">
         <div className="flex items-center gap-2.5">

@@ -59,7 +59,7 @@ function AppContent() {
   // Migration wizard view
   if (view === 'migration') {
     return (
-      <div className="min-h-screen bg-surface-1 flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-surface-1 flex items-center justify-center p-4">
         <Suspense fallback={<ViewFallback />}>
           <MigrationWizard
             onComplete={() => setView('dashboard')}
@@ -73,7 +73,9 @@ function AppContent() {
   return (
     <>
       <Layout
+        activeView={view}
         onNavigateHome={() => setView('home')}
+        onNavigateDashboard={() => setView('dashboard')}
         onNavigateProfile={() => setView('profile')}
         onSelectClassroom={(id) => {
           const exists = classrooms.some((c) => c.id === id);

@@ -59,8 +59,8 @@ export function ErrorToast({ error, onDismiss, duration = 5000 }: ErrorToastProp
   const progress = (timeLeft / duration) * 100;
 
   return (
-    <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 animate-slide-up">
-      <div className="bg-surface-2 border border-hairline rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] overflow-hidden min-w-[340px]">
+    <div className="fixed bottom-[calc(var(--app-bottom-nav-h)+5rem)] left-1/2 transform -translate-x-1/2 z-50 animate-slide-up">
+      <div className="bg-surface-2 border border-hairline rounded-xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] overflow-hidden min-w-[min(340px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]">
         <div className="h-[2px] bg-hairline">
           <div
             className="h-full transition-all duration-100 bg-red-500"
@@ -69,19 +69,23 @@ export function ErrorToast({ error, onDismiss, duration = 5000 }: ErrorToastProp
         </div>
 
         <div className="p-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          {/* min-w-0 + break-words: Supabase errors carry long unbroken tokens
+              (constraint names, URLs) that must not push Dismiss out of reach. */}
+          <div className="min-w-0 flex items-center gap-3">
             <span
-              className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-bold"
+              className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-bold"
               aria-hidden="true"
             >
               !
             </span>
-            <p className="text-sm font-medium text-ink-strong">{error}</p>
+            <p className="text-sm font-medium text-ink-strong break-words min-w-0">{error}</p>
           </div>
 
-          <Button variant="ghost" size="sm" onClick={handleDismiss}>
-            Dismiss
-          </Button>
+          <div className="shrink-0">
+            <Button variant="ghost" size="sm" onClick={handleDismiss}>
+              Dismiss
+            </Button>
+          </div>
         </div>
       </div>
     </div>

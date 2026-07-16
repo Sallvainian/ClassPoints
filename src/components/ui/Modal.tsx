@@ -35,7 +35,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         aria-hidden="true"
       />
       <div
-        className="relative bg-surface-2 border border-hairline rounded-2xl shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] max-w-md w-full animate-scale-in"
+        className="relative bg-surface-2 border border-hairline rounded-2xl shadow-[0_30px_80px_-20px_rgba(0,0,0,0.25)] max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto animate-scale-in"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
@@ -43,7 +43,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         <div className="px-6 pt-6 pb-2">
           <h2
             id="modal-title"
-            className="font-display text-2xl leading-tight text-ink-strong tracking-[-0.01em]"
+            className="font-display text-2xl leading-tight text-ink-strong tracking-[-0.01em] break-words"
           >
             {title}
           </h2>

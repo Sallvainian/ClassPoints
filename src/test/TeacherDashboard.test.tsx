@@ -29,6 +29,7 @@ const render = (ui: ReactElement, options?: RenderOptions) =>
 const mockUseAppClassrooms = vi.fn();
 const mockUseActiveClassroom = vi.fn();
 const mockCreateClassroom = vi.fn();
+const mockUseCreateClassroom = vi.fn();
 const mockSetActiveClassroom = vi.fn();
 const mockUseAuth = vi.fn();
 
@@ -38,7 +39,7 @@ vi.mock('../hooks/useAppClassrooms', () => ({
 }));
 
 vi.mock('../hooks/useClassrooms', () => ({
-  useCreateClassroom: () => ({ mutateAsync: mockCreateClassroom }),
+  useCreateClassroom: () => mockUseCreateClassroom(),
 }));
 
 vi.mock('../contexts/useApp', () => ({
@@ -67,6 +68,7 @@ describe('TeacherDashboard', () => {
     mockUseAppClassrooms.mockReturnValue(defaultAppClassrooms);
     mockUseActiveClassroom.mockReturnValue({ activeClassroom: null });
     mockCreateClassroom.mockResolvedValue({ id: '1' });
+    mockUseCreateClassroom.mockReturnValue({ mutateAsync: mockCreateClassroom, isPending: false });
     mockUseAuth.mockReturnValue(defaultAuthContext);
   });
 
@@ -142,6 +144,15 @@ describe('TeacherDashboard', () => {
       expect(
         await screen.findByText('Failed to create classroom. Please try again.')
       ).toBeInTheDocument();
+    });
+
+    it('disables the create button while a create is pending (double-tap guard)', () => {
+      mockUseCreateClassroom.mockReturnValue({ mutateAsync: mockCreateClassroom, isPending: true });
+      mockUseAppClassrooms.mockReturnValue({ ...defaultAppClassrooms, classrooms: [] });
+
+      render(<TeacherDashboard onSelectClassroom={vi.fn()} />);
+
+      expect(screen.getByRole('button', { name: /Create Your First Classroom/i })).toBeDisabled();
     });
   });
 
@@ -255,6 +266,18 @@ describe('TeacherDashboard', () => {
       await userEvent.click(classAButton);
 
       expect(onSelectClassroom).toHaveBeenCalledWith('1');
+    });
+
+    it('disables the phone "+ New classroom" button while a create is pending', () => {
+      mockUseCreateClassroom.mockReturnValue({ mutateAsync: mockCreateClassroom, isPending: true });
+      mockUseAppClassrooms.mockReturnValue({
+        ...defaultAppClassrooms,
+        classrooms: classroomsWithData,
+      });
+
+      render(<TeacherDashboard onSelectClassroom={vi.fn()} />);
+
+      expect(screen.getByRole('button', { name: /New classroom/i })).toBeDisabled();
     });
   });
 

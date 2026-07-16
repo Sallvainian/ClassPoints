@@ -72,7 +72,22 @@ export default defineConfig({
         storageState: '.auth/user.json',
       },
       dependencies: ['setup'],
-      testIgnore: /auth\.setup\.ts/,
+      // mobile-shell asserts phone-only chrome (sidebar hidden, bottom nav
+      // visible) — meaningless at desktop width, so it runs only in `mobile`.
+      testIgnore: [/auth\.setup\.ts/, /mobile-shell\.spec\.ts/],
+    },
+    {
+      name: 'mobile',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup'],
+      // Scoped to the mobile-shell spec only: the desktop specs anchor on the
+      // sidebar (`hidden md:flex` below md) and would misbehave at 390px.
+      testMatch: /mobile-shell\.spec\.ts/,
     },
   ],
   webServer: {

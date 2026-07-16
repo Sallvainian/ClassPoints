@@ -136,7 +136,7 @@ export function ClassSettingsView({ onClose }: ClassSettingsViewProps) {
   return (
     <div className="h-full flex flex-col bg-surface-1 text-ink-strong overflow-hidden">
       {/* Header */}
-      <header className="bg-surface-2 border-b border-hairline px-6 lg:px-10 py-5 flex items-center justify-between">
+      <header className="bg-surface-2 border-b border-hairline px-6 lg:px-10 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-5 flex items-center justify-between">
         <div className="min-w-0">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-1">
             Classroom · settings

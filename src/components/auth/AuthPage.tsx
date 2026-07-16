@@ -49,14 +49,14 @@ export function AuthPage() {
       </aside>
 
       {/* Form panel */}
-      <main className="flex items-center justify-center p-6 lg:p-10">
+      <main className="flex items-center justify-center p-6 lg:p-10 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
         <div className="w-full max-w-md animate-fade-up [animation-delay:120ms]">
           {/* Compact brand for mobile + form panel header */}
-          <div className="lg:hidden text-center mb-8">
+          <div className="lg:hidden text-center mb-6">
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent-600 mb-3">
               ClassPoints
             </p>
-            <h1 className="font-display text-4xl leading-[1.05] tracking-[-0.02em] text-ink-strong">
+            <h1 className="font-display text-2xl sm:text-3xl leading-[1.05] tracking-[-0.02em] text-ink-strong">
               A quieter way to keep <em className="text-accent-600">classroom momentum.</em>
             </h1>
           </div>
