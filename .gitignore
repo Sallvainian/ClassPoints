@@ -65,3 +65,4 @@ scripts/verify-*.ts
 .coddo/
 .claude/
 .toddo/
+.bmad-loop/
