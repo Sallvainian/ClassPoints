@@ -299,7 +299,12 @@ export function ProfileView({ onClose }: ProfileViewProps) {
                   <div className="flex items-center gap-3">
                     <span className="min-w-0 truncate text-ink-strong">{userEmail}</span>
                     <button
-                      onClick={() => setShowEmailForm(true)}
+                      onClick={() => {
+                        // A fresh request supersedes the previous one — don't
+                        // leave the old "sent" banner up beside the new form.
+                        setEmailPending(false);
+                        setShowEmailForm(true);
+                      }}
                       className="font-mono text-[11px] uppercase tracking-[0.14em] text-accent-600 hover:text-accent-700 transition-colors"
                     >
                       Change

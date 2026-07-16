@@ -256,12 +256,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.warn('[auth] init failed:', err);
         // Unknown throw (getSession itself failing — lock timeouts, storage
-        // exceptions): we can't tell whether a session exists, so fall to the
-        // login form either way, but purge only on non-network errors. If a
-        // real session survives in storage, the ticker's eventual refresh
-        // flips the UI to signed-in via the auth listener.
-        if (!isNetworkClassAuthError(err)) purgeAuthStorage();
+        // exceptions). Non-network → treat as genuine: purge, login form.
+        // Network-class with a session blob still in storage → suspend like
+        // every other network path (the ticker's eventual refresh or the
+        // reconnect kick flips the UI to signed-in via the auth listener);
+        // showing the login form would invite credentials that can't work
+        // offline. No blob → nothing to recover, login form.
+        const networkClass = isNetworkClassAuthError(err);
+        if (!networkClass) purgeAuthStorage();
+        const suspend = networkClass && storageHasAuthToken();
+        suspendedLocal = suspend;
         if (!cancelled) {
+          setAuthSuspended(suspend);
           setSession(null);
           setUser(null);
           setLoading(false);

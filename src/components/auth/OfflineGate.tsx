@@ -10,6 +10,7 @@ export function OfflineGate() {
   return (
     <div
       data-testid="offline-gate"
+      role="status"
       className="min-h-dvh flex items-center justify-center bg-surface-1 p-8"
     >
       <div className="text-center max-w-md animate-fade-up">

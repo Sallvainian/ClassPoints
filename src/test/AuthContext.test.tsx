@@ -473,14 +473,24 @@ describe('AuthContext boot resilience', () => {
   });
 
   describe('outer-catch discrimination (getSession itself throwing)', () => {
-    it('network-class throw: logged out but storage kept', async () => {
+    it('network-class throw with a stored session: suspended, storage kept', async () => {
+      mockGetSession.mockRejectedValue(new TypeError('Failed to fetch'));
+
+      renderProvider();
+      await settled();
+
+      expect(probeState()).toMatchObject({ user: false, authSuspended: true });
+      expect(window.localStorage.getItem(SB_KEY)).not.toBeNull();
+    });
+
+    it('network-class throw with NO stored session: logged out, not suspended', async () => {
+      window.localStorage.removeItem(SB_KEY);
       mockGetSession.mockRejectedValue(new TypeError('Failed to fetch'));
 
       renderProvider();
       await settled();
 
       expect(probeState()).toMatchObject({ user: false, authSuspended: false });
-      expect(window.localStorage.getItem(SB_KEY)).not.toBeNull();
     });
 
     it('unknown throw: logged out AND purged', async () => {

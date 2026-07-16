@@ -113,6 +113,22 @@ describe('ProfileView Email section', () => {
     expect(screen.getByPlaceholderText('new@example.com')).toBeInTheDocument();
   });
 
+  it('reopening the form clears the previous pending message', async () => {
+    const input = await openEmailForm();
+
+    await userEvent.type(input, 'new.teacher@school.edu');
+    await userEvent.click(screen.getByRole('button', { name: 'Send confirmation' }));
+    expect(await screen.findByText(/Confirmation email sent/)).toBeInTheDocument();
+
+    // A second request supersedes the first — the stale banner must not sit
+    // beside the freshly opened form.
+    const emailBlock = screen.getByText('Email').closest('div');
+    await userEvent.click(emailBlock!.querySelector('button')!);
+
+    expect(screen.getByPlaceholderText('new@example.com')).toBeInTheDocument();
+    expect(screen.queryByText(/Confirmation email sent/)).not.toBeInTheDocument();
+  });
+
   it('Cancel closes the form and clears the draft', async () => {
     const input = await openEmailForm();
 
