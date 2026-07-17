@@ -4,6 +4,7 @@ import type { Behavior, Student } from '../../types';
 import { useBehaviors } from '../../hooks/useBehaviors';
 import { useBatchAward } from '../../hooks/useBatchAward';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
+import { hapticAwardSuccess } from '../../lib/haptics';
 import { ERROR_MESSAGES } from '../../utils/errorMessages';
 import { BehaviorPicker } from '../behaviors/BehaviorPicker';
 import { Dialog } from '../ui';
@@ -58,6 +59,7 @@ export function MultiAwardModal({
         } else {
           playNegative();
         }
+        hapticAwardSuccess();
 
         onClose();
       } catch (err) {

@@ -19,6 +19,7 @@ import '@fontsource/jetbrains-mono/500.css';
 import './index.css';
 import App from './App';
 import { DevtoolsGate } from './components/DevtoolsGate';
+import { hideSplash } from './lib/native';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -28,3 +29,7 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>
 );
+
+// Native shell: the splash (launchAutoHide: false in capacitor.config.ts)
+// covers the WebView until the first render is committed above. No-op on web.
+hideSplash();

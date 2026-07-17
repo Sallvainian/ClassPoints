@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { SoundProvider } from './contexts/SoundContext';
 import { AppProvider } from './contexts/AppContext';
@@ -9,6 +9,7 @@ import { AuthGuard } from './components/auth/AuthGuard';
 import { SyncStatus } from './components/common/SyncStatus';
 import { Layout } from './components/layout';
 import { hasLocalStorageData } from './utils/migrateToSupabase';
+import { registerBackButton } from './lib/native';
 
 const MigrationWizard = lazy(() =>
   import('./components/migration/MigrationWizard').then((m) => ({ default: m.MigrationWizard }))
@@ -55,6 +56,22 @@ function AppContent() {
     if (view === 'migration') return;
     window.localStorage.setItem(VIEW_STORAGE_KEY, view);
   }, [view]);
+
+  // Android hardware/gesture back (no-op on web/iOS). The ref keeps the
+  // listener registered once for the component's lifetime instead of
+  // re-registering on every view change.
+  const viewRef = useRef(view);
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+  useEffect(
+    () =>
+      registerBackButton({
+        isHome: () => viewRef.current === 'home',
+        goHome: () => setView('home'),
+      }),
+    []
+  );
 
   // Migration wizard view
   if (view === 'migration') {
