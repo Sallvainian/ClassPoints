@@ -47,6 +47,10 @@ function DraggableSeatedStudent({ seat, student, children }: DraggableSeatedStud
   });
 
   const style: React.CSSProperties = {
+    // In-place transform is screen-px inside the editor's scaled wrapper, so
+    // the dimmed source card lags the finger at zoom !== 1. Cosmetic only:
+    // the DragOverlay is the visible feedback and drops resolve via over.id,
+    // never this transform.
     transform: transform ? CSS.Translate.toString(transform) : undefined,
     opacity: isDragging ? 0.5 : 1,
     cursor: isDragging ? 'grabbing' : 'grab',
@@ -55,7 +59,13 @@ function DraggableSeatedStudent({ seat, student, children }: DraggableSeatedStud
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="touch-callout-none"
+      {...attributes}
+      {...listeners}
+    >
       {children}
     </div>
   );
