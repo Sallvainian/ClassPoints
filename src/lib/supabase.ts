@@ -9,6 +9,8 @@ import {
   SupabaseClient,
 } from '@supabase/supabase-js';
 import type { PostgrestSingleResponse } from '@supabase/supabase-js';
+import { Capacitor } from '@capacitor/core';
+import { capacitorPreferencesStorage } from './authStorage';
 import type { Database } from '../types/database';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -18,7 +20,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// Native: sessions live in Capacitor Preferences (WKWebView localStorage is
+// evictable under storage pressure). Web: `undefined` here is byte-identical
+// to the old two-arg call — createClient applies the same DEFAULTS either way,
+// including the URL-derived storageKey (`sb-<ref>-auth-token`), which the
+// purge/probe in authStorage.ts relies on. Do not set storageKey explicitly.
+export const supabase = createClient<Database>(
+  supabaseUrl,
+  supabaseAnonKey,
+  Capacitor.isNativePlatform() ? { auth: { storage: capacitorPreferencesStorage } } : undefined
+);
 
 // Expose Supabase client globally for migration scripts (browser console)
 declare global {

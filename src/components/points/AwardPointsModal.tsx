@@ -5,6 +5,7 @@ import { useBehaviors } from '../../hooks/useBehaviors';
 import { useAwardPoints } from '../../hooks/useTransactions';
 import { studentPoints } from '../../utils/pointSelectors';
 import { useSoundEffects } from '../../hooks/useSoundEffects';
+import { hapticAwardNegative, hapticAwardSuccess } from '../../lib/haptics';
 import { useAvatarColor } from '../../hooks';
 import { getAvatarColorForName } from '../../utils';
 import { ERROR_MESSAGES } from '../../utils/errorMessages';
@@ -54,8 +55,10 @@ export function AwardPointsModal({ isOpen, onClose, student, classroomId }: Awar
         });
         if (behavior.category === 'positive') {
           playPositive();
+          hapticAwardSuccess();
         } else {
           playNegative();
+          hapticAwardNegative();
         }
         onClose();
       } catch (err) {

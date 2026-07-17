@@ -14,6 +14,11 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit && tsc -p tests/tsconfig.json --noEmit",
     "check:bundle": "node scripts/check-bundle.mjs",
+    "cap:build": "tsc -b && fnox exec -- vite build --mode capacitor && node scripts/check-bundle.mjs && npx cap sync",
+    "cap:sync": "npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:run:ios": "npx cap run ios",
+    "cap:assets": "npx capacitor-assets generate --ios --android",
     "preview": "fnox exec -- vite preview",
     "supabase:up": "supabase start",
     "supabase:down": "supabase stop",
@@ -26,8 +31,14 @@
     "prepare": "simple-git-hooks"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.4.2",
+    "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "^8.4.2",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/utilities": "^3.2.2",
     "@fontsource/geist": "^5.2.9",
@@ -42,6 +53,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.2",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",

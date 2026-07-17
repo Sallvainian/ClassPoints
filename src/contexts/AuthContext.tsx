@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { supabase, AuthValidationTimeoutError, isNetworkClassAuthError } from '../lib/supabase';
+import { purgeAuthStorage, storageHasAuthToken } from '../lib/authStorage';
 import {
   bootRequestedPasswordRecovery,
   getAuthEmailRedirectUrl,
@@ -38,42 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let suspendedLocal = false; // closure mirror of authSuspended, for the reconnect kick
     let prevOnline: boolean | null = null;
 
-    /**
-     * Manually purge any cached Supabase auth keys from localStorage.
-     * Last-resort fallback when supabase.auth.signOut itself fails (which can
-     * happen if the auth endpoint is unreachable). Without this, a stale JWT
-     * stays in storage and the GoTrueClient's auto-refresh loops forever.
-     */
-    const purgeAuthStorage = () => {
-      try {
-        // Standard Storage iteration (length/key) rather than Object.keys:
-        // identical in browsers, and it also works on Storage implementations
-        // that don't expose items as enumerable own properties (jsdom shims).
-        const keys: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k !== null) keys.push(k);
-        }
-        for (const k of keys) {
-          if (k.startsWith('sb-')) localStorage.removeItem(k);
-        }
-      } catch {
-        // localStorage unavailable (private browsing edge case) — nothing to purge
-      }
-    };
-
-    /** Direct storage probe: does a Supabase session blob exist at all? */
-    const storageHasAuthToken = () => {
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k !== null && k.startsWith('sb-') && k.endsWith('-auth-token')) return true;
-        }
-      } catch {
-        // localStorage unavailable — treat as no session
-      }
-      return false;
-    };
+    // purgeAuthStorage / storageHasAuthToken live in ../lib/authStorage: on
+    // native they must also sweep/probe Capacitor Preferences (the session
+    // store there), which the old localStorage-only closures couldn't reach.
 
     /** The genuine-rejection path: the server said this session is dead. */
     const purgeAndSignOut = async () => {
@@ -82,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch {
         // signOut itself can hit the network — purge directly
       }
-      purgeAuthStorage();
+      await purgeAuthStorage();
       if (!cancelled) {
         setSession(null);
         setUser(null);
@@ -131,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // ONLY when storage proves a session blob exists — a logged-out user
           // must land on the login form, and with no session there is no
           // ticker activity that would ever clear a wrongly-shown gate.
-          const suspend = storageHasAuthToken();
+          const suspend = await storageHasAuthToken();
           suspendedLocal = suspend;
           if (!cancelled) {
             setAuthSuspended(suspend);
@@ -263,8 +231,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // showing the login form would invite credentials that can't work
         // offline. No blob → nothing to recover, login form.
         const networkClass = isNetworkClassAuthError(err);
-        if (!networkClass) purgeAuthStorage();
-        const suspend = networkClass && storageHasAuthToken();
+        if (!networkClass) await purgeAuthStorage();
+        const suspend = networkClass && (await storageHasAuthToken());
         suspendedLocal = suspend;
         if (!cancelled) {
           setAuthSuspended(suspend);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ThemeContext, type Theme } from './useTheme';
+import { syncStatusBar } from '../lib/native';
 
 function getInitialTheme(): Theme {
   if (typeof window === 'undefined') return 'light';
@@ -22,6 +23,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     applyTheme(theme);
+    // Native shell: keep the status-bar text readable against the new theme
+    // (no-op on web).
+    syncStatusBar(theme);
   }, [theme]);
 
   const setTheme = useCallback((next: Theme) => {

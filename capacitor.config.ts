@@ -7,6 +7,16 @@ const config: CapacitorConfig = {
   appId: 'com.frankcottone.classpoints',
   appName: 'ClassPoints',
   webDir: 'dist',
+  plugins: {
+    SplashScreen: {
+      // App.tsx hides the splash from a mount effect (after the first React
+      // render commits), so the native launch image covers the WebView's
+      // white flash.
+      launchAutoHide: false,
+      // --color-surface-1 (light page bg) from src/index.css.
+      backgroundColor: '#f7f5f1',
+    },
+  },
   ...(process.env.CAP_SERVER_URL
     ? { server: { url: process.env.CAP_SERVER_URL, cleartext: true } }
     : {}),
