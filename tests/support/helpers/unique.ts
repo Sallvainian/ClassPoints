@@ -2,8 +2,10 @@
 // collisions when parallel workers load their own module instances in the
 // same millisecond. No external dependency on faker.
 
+import { randomBytes } from 'node:crypto';
+
 let counter = 0;
-const workerSalt = `${process.pid.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const workerSalt = `${process.pid.toString(36)}-${randomBytes(4).toString('hex')}`;
 
 export function uniqueSlug(): string {
   counter += 1;
