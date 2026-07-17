@@ -45,6 +45,7 @@ vi.mock('../../../lib/supabase', async (importOriginal) => {
 
 import { SeatingChartEditor } from '../SeatingChartEditor';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
+import type { Student } from '../../../types';
 import type { SeatingChart } from '../../../types/seatingChart';
 
 const GRID = 40;
@@ -107,7 +108,7 @@ const SINK_ELEMENT = {
 function makeProps(chart: SeatingChart = makeChart()) {
   return {
     chart,
-    students: [],
+    students: [] as Student[],
     onClose: vi.fn(),
     onAddGroup: vi.fn(async () => null),
     onMoveGroup: vi.fn(async () => undefined),
@@ -317,6 +318,36 @@ describe('SeatingChartEditor mouse activation (MouseSensor, activationConstraint
     expect(props.onRotateGroup).not.toHaveBeenCalled();
 
     await settleClickSuppressor();
+  });
+
+  it('a cancelled STUDENT drag does not remount the positioned children (epoch is scoped)', async () => {
+    const student = {
+      id: 's1',
+      name: 'Zed',
+      pointTotal: 0,
+      positiveTotal: 0,
+      negativeTotal: 0,
+      todayTotal: 0,
+      thisWeekTotal: 0,
+    };
+    const props = { ...makeProps(), students: [student] };
+    renderEditor(props);
+
+    const groupNode = getDraggableContaining('A');
+    const studentCard = getDraggableContaining('Zed');
+
+    fireEvent.mouseDown(studentCard, { ...mouse, clientX: 130, clientY: 130 });
+    fireEvent.mouseMove(document, { ...mouse, clientX: 175, clientY: 170 });
+    await waitFor(() => expect(studentCard.style.opacity).toBe('0.5')); // activated
+
+    fireEvent.keyDown(document, { code: 'Escape' });
+
+    // Student drags carry no optimistic localPos, so their cancel must NOT
+    // epoch-remount groups/elements — a global remount would silently wipe an
+    // unrelated in-flight resize's local state. Same DOM node ⇒ no remount.
+    await settleClickSuppressor();
+    expect(getDraggableContaining('A')).toBe(groupNode);
+    expect(props.onMoveGroup).not.toHaveBeenCalled();
   });
 
   it('keyboard dragging still works (KeyboardSensor deliberately re-added in the explicit sensor set)', async () => {

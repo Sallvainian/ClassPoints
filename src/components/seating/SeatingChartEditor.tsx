@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect } fr
 import {
   DndContext,
   DragStartEvent,
+  DragCancelEvent,
   DragEndEvent,
   DragOverlay,
   KeyboardSensor,
@@ -303,6 +304,10 @@ function DraggableRoomElement({
 
   // Resize state
   const [isResizing, setIsResizing] = useState(false);
+  // Render-side mirror of resizeRef.scale (refs must not be read in render):
+  // handles are sized from the gesture's scale so a concurrent zoom-button
+  // tap can't visibly inflate/shrink them mid-drag.
+  const [gestureScale, setGestureScale] = useState<number | null>(null);
   const resizeRef = useRef<{
     edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
     // Only the pointer that started the resize may steer/end it — with touch,
@@ -431,6 +436,7 @@ function DraggableRoomElement({
         local.y !== start.startElemY;
       if (changed) onResize(local.width, local.height, local.x, local.y);
       setIsResizing(false);
+      setGestureScale(null);
       resizeRef.current = null;
     };
 
@@ -446,6 +452,7 @@ function DraggableRoomElement({
         height: start.startHeight,
       });
       setIsResizing(false);
+      setGestureScale(null);
       resizeRef.current = null;
     };
 
@@ -470,6 +477,7 @@ function DraggableRoomElement({
     e.stopPropagation();
     e.preventDefault();
     setIsResizing(true);
+    setGestureScale(scale);
     resizeRef.current = {
       edge,
       pointerId: e.pointerId,
@@ -549,11 +557,14 @@ function DraggableRoomElement({
   //    must not blanket neighbors. The clamp leaves small-element corners
   //    below finger size at fit zoom — resizing a 40px sink on touch
   //    practically means zooming in first, the standard tablet pattern.
+  // During a resize, size the handles from the gesture's stashed scale (the
+  // delta math already uses the ref stash; this keeps the visuals consistent).
+  const effectiveScale = isResizing && gestureScale != null ? gestureScale : scale;
   const handleSize = Math.min(
-    (coarsePointer ? 32 : 10) / scale,
+    (coarsePointer ? 32 : 10) / effectiveScale,
     Math.min(local.width, local.height) * 0.4
   );
-  const dotSize = Math.min(14 / scale, handleSize * 0.75);
+  const dotSize = Math.min(14 / effectiveScale, handleSize * 0.75);
   const handleVisual = 'bg-blue-500 border-2 border-white rounded-sm';
 
   const renderHandle = (
@@ -978,11 +989,17 @@ export function SeatingChartEditor({
   // positioned children via the epoch key: their optimistic localPos was
   // synced to the aborted drag and their props will never catch up to it.
   const [dragEpoch, setDragEpoch] = useState(0);
-  const handleDragCancel = () => {
+  const handleDragCancel = (event: DragCancelEvent) => {
+    const type = event.active.data.current?.type;
     setDraggingType(null);
     setDraggingId(null);
     setDraggingStudent(null);
-    setDragEpoch((epoch) => epoch + 1);
+    // Only group/room-element drags carry optimistic localPos that a cancel
+    // strands; student drags resolve via over.id and need no remount — and a
+    // global remount would wipe an unrelated in-flight resize's local state.
+    if (type === 'group' || type === 'room-element') {
+      setDragEpoch((epoch) => epoch + 1);
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
