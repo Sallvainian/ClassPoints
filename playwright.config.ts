@@ -74,7 +74,9 @@ export default defineConfig({
       dependencies: ['setup'],
       // mobile-shell asserts phone-only chrome (sidebar hidden, bottom nav
       // visible) — meaningless at desktop width, so it runs only in `mobile`.
-      testIgnore: [/auth\.setup\.ts/, /mobile-shell\.spec\.ts/],
+      // seating-touch drives tap-level gestures needing hasTouch — runs only in
+      // `ipad`.
+      testIgnore: [/auth\.setup\.ts/, /mobile-shell\.spec\.ts/, /seating-touch\.spec\.ts/],
     },
     {
       name: 'mobile',
@@ -88,6 +90,19 @@ export default defineConfig({
       // Scoped to the mobile-shell spec only: the desktop specs anchor on the
       // sidebar (`hidden md:flex` below md) and would misbehave at 390px.
       testMatch: /mobile-shell\.spec\.ts/,
+    },
+    {
+      name: 'ipad',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 834, height: 1194 },
+        hasTouch: true,
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup'],
+      // Tap-level seating-editor spec only — desktop chromium testIgnores it
+      // and this project's testMatch excludes everything else.
+      testMatch: /seating-touch\.spec\.ts/,
     },
   ],
   webServer: {

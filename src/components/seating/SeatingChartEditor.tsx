@@ -5,7 +5,8 @@ import {
   DragEndEvent,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   useDraggable,
   useSensor,
@@ -64,6 +65,36 @@ interface SeatingChartEditorProps {
   onDeletePreset: (presetId: string) => Promise<boolean>;
 }
 
+/**
+ * dnd-kit's MouseSensor rejects only right-click; the PointerSensor it
+ * replaced required the primary button. Preserve that contract — a
+ * middle-button press must keep its native behavior (autoscroll), never
+ * start a drag.
+ */
+class PrimaryButtonMouseSensor extends MouseSensor {
+  static activators = [
+    {
+      eventName: 'onMouseDown' as const,
+      handler: ({ nativeEvent }: { nativeEvent: MouseEvent }) => nativeEvent.button === 0,
+    },
+  ] as typeof MouseSensor.activators;
+}
+
+/**
+ * One-shot coarse-pointer read (repo convention: raw matchMedia, same as
+ * DashboardView's 48rem check). Pointer class doesn't change mid-session in
+ * practice; hybrid devices that flip (iPad + trackpad) re-read on the next
+ * editor mount.
+ */
+function useIsCoarsePointer(): boolean {
+  const [coarse] = useState(() => window.matchMedia('(pointer: coarse)').matches);
+  return coarse;
+}
+
+// Canvas-px breathing room inside the sized wrapper so resize handles on
+// elements at the canvas top/left edge can overhang without being clipped.
+const EDGE_BLEED = 24;
+
 // Draggable student card for unassigned students panel
 interface DraggableStudentProps {
   student: Student;
@@ -79,6 +110,10 @@ function DraggableStudent({ student }: DraggableStudentProps) {
   const { bg, textClass } = useAvatarColor(rawColor);
 
   const style = {
+    // In-place transform is screen-px inside the scaled wrapper, so the
+    // dimmed source card lags the pointer at zoom !== 1. Cosmetic only: the
+    // DragOverlay is the visible feedback and student drops resolve via
+    // over.id, never this transform.
     transform: transform ? CSS.Translate.toString(transform) : undefined,
     opacity: isDragging ? 0.5 : 1,
   };
@@ -89,7 +124,7 @@ function DraggableStudent({ student }: DraggableStudentProps) {
       style={style}
       {...attributes}
       {...listeners}
-      className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 cursor-grab hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
+      className="touch-callout-none flex items-center gap-2 px-3 py-2 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 cursor-grab hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
     >
       <div
         className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${textClass}`}
@@ -110,6 +145,8 @@ interface DraggableGroupProps {
   onSelect: () => void;
   onUnassignStudent: (seatId: string) => void;
   snapToGrid: (value: number) => number;
+  /** Editor zoom — dnd-kit transforms are screen px, positions are canvas px. */
+  scale: number;
   disabled?: boolean;
   studentsAreDraggable?: boolean;
 }
@@ -121,6 +158,7 @@ function DraggableGroup({
   onSelect,
   onUnassignStudent,
   snapToGrid,
+  scale,
   disabled = false,
   studentsAreDraggable = false,
 }: DraggableGroupProps) {
@@ -157,19 +195,22 @@ function DraggableGroup({
   // Update local position to snapped position during drag (for when drag ends)
   useLayoutEffect(() => {
     if (isDragging && transform) {
-      const snappedX = snapToGrid(group.x + transform.x);
-      const snappedY = snapToGrid(group.y + transform.y);
+      // transform is screen px; positions are canvas px inside a scale()
+      // wrapper — divide before snapping (must mirror handleDragEnd's math or
+      // the optimistic position diverges from the persisted one).
+      const snappedX = snapToGrid(group.x + transform.x / scale);
+      const snappedY = snapToGrid(group.y + transform.y / scale);
       // Syncs committed position to the transient dnd-kit drag transform (not a
       // prop, so not derivable during render). Kept as local UI state by design
       // decision D1 (seating drag layer stays local useState/useRef). Permanent.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalPos({ x: snappedX, y: snappedY });
     }
-  }, [isDragging, transform, group.x, group.y, snapToGrid]);
+  }, [isDragging, transform, group.x, group.y, snapToGrid, scale]);
 
   // Calculate positions: free movement for element, snapped for indicator
-  const freeX = isDragging && transform ? group.x + transform.x : localPos.x;
-  const freeY = isDragging && transform ? group.y + transform.y : localPos.y;
+  const freeX = isDragging && transform ? group.x + transform.x / scale : localPos.x;
+  const freeY = isDragging && transform ? group.y + transform.y / scale : localPos.y;
   const snappedX = snapToGrid(freeX);
   const snappedY = snapToGrid(freeY);
 
@@ -205,7 +246,7 @@ function DraggableGroup({
         style={style}
         {...attributes}
         {...listeners}
-        className={isDragging ? 'opacity-70' : ''}
+        className={`touch-callout-none ${isDragging ? 'opacity-70' : ''}`}
       >
         <TableGroup
           group={group}
@@ -228,6 +269,8 @@ interface DraggableRoomElementProps {
   onSelect: () => void;
   onResize: (width: number, height: number, x?: number, y?: number) => void;
   snapToGrid: (value: number) => number;
+  /** Editor zoom — pointer deltas are screen px, positions are canvas px. */
+  scale: number;
   gridSize: number;
   canvasWidth: number;
   canvasHeight: number;
@@ -239,6 +282,7 @@ function DraggableRoomElement({
   onSelect,
   onResize,
   snapToGrid,
+  scale,
   gridSize,
   canvasWidth,
   canvasHeight,
@@ -247,6 +291,7 @@ function DraggableRoomElement({
     id: `room-${element.id}`,
     data: { type: 'room-element', elementId: element.id },
   });
+  const coarsePointer = useIsCoarsePointer();
 
   // Local state for position/dimensions during interaction
   const [local, setLocal] = useState({
@@ -260,12 +305,18 @@ function DraggableRoomElement({
   const [isResizing, setIsResizing] = useState(false);
   const resizeRef = useRef<{
     edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+    // Only the pointer that started the resize may steer/end it — with touch,
+    // a second finger fires the same window events with its own coordinates.
+    pointerId: number;
     startX: number;
     startY: number;
     startWidth: number;
     startHeight: number;
     startElemX: number;
     startElemY: number;
+    // Zoom at gesture start — stashed so a mid-resize zoom change (second
+    // finger on a toolbar button) can't skew the delta math.
+    scale: number;
   } | null>(null);
 
   // Track when we were interacting (to know when to sync from props)
@@ -311,8 +362,11 @@ function DraggableRoomElement({
   // Update local position during drag
   useLayoutEffect(() => {
     if (isDragging && transform) {
-      const snappedX = snapToGrid(element.x + transform.x);
-      const snappedY = snapToGrid(element.y + transform.y);
+      // transform is screen px; positions are canvas px inside a scale()
+      // wrapper — divide before snapping (must mirror handleDragEnd's math or
+      // the optimistic position diverges from the persisted one).
+      const snappedX = snapToGrid(element.x + transform.x / scale);
+      const snappedY = snapToGrid(element.y + transform.y / scale);
       // Syncs committed position to the transient dnd-kit drag transform (not a
       // prop, so not derivable during render). Kept as local UI state by design
       // decision D1 (seating drag layer stays local useState/useRef). Permanent.
@@ -322,19 +376,24 @@ function DraggableRoomElement({
         return { ...prev, x: snappedX, y: snappedY };
       });
     }
-  }, [isDragging, transform, element.x, element.y, snapToGrid]);
+  }, [isDragging, transform, element.x, element.y, snapToGrid, scale]);
 
-  // Handle resize mouse events
+  // Handle resize pointer events (mouse, touch, pen). Window-level so the
+  // gesture survives leaving the handle; iOS's implicit touch capture keeps
+  // pointermove firing without an explicit setPointerCapture.
   useEffect(() => {
     if (!isResizing) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       if (!resizeRef.current) return;
+      if (e.pointerId !== resizeRef.current.pointerId) return;
 
-      const { edge, startX, startY, startWidth, startHeight, startElemX, startElemY } =
+      const { edge, startX, startY, startWidth, startHeight, startElemX, startElemY, scale } =
         resizeRef.current;
-      const deltaX = e.clientX - startX;
-      const deltaY = e.clientY - startY;
+      // Pointer coords are screen px; the element renders inside a scale()
+      // transform, so convert to canvas px BEFORE snapping.
+      const deltaX = (e.clientX - startX) / scale;
+      const deltaY = (e.clientY - startY) / scale;
 
       let newWidth = startWidth;
       let newHeight = startHeight;
@@ -360,43 +419,73 @@ function DraggableRoomElement({
       setLocal({ x: newX, y: newY, width: newWidth, height: newHeight });
     };
 
-    const handleMouseUp = () => {
-      // Persist to database only on mouseup
-      onResize(local.width, local.height, local.x, local.y);
+    const handlePointerUp = (e: PointerEvent) => {
+      const start = resizeRef.current;
+      if (!start || e.pointerId !== start.pointerId) return;
+      // Persist once on pointerup — and only when something changed: a plain
+      // tap on a handle (no move) must not fire a no-op DB write.
+      const changed =
+        local.width !== start.startWidth ||
+        local.height !== start.startHeight ||
+        local.x !== start.startElemX ||
+        local.y !== start.startElemY;
+      if (changed) onResize(local.width, local.height, local.x, local.y);
       setIsResizing(false);
       resizeRef.current = null;
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    // The browser took the pointer back (scroll gesture won, palm rejection,
+    // system overlay): revert to the pre-resize dims and persist nothing.
+    const handlePointerCancel = (e: PointerEvent) => {
+      const start = resizeRef.current;
+      if (!start || e.pointerId !== start.pointerId) return;
+      setLocal({
+        x: start.startElemX,
+        y: start.startElemY,
+        width: start.startWidth,
+        height: start.startHeight,
+      });
+      setIsResizing(false);
+      resizeRef.current = null;
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
     };
   }, [isResizing, snapToGrid, gridSize, onResize, local]);
 
   const handleResizeStart = (
-    e: React.MouseEvent,
+    e: React.PointerEvent,
     edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
   ) => {
+    // Primary pointer + main button only (mirrors dnd-kit's own activator
+    // guard) — a second finger or right-click must not start a resize.
+    if (!e.isPrimary || e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
     setIsResizing(true);
     resizeRef.current = {
       edge,
+      pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
       startWidth: local.width,
       startHeight: local.height,
       startElemX: local.x,
       startElemY: local.y,
+      scale,
     };
   };
 
   // Calculate display values from local state
-  const freeX = isDragging && transform ? element.x + transform.x : local.x;
-  const freeY = isDragging && transform ? element.y + transform.y : local.y;
+  const freeX = isDragging && transform ? element.x + transform.x / scale : local.x;
+  const freeY = isDragging && transform ? element.y + transform.y / scale : local.y;
   const snappedX = snapToGrid(freeX);
   const snappedY = snapToGrid(freeY);
 
@@ -450,8 +539,43 @@ function DraggableRoomElement({
     transform: `${translate} rotate(${rot}deg)`,
   };
 
-  const handleSize = 10;
-  const handleStyle = 'absolute bg-blue-500 border-2 border-white rounded-sm z-50';
+  // Resize-handle geometry, two constraints in tension:
+  //  - sizes are divided by the zoom scale so the ON-SCREEN target stays
+  //    constant at any zoom (at scale 1 fine pointers get exactly the
+  //    historical 10px — auto-fit means most sessions now run below 1);
+  //  - hit boxes are CLAMPED to 40% of the element's smaller dimension so the
+  //    corners can never tile a small element: the center strip must stay
+  //    reachable for press-and-hold drags and taps, and the outward apron
+  //    must not blanket neighbors. The clamp leaves small-element corners
+  //    below finger size at fit zoom — resizing a 40px sink on touch
+  //    practically means zooming in first, the standard tablet pattern.
+  const handleSize = Math.min(
+    (coarsePointer ? 32 : 10) / scale,
+    Math.min(local.width, local.height) * 0.4
+  );
+  const dotSize = Math.min(14 / scale, handleSize * 0.75);
+  const handleVisual = 'bg-blue-500 border-2 border-white rounded-sm';
+
+  const renderHandle = (
+    edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw',
+    cursorClass: string,
+    pos: React.CSSProperties
+  ) => (
+    <div
+      key={edge}
+      // touch-none is load-bearing: without it the overflow-auto container
+      // pans on finger-drag and fires pointercancel, aborting every resize.
+      className={`absolute z-50 touch-none ${cursorClass} ${
+        coarsePointer ? 'flex items-center justify-center' : handleVisual
+      }`}
+      style={{ ...pos, width: handleSize, height: handleSize }}
+      onPointerDown={(e) => handleResizeStart(e, edge)}
+    >
+      {coarsePointer && (
+        <div className={handleVisual} style={{ width: dotSize, height: dotSize }} />
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -483,101 +607,58 @@ function DraggableRoomElement({
           <div
             {...attributes}
             {...listeners}
-            className={`w-full h-full ${isDragging ? 'opacity-70 cursor-grabbing' : 'cursor-grab'}`}
+            className={`touch-callout-none w-full h-full ${isDragging ? 'opacity-70 cursor-grabbing' : 'cursor-grab'}`}
           >
             <RoomElementDisplay element={element} isSelected={isSelected} isEditing skipRotation />
           </div>
 
-          {/* Resize handles - only show when selected and not dragging */}
+          {/* Resize handles - only show when selected and not dragging.
+              Coarse pointers get corners only: 32px hit boxes on all 8
+              positions would overlap into ambiguity on a 40px-minimum
+              element, and snap (default ON) absorbs cross-axis drift, so
+              axis-aligned corner resizes stay practical. */}
           {isSelected && !isDragging && (
             <>
-              {/* Edge handles */}
-              <div
-                className={`${handleStyle} cursor-ew-resize`}
-                style={{
-                  left: -handleSize / 2,
-                  top: '50%',
-                  marginTop: -handleSize / 2,
-                  width: handleSize,
-                  height: handleSize,
-                }}
-                onMouseDown={(e) => handleResizeStart(e, 'w')}
-              />
-              <div
-                className={`${handleStyle} cursor-ew-resize`}
-                style={{
-                  right: -handleSize / 2,
-                  top: '50%',
-                  marginTop: -handleSize / 2,
-                  width: handleSize,
-                  height: handleSize,
-                }}
-                onMouseDown={(e) => handleResizeStart(e, 'e')}
-              />
-              <div
-                className={`${handleStyle} cursor-ns-resize`}
-                style={{
-                  top: -handleSize / 2,
-                  left: '50%',
-                  marginLeft: -handleSize / 2,
-                  width: handleSize,
-                  height: handleSize,
-                }}
-                onMouseDown={(e) => handleResizeStart(e, 'n')}
-              />
-              <div
-                className={`${handleStyle} cursor-ns-resize`}
-                style={{
-                  bottom: -handleSize / 2,
-                  left: '50%',
-                  marginLeft: -handleSize / 2,
-                  width: handleSize,
-                  height: handleSize,
-                }}
-                onMouseDown={(e) => handleResizeStart(e, 's')}
-              />
-
-              {/* Corner handles */}
-              <div
-                className={`${handleStyle} cursor-nwse-resize`}
-                style={{
-                  left: -handleSize / 2,
-                  top: -handleSize / 2,
-                  width: handleSize,
-                  height: handleSize,
-                }}
-                onMouseDown={(e) => handleResizeStart(e, 'nw')}
-              />
-              <div
-                className={`${handleStyle} cursor-nesw-resize`}
-                style={{
-                  right: -handleSize / 2,
-                  top: -handleSize / 2,
-                  width: handleSize,
-                  height: handleSize,
-                }}
-                onMouseDown={(e) => handleResizeStart(e, 'ne')}
-              />
-              <div
-                className={`${handleStyle} cursor-nesw-resize`}
-                style={{
-                  left: -handleSize / 2,
-                  bottom: -handleSize / 2,
-                  width: handleSize,
-                  height: handleSize,
-                }}
-                onMouseDown={(e) => handleResizeStart(e, 'sw')}
-              />
-              <div
-                className={`${handleStyle} cursor-nwse-resize`}
-                style={{
-                  right: -handleSize / 2,
-                  bottom: -handleSize / 2,
-                  width: handleSize,
-                  height: handleSize,
-                }}
-                onMouseDown={(e) => handleResizeStart(e, 'se')}
-              />
+              {!coarsePointer && (
+                <>
+                  {renderHandle('w', 'cursor-ew-resize', {
+                    left: -handleSize / 2,
+                    top: '50%',
+                    marginTop: -handleSize / 2,
+                  })}
+                  {renderHandle('e', 'cursor-ew-resize', {
+                    right: -handleSize / 2,
+                    top: '50%',
+                    marginTop: -handleSize / 2,
+                  })}
+                  {renderHandle('n', 'cursor-ns-resize', {
+                    top: -handleSize / 2,
+                    left: '50%',
+                    marginLeft: -handleSize / 2,
+                  })}
+                  {renderHandle('s', 'cursor-ns-resize', {
+                    bottom: -handleSize / 2,
+                    left: '50%',
+                    marginLeft: -handleSize / 2,
+                  })}
+                </>
+              )}
+              {renderHandle('nw', 'cursor-nwse-resize', {
+                left: -handleSize / 2,
+                top: -handleSize / 2,
+              })}
+              {renderHandle('ne', 'cursor-nesw-resize', {
+                right: -handleSize / 2,
+                top: -handleSize / 2,
+              })}
+              {renderHandle('sw', 'cursor-nesw-resize', {
+                left: -handleSize / 2,
+                bottom: -handleSize / 2,
+              })}
+              {renderHandle('se', 'cursor-nwse-resize', {
+                right: -handleSize / 2,
+                bottom: -handleSize / 2,
+              })}
             </>
           )}
         </div>
@@ -626,16 +707,23 @@ export function SeatingChartEditor({
   const [draggingStudent, setDraggingStudent] = useState<Student | null>(null);
   const [scale, setScale] = useState(1);
 
-  // Supplying `sensors` REPLACES dnd-kit's defaults, so this set is the defaults
-  // plus the activation constraint: PointerSensor requires 5px of movement before
-  // a drag activates (sub-5px presses stay clicks — native click bubbles to the
-  // existing onSelect wiring instead of being swallowed by dnd-kit's
-  // click-suppressor), and KeyboardSensor is re-added deliberately (dropping it
-  // would be a silent a11y regression — Enter/Space keyboard drags are live today
-  // via its onKeyDown activator delivered through the spread {...listeners};
-  // {...attributes} only carries role/tabIndex/aria).
+  // Supplying `sensors` REPLACES dnd-kit's defaults, so everything here is
+  // re-added deliberately. MouseSensor + TouchSensor split what PointerSensor
+  // used to do, so each input gets its own activation gate:
+  //  - MouseSensor keeps the 5px movement threshold (sub-5px presses stay
+  //    clicks — native click bubbles to the existing onSelect wiring instead
+  //    of being swallowed by dnd-kit's click-suppressor, which arms only
+  //    after a drag actually activates);
+  //  - TouchSensor requires a 200ms press-and-hold (8px wiggle tolerance)
+  //    before a drag starts, so quick swipes keep scrolling the editor and
+  //    the student list, and a plain tap's click still selects;
+  //  - KeyboardSensor: dropping it would be a silent a11y regression —
+  //    Enter/Space keyboard drags are live today via its onKeyDown activator
+  //    delivered through the spread {...listeners}; {...attributes} only
+  //    carries role/tabIndex/aria.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PrimaryButtonMouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     useSensor(KeyboardSensor)
   );
 
@@ -648,21 +736,60 @@ export function SeatingChartEditor({
   const ZOOM_STEP = 0.1;
   const MIN_ZOOM = 0.3;
   const MAX_ZOOM = 1.5;
+  // Coarse pointers never auto-fit below this: SEAT_SIZE(100) × 0.44 = 44px,
+  // the minimum comfortable touch target for drag sources/drop targets. The
+  // canvas pans in the overflow-auto scroller instead of shrinking further.
+  const MIN_TOUCH_SCALE = 0.44;
+
+  const coarsePointer = useIsCoarsePointer();
+  const [fitScale, setFitScale] = useState(1);
+  // Manual zoom must survive window resizes / canvas-size tweaks — refit only
+  // applies its scale while the user hasn't zoomed by hand (the % fit button
+  // re-arms auto-fit).
+  const userZoomedRef = useRef(false);
+
+  // Fit-to-screen scale, computed on mount + resize. useLayoutEffect: the
+  // scale-1 default must never paint — a 1600px canvas at 100% blows past an
+  // iPad viewport for one visible frame (same rationale as SeatingChartView).
+  // The w-64 panel (256px) and gap-4 (16px) sit INSIDE the scaled wrapper, so
+  // they belong in the denominator; 32 is the scroller's own p-4 padding.
+  useLayoutEffect(() => {
+    const container = editorContainerRef.current;
+    if (!container) return;
+
+    const updateFit = () => {
+      const available = container.clientWidth - 32;
+      // jsdom (and a mid-teardown container) report clientWidth 0 — a
+      // negative scale would corrupt every interaction. Keep the default.
+      if (available <= 0) return;
+      const raw = Math.min(1, available / (chart.canvasWidth + 16 + 256));
+      const fit = coarsePointer ? Math.max(MIN_TOUCH_SCALE, raw) : raw;
+      setFitScale(fit);
+      if (!userZoomedRef.current) setScale(fit);
+    };
+
+    updateFit();
+    window.addEventListener('resize', updateFit);
+    return () => window.removeEventListener('resize', updateFit);
+  }, [chart.canvasWidth, coarsePointer]);
 
   const handleZoomIn = useCallback(() => {
+    userZoomedRef.current = true;
     setScale((prev) => Math.min(MAX_ZOOM, prev + ZOOM_STEP));
   }, []);
 
+  // Zoom-out floor: fitScale when it is below MIN_ZOOM (a 1600px chart fits
+  // narrow viewports only below 0.3), else MIN_ZOOM — a fixed floor would
+  // strand narrow viewports wider than the screen after one zoom-in.
   const handleZoomOut = useCallback(() => {
-    setScale((prev) => Math.max(MIN_ZOOM, prev - ZOOM_STEP));
-  }, []);
+    userZoomedRef.current = true;
+    setScale((prev) => Math.max(Math.min(MIN_ZOOM, fitScale), prev - ZOOM_STEP));
+  }, [fitScale]);
 
   const handleFitToScreen = useCallback(() => {
-    if (!editorContainerRef.current) return;
-    const containerWidth = editorContainerRef.current.clientWidth - 320; // Account for sidebar + padding
-    const newScale = Math.min(1, containerWidth / chart.canvasWidth);
-    setScale(newScale);
-  }, [chart.canvasWidth]);
+    userZoomedRef.current = false;
+    setScale(fitScale);
+  }, [fitScale]);
 
   // Element size defaults for preview
   const elementSizes: Record<RoomElementType | 'group', { width: number; height: number }> = {
@@ -777,12 +904,14 @@ export function SeatingChartEditor({
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
 
-      const x = snapToGrid(e.clientX - rect.left);
-      const y = snapToGrid(e.clientY - rect.top);
+      // rect is the SCALED canvas; convert to canvas space before snapping
+      // (dividing after snapping would shrink the effective grid pitch).
+      const x = snapToGrid((e.clientX - rect.left) / scale);
+      const y = snapToGrid((e.clientY - rect.top) / scale);
 
       setPreviewPos({ x, y });
     },
-    [isAddingGroup, addingRoomElement, snapToGrid, previewPos]
+    [isAddingGroup, addingRoomElement, snapToGrid, previewPos, scale]
   );
 
   // Handle canvas mouse leave - clear preview
@@ -791,28 +920,41 @@ export function SeatingChartEditor({
   }, []);
 
   // Handle canvas click for adding items
-  const handleCanvasClick = useCallback(async () => {
-    if (!isAddingGroup && !addingRoomElement) {
-      // Clear selections
-      setSelectedGroupId(null);
-      setSelectedElementId(null);
-      return;
-    }
+  const handleCanvasClick = useCallback(
+    async (e: React.MouseEvent) => {
+      if (!isAddingGroup && !addingRoomElement) {
+        // Clear selections
+        setSelectedGroupId(null);
+        setSelectedElementId(null);
+        return;
+      }
 
-    if (!previewPos) return;
+      // Mouse users placed via the mousemove ghost; a touch tap never fired a
+      // mousemove, so derive the spot from the tap's own coordinates.
+      let pos = previewPos;
+      if (!pos) {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        pos = {
+          x: snapToGrid((e.clientX - rect.left) / scale),
+          y: snapToGrid((e.clientY - rect.top) / scale),
+        };
+      }
 
-    const { x, y } = previewPos;
+      const { x, y } = pos;
 
-    if (addingRoomElement) {
-      await onAddRoomElement(addingRoomElement, x, y);
-      setAddingRoomElement(null);
-    } else if (isAddingGroup) {
-      await onAddGroup(x, y);
-      setIsAddingGroup(false);
-    }
+      if (addingRoomElement) {
+        await onAddRoomElement(addingRoomElement, x, y);
+        setAddingRoomElement(null);
+      } else if (isAddingGroup) {
+        await onAddGroup(x, y);
+        setIsAddingGroup(false);
+      }
 
-    setPreviewPos(null);
-  }, [isAddingGroup, addingRoomElement, previewPos, onAddGroup, onAddRoomElement]);
+      setPreviewPos(null);
+    },
+    [isAddingGroup, addingRoomElement, previewPos, onAddGroup, onAddRoomElement, snapToGrid, scale]
+  );
 
   // Drag handlers
   const handleDragStart = (event: DragStartEvent) => {
@@ -828,6 +970,19 @@ export function SeatingChartEditor({
     } else {
       setDraggingStudent(null);
     }
+  };
+
+  // A cancelled drag (Escape, or a system gesture stealing the touch) fires
+  // onDragCancel INSTEAD of onDragEnd: clear the dragging state — a stale
+  // draggingId would misdirect the R/Delete key handlers — and remount the
+  // positioned children via the epoch key: their optimistic localPos was
+  // synced to the aborted drag and their props will never catch up to it.
+  const [dragEpoch, setDragEpoch] = useState(0);
+  const handleDragCancel = () => {
+    setDraggingType(null);
+    setDraggingId(null);
+    setDraggingStudent(null);
+    setDragEpoch((epoch) => epoch + 1);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -888,8 +1043,10 @@ export function SeatingChartEditor({
     if (data?.type === 'group') {
       const group = chart.groups.find((g) => g.id === data.groupId);
       if (group) {
-        const newX = snapToGrid(group.x + delta.x);
-        const newY = snapToGrid(group.y + delta.y);
+        // delta is screen px; positions are canvas px inside a scale()
+        // wrapper — divide before snapping.
+        const newX = snapToGrid(group.x + delta.x / scale);
+        const newY = snapToGrid(group.y + delta.y / scale);
         // No-op belt: skip the move when the snapped target equals the group's
         // current cached position (deliberately NOT raw delta === 0 — a small
         // drag that snaps back to the origin is also a no-op).
@@ -903,8 +1060,10 @@ export function SeatingChartEditor({
     if (data?.type === 'room-element') {
       const element = chart.roomElements.find((e) => e.id === data.elementId);
       if (element) {
-        const newX = snapToGrid(element.x + delta.x);
-        const newY = snapToGrid(element.y + delta.y);
+        // delta is screen px; positions are canvas px inside a scale()
+        // wrapper — divide before snapping.
+        const newX = snapToGrid(element.x + delta.x / scale);
+        const newY = snapToGrid(element.y + delta.y / scale);
         // No-op belt: skip the move when the snapped target equals the element's
         // current cached position (deliberately NOT raw delta === 0).
         if (newX === element.x && newY === element.y) return;
@@ -927,16 +1086,18 @@ export function SeatingChartEditor({
       sensors={sensors}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
       collisionDetection={pointerWithin}
     >
-      <div className="fixed inset-0 bg-gray-100 dark:bg-zinc-950 z-50 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
-        {/* Header */}
-        <div className="bg-white dark:bg-zinc-900 border-b px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      {/* touch-manipulation kills iOS double-tap zoom inside the editor */}
+      <div className="touch-manipulation fixed inset-0 bg-gray-100 dark:bg-zinc-950 z-50 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+        {/* Header — wraps on narrow viewports instead of overflowing */}
+        <div className="bg-white dark:bg-zinc-900 border-b px-4 py-3 flex flex-wrap items-center justify-between gap-y-2">
+          <div className="flex items-center gap-4 min-w-0">
             <Button onClick={onClose} variant="ghost" size="sm">
               ← Back
             </Button>
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 min-w-0 truncate">
               Edit Seating Chart
             </h2>
           </div>
@@ -1035,7 +1196,7 @@ export function SeatingChartEditor({
             variant={isAddingGroup ? 'primary' : 'secondary'}
             size="sm"
           >
-            {isAddingGroup ? 'Click to place...' : '+ Add Table Group'}
+            {isAddingGroup ? 'Tap or click to place...' : '+ Add Table Group'}
           </Button>
           <Button
             onClick={() => {
@@ -1045,7 +1206,7 @@ export function SeatingChartEditor({
             variant={addingRoomElement === 'teacher_desk' ? 'primary' : 'secondary'}
             size="sm"
           >
-            {addingRoomElement === 'teacher_desk' ? 'Click to place...' : '+ Teacher Desk'}
+            {addingRoomElement === 'teacher_desk' ? 'Tap or click to place...' : '+ Teacher Desk'}
           </Button>
           <Button
             onClick={() => {
@@ -1055,7 +1216,7 @@ export function SeatingChartEditor({
             variant={addingRoomElement === 'door' ? 'primary' : 'secondary'}
             size="sm"
           >
-            {addingRoomElement === 'door' ? 'Click to place...' : '+ Door'}
+            {addingRoomElement === 'door' ? 'Tap or click to place...' : '+ Door'}
           </Button>
           <Button
             onClick={() => {
@@ -1065,7 +1226,7 @@ export function SeatingChartEditor({
             variant={addingRoomElement === 'window' ? 'primary' : 'secondary'}
             size="sm"
           >
-            {addingRoomElement === 'window' ? 'Click to place...' : '+ Window'}
+            {addingRoomElement === 'window' ? 'Tap or click to place...' : '+ Window'}
           </Button>
           <Button
             onClick={() => {
@@ -1075,7 +1236,7 @@ export function SeatingChartEditor({
             variant={addingRoomElement === 'countertop' ? 'primary' : 'secondary'}
             size="sm"
           >
-            {addingRoomElement === 'countertop' ? 'Click to place...' : '+ Counter'}
+            {addingRoomElement === 'countertop' ? 'Tap or click to place...' : '+ Counter'}
           </Button>
           <Button
             onClick={() => {
@@ -1085,7 +1246,7 @@ export function SeatingChartEditor({
             variant={addingRoomElement === 'sink' ? 'primary' : 'secondary'}
             size="sm"
           >
-            {addingRoomElement === 'sink' ? 'Click to place...' : '+ Sink'}
+            {addingRoomElement === 'sink' ? 'Tap or click to place...' : '+ Sink'}
           </Button>
 
           <div className="w-px h-6 bg-gray-300 mx-2" />
@@ -1158,11 +1319,14 @@ export function SeatingChartEditor({
 
           <div className="w-px h-6 bg-gray-300 mx-2" />
 
-          {/* Zoom controls */}
+          {/* Zoom controls. Locked while a drag is live: dnd-kit deltas are
+              cumulative screen px, so a mid-drag scale change (second finger
+              tapping zoom during a touch drag) would skew the whole
+              accumulated delta at drop. */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-zinc-950 rounded-lg p-1">
             <button
               onClick={handleZoomOut}
-              disabled={scale <= MIN_ZOOM}
+              disabled={scale <= Math.min(MIN_ZOOM, fitScale) || draggingType !== null}
               className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
               title="Zoom out"
             >
@@ -1170,14 +1334,15 @@ export function SeatingChartEditor({
             </button>
             <button
               onClick={handleFitToScreen}
-              className="px-2 h-7 text-xs text-gray-600 dark:text-zinc-400 hover:bg-white dark:hover:bg-zinc-900 rounded-md transition-colors min-w-[3rem]"
+              disabled={draggingType !== null}
+              className="px-2 h-7 text-xs text-gray-600 dark:text-zinc-400 hover:bg-white dark:hover:bg-zinc-900 rounded-md transition-colors min-w-[3rem] disabled:opacity-40"
               title="Fit to screen"
             >
               {Math.round(scale * 100)}%
             </button>
             <button
               onClick={handleZoomIn}
-              disabled={scale >= MAX_ZOOM}
+              disabled={scale >= MAX_ZOOM || draggingType !== null}
               className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
               title="Zoom in"
             >
@@ -1216,6 +1381,15 @@ export function SeatingChartEditor({
               <div className="w-px h-6 bg-gray-300 mx-2" />
               <Button
                 onClick={() => {
+                  onRotateRoomElement(selectedElementId);
+                }}
+                variant="secondary"
+                size="sm"
+              >
+                Rotate Element
+              </Button>
+              <Button
+                onClick={() => {
                   onDeleteRoomElement(selectedElementId);
                   setSelectedElementId(null);
                 }}
@@ -1231,124 +1405,149 @@ export function SeatingChartEditor({
 
         {/* Help text */}
         <div className="px-4 py-1 text-xs text-gray-500 dark:text-zinc-500 bg-gray-50 dark:bg-zinc-900 border-b">
-          Drag to reposition • R to rotate • Alt to disable snap • Delete/D to remove • Drag edges
-          to resize • Lock tables to move students
+          Drag to reposition (press and hold on touch) • Drag corners/edges to resize • Rotate and
+          Delete from the toolbar (or R / Delete keys) • Alt disables snap • Lock tables to move
+          students
         </div>
 
-        {/* Main content */}
-        <div className="flex-1 overflow-auto p-4" ref={editorContainerRef}>
+        {/* Main content. overscroll-contain stops iOS rubber-banding the page
+            behind the editor; select-none stops long-press text selection
+            racing TouchSensor's 200ms hold. */}
+        <div
+          className="flex-1 overflow-auto overscroll-contain select-none p-4"
+          ref={editorContainerRef}
+        >
+          {/* transform: scale() is visual-only — without a width/height-
+              compensated wrapper the scroller keeps the full unscaled layout
+              footprint and pans into blank space at fit (same fix as
+              SeatingChartView's #132 sized wrapper). 272 = gap-4 + w-64
+              panel; 32 ≈ the FRONT OF ROOM label row. EDGE_BLEED pads the
+              scaled content so resize handles on elements at x/y=0 aren't
+              clipped by the overflow:hidden (best effort — very low zoom can
+              still clip part of a large handle). */}
           <div
-            className="inline-flex gap-4 items-start"
             style={{
-              transform: `scale(${scale})`,
-              transformOrigin: 'top left',
+              width: (chart.canvasWidth + 272 + EDGE_BLEED * 2) * scale,
+              height: (chart.canvasHeight + 32 + EDGE_BLEED * 2) * scale,
+              overflow: 'hidden',
             }}
           >
-            {/* Canvas container */}
-            <div className="flex flex-col flex-shrink-0">
-              {/* Canvas */}
-              <div
-                ref={canvasRef}
-                onClick={handleCanvasClick}
-                onMouseMove={handleCanvasMouseMove}
-                onMouseLeave={handleCanvasMouseLeave}
-                className={`relative outline outline-2 rounded-lg bg-white dark:bg-zinc-900 flex-shrink-0 ${
-                  isAddingGroup || addingRoomElement
-                    ? 'cursor-crosshair outline-blue-400'
-                    : 'outline-gray-200 dark:outline-zinc-800'
-                }`}
-                style={{
-                  width: chart.canvasWidth,
-                  height: chart.canvasHeight,
-                  backgroundImage: chart.snapEnabled
-                    ? `
+            <div
+              className="inline-flex gap-4 items-start"
+              style={{
+                transform: `scale(${scale})`,
+                transformOrigin: 'top left',
+                padding: EDGE_BLEED,
+              }}
+            >
+              {/* Canvas container */}
+              <div className="flex flex-col flex-shrink-0">
+                {/* Canvas */}
+                <div
+                  ref={canvasRef}
+                  onClick={handleCanvasClick}
+                  onMouseMove={handleCanvasMouseMove}
+                  onMouseLeave={handleCanvasMouseLeave}
+                  className={`relative outline outline-2 rounded-lg bg-white dark:bg-zinc-900 flex-shrink-0 ${
+                    isAddingGroup || addingRoomElement
+                      ? 'cursor-crosshair outline-blue-400'
+                      : 'outline-gray-200 dark:outline-zinc-800'
+                  }`}
+                  style={{
+                    width: chart.canvasWidth,
+                    height: chart.canvasHeight,
+                    backgroundImage: chart.snapEnabled
+                      ? `
                     linear-gradient(to right, var(--chart-grid-line) 1px, transparent 1px),
                     linear-gradient(to bottom, var(--chart-grid-line) 1px, transparent 1px)
                   `
-                    : undefined,
-                  backgroundSize: chart.snapEnabled
-                    ? `${chart.gridSize}px ${chart.gridSize}px`
-                    : undefined,
-                }}
-              >
-                {/* Table Groups */}
-                {chart.groups.map((group) => (
-                  <DraggableGroup
-                    key={group.id}
-                    group={group}
-                    students={studentMap}
-                    isSelected={selectedGroupId === group.id}
-                    onSelect={() => {
-                      setSelectedGroupId(group.id);
-                      setSelectedElementId(null);
-                    }}
-                    onUnassignStudent={onUnassignStudent}
-                    snapToGrid={snapToGrid}
-                    disabled={tablesLocked}
-                    studentsAreDraggable={tablesLocked}
-                  />
-                ))}
+                      : undefined,
+                    backgroundSize: chart.snapEnabled
+                      ? `${chart.gridSize}px ${chart.gridSize}px`
+                      : undefined,
+                  }}
+                >
+                  {/* Table Groups */}
+                  {chart.groups.map((group) => (
+                    <DraggableGroup
+                      key={`${group.id}-${dragEpoch}`}
+                      group={group}
+                      students={studentMap}
+                      isSelected={selectedGroupId === group.id}
+                      onSelect={() => {
+                        setSelectedGroupId(group.id);
+                        setSelectedElementId(null);
+                      }}
+                      onUnassignStudent={onUnassignStudent}
+                      snapToGrid={snapToGrid}
+                      scale={scale}
+                      disabled={tablesLocked}
+                      studentsAreDraggable={tablesLocked}
+                    />
+                  ))}
 
-                {/* Room Elements */}
-                {chart.roomElements.map((element) => (
-                  <DraggableRoomElement
-                    key={element.id}
-                    element={element}
-                    isSelected={selectedElementId === element.id}
-                    onSelect={() => {
-                      setSelectedElementId(element.id);
-                      setSelectedGroupId(null);
-                    }}
-                    onResize={(width, height, x, y) =>
-                      onResizeRoomElement(element.id, width, height, x, y)
-                    }
-                    snapToGrid={snapToGrid}
-                    gridSize={chart.gridSize}
-                    canvasWidth={chart.canvasWidth}
-                    canvasHeight={chart.canvasHeight}
-                  />
-                ))}
+                  {/* Room Elements */}
+                  {chart.roomElements.map((element) => (
+                    <DraggableRoomElement
+                      key={`${element.id}-${dragEpoch}`}
+                      element={element}
+                      isSelected={selectedElementId === element.id}
+                      onSelect={() => {
+                        setSelectedElementId(element.id);
+                        setSelectedGroupId(null);
+                      }}
+                      onResize={(width, height, x, y) =>
+                        onResizeRoomElement(element.id, width, height, x, y)
+                      }
+                      snapToGrid={snapToGrid}
+                      scale={scale}
+                      gridSize={chart.gridSize}
+                      canvasWidth={chart.canvasWidth}
+                      canvasHeight={chart.canvasHeight}
+                    />
+                  ))}
 
-                {/* Preview outline when adding element */}
-                {previewPos && (isAddingGroup || addingRoomElement) && (
-                  <div
-                    className="absolute border-2 border-blue-500 rounded-lg bg-blue-100/30 pointer-events-none"
-                    style={{
-                      left: previewPos.x,
-                      top: previewPos.y,
-                      width: elementSizes[addingRoomElement || 'group'].width,
-                      height: elementSizes[addingRoomElement || 'group'].height,
-                      zIndex: 999,
-                    }}
-                  />
-                )}
+                  {/* Preview outline when adding element */}
+                  {previewPos && (isAddingGroup || addingRoomElement) && (
+                    <div
+                      className="absolute border-2 border-blue-500 rounded-lg bg-blue-100/30 pointer-events-none"
+                      style={{
+                        left: previewPos.x,
+                        top: previewPos.y,
+                        width: elementSizes[addingRoomElement || 'group'].width,
+                        height: elementSizes[addingRoomElement || 'group'].height,
+                        zIndex: 999,
+                      }}
+                    />
+                  )}
+                </div>
+                {/* Front of room label - outside canvas */}
+                <div
+                  className="text-center text-sm text-gray-400 dark:text-zinc-600 py-1 border-t border-gray-200 dark:border-zinc-800 -mt-px"
+                  style={{ width: chart.canvasWidth }}
+                >
+                  FRONT OF ROOM
+                </div>
               </div>
-              {/* Front of room label - outside canvas */}
+
+              {/* Unassigned Students Panel */}
               <div
-                className="text-center text-sm text-gray-400 dark:text-zinc-600 py-1 border-t border-gray-200 dark:border-zinc-800 -mt-px"
-                style={{ width: chart.canvasWidth }}
+                className="w-64 bg-white dark:bg-zinc-900 border rounded-lg p-4 flex-shrink-0 self-start flex flex-col"
+                style={{ height: chart.canvasHeight }}
               >
-                FRONT OF ROOM
-              </div>
-            </div>
-
-            {/* Unassigned Students Panel */}
-            <div
-              className="w-64 bg-white dark:bg-zinc-900 border rounded-lg p-4 flex-shrink-0 self-start flex flex-col"
-              style={{ height: chart.canvasHeight }}
-            >
-              <h3 className="font-medium text-gray-800 dark:text-zinc-100 mb-3 flex-shrink-0">
-                Unassigned Students ({unassignedStudents.length})
-              </h3>
-              <div className="space-y-2 overflow-y-auto flex-1">
-                {unassignedStudents.map((student) => (
-                  <DraggableStudent key={student.id} student={student} />
-                ))}
-                {unassignedStudents.length === 0 && (
-                  <p className="text-sm text-gray-500 dark:text-zinc-500 italic">
-                    All students assigned
-                  </p>
-                )}
+                <h3 className="font-medium text-gray-800 dark:text-zinc-100 mb-3 flex-shrink-0">
+                  Unassigned Students ({unassignedStudents.length})
+                </h3>
+                <div className="space-y-2 overflow-y-auto flex-1">
+                  {unassignedStudents.map((student) => (
+                    <DraggableStudent key={student.id} student={student} />
+                  ))}
+                  {unassignedStudents.length === 0 && (
+                    <p className="text-sm text-gray-500 dark:text-zinc-500 italic">
+                      All students assigned
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>

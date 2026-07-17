@@ -253,3 +253,9 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Suppress the iOS long-press callout on drag surfaces — TouchSensor's 200ms
+   press-and-hold would otherwise race the system's copy/share sheet. */
+.touch-callout-none {
+  -webkit-touch-callout: none;
+}
