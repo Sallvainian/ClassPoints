@@ -8,6 +8,7 @@ import { useDeleteClassroom } from '../../hooks/useClassrooms';
 import { supabase } from '../../lib/supabase';
 import { Button, Input } from '../ui';
 import { DeleteClassroomModal } from './DeleteClassroomModal';
+import { DeleteAccountModal } from './DeleteAccountModal';
 import type { Classroom } from '../../types';
 
 const MIN_PASSWORD_LENGTH = 6;
@@ -59,6 +60,7 @@ export function ProfileView({ onClose }: ProfileViewProps) {
   const [emailPending, setEmailPending] = useState(false);
 
   const [classroomToDelete, setClassroomToDelete] = useState<Classroom | null>(null);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
 
   useEffect(() => {
     if (nameSuccess) {
@@ -484,6 +486,36 @@ export function ProfileView({ onClose }: ProfileViewProps) {
               </button>
             </div>
           </section>
+
+          {/* Legal */}
+          <section>
+            <SectionLabel>Legal</SectionLabel>
+            <div className="bg-surface-2 border border-hairline rounded-2xl p-5">
+              <a
+                href={`${import.meta.env.BASE_URL}privacy.html`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-ink-strong underline decoration-hairline underline-offset-4 hover:decoration-ink-mid"
+              >
+                Privacy Policy →
+              </a>
+            </div>
+          </section>
+
+          {/* Danger zone — App Store 5.1.1(v) requires in-app account deletion. */}
+          <section>
+            <SectionLabel>Danger zone</SectionLabel>
+            <div className="bg-surface-2 border border-red-200/60 dark:border-red-900/40 rounded-2xl p-6">
+              <p className="text-sm text-ink-strong mb-1">Delete account</p>
+              <p className="text-xs text-ink-mid mb-4">
+                Permanently removes your account with every classroom, student, point history,
+                seating chart, and setting in it. This cannot be undone.
+              </p>
+              <Button variant="danger" onClick={() => setShowDeleteAccount(true)}>
+                Delete Account…
+              </Button>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -493,6 +525,8 @@ export function ProfileView({ onClose }: ProfileViewProps) {
         onClose={() => setClassroomToDelete(null)}
         onConfirm={handleDeleteClassroom}
       />
+
+      <DeleteAccountModal isOpen={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} />
     </div>
   );
 }
