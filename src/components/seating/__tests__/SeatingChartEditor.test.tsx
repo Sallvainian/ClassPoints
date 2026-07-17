@@ -572,6 +572,23 @@ describe('SeatingChartEditor resize (pointer events)', () => {
     expect(props.onResizeRoomElement).not.toHaveBeenCalled();
   });
 
+  it('zoom controls lock while a resize gesture is live and release on pointerup', async () => {
+    const { eastHandle } = await setupSelectedDesk();
+    const zoomIn = screen.getByTitle('Zoom in');
+    expect(zoomIn).toBeEnabled();
+
+    fireEvent.pointerDown(eastHandle, { ...pointer, clientX: 300, clientY: 300 });
+    // Mid-gesture, a second finger must not be able to change the scale —
+    // the canvas re-scaling under a live gesture is disorienting even though
+    // the delta math is stash-protected.
+    expect(zoomIn).toBeDisabled();
+    expect(screen.getByTitle('Zoom out')).toBeDisabled();
+    expect(screen.getByTitle('Fit to screen')).toBeDisabled();
+
+    fireEvent.pointerUp(window, { ...pointer, clientX: 300, clientY: 300 });
+    expect(zoomIn).toBeEnabled();
+  });
+
   it('a plain tap on a handle (no movement) persists nothing', async () => {
     const { props, eastHandle } = await setupSelectedDesk();
 

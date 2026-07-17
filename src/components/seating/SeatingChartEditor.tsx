@@ -269,6 +269,8 @@ interface DraggableRoomElementProps {
   isSelected: boolean;
   onSelect: () => void;
   onResize: (width: number, height: number, x?: number, y?: number) => void;
+  /** Mirrors the resize gesture up so the editor can lock zoom while it runs. */
+  onResizeActiveChange: (active: boolean) => void;
   snapToGrid: (value: number) => number;
   /** Editor zoom — pointer deltas are screen px, positions are canvas px. */
   scale: number;
@@ -282,6 +284,7 @@ function DraggableRoomElement({
   isSelected,
   onSelect,
   onResize,
+  onResizeActiveChange,
   snapToGrid,
   scale,
   gridSize,
@@ -437,6 +440,7 @@ function DraggableRoomElement({
       if (changed) onResize(local.width, local.height, local.x, local.y);
       setIsResizing(false);
       setGestureScale(null);
+      onResizeActiveChange(false);
       resizeRef.current = null;
     };
 
@@ -453,6 +457,7 @@ function DraggableRoomElement({
       });
       setIsResizing(false);
       setGestureScale(null);
+      onResizeActiveChange(false);
       resizeRef.current = null;
     };
 
@@ -465,7 +470,15 @@ function DraggableRoomElement({
       window.removeEventListener('pointerup', handlePointerUp);
       window.removeEventListener('pointercancel', handlePointerCancel);
     };
-  }, [isResizing, snapToGrid, gridSize, onResize, local]);
+  }, [isResizing, snapToGrid, gridSize, onResize, onResizeActiveChange, local]);
+
+  // If this component unmounts mid-gesture (epoch remount from an unrelated
+  // cancelled drag), release the editor-level zoom lock — nothing else would.
+  useEffect(() => {
+    return () => {
+      if (resizeRef.current) onResizeActiveChange(false);
+    };
+  }, [onResizeActiveChange]);
 
   const handleResizeStart = (
     e: React.PointerEvent,
@@ -478,6 +491,7 @@ function DraggableRoomElement({
     e.preventDefault();
     setIsResizing(true);
     setGestureScale(scale);
+    onResizeActiveChange(true);
     resizeRef.current = {
       edge,
       pointerId: e.pointerId,
@@ -983,6 +997,10 @@ export function SeatingChartEditor({
     }
   };
 
+  // True while any element-resize gesture is live (mirrored up from
+  // DraggableRoomElement) — zoom locks during it, same as during drags.
+  const [resizeActive, setResizeActive] = useState(false);
+
   // A cancelled drag (Escape, or a system gesture stealing the touch) fires
   // onDragCancel INSTEAD of onDragEnd: clear the dragging state — a stale
   // draggingId would misdirect the R/Delete key handlers — and remount the
@@ -1336,14 +1354,18 @@ export function SeatingChartEditor({
 
           <div className="w-px h-6 bg-gray-300 mx-2" />
 
-          {/* Zoom controls. Locked while a drag is live: dnd-kit deltas are
-              cumulative screen px, so a mid-drag scale change (second finger
-              tapping zoom during a touch drag) would skew the whole
-              accumulated delta at drop. */}
+          {/* Zoom controls. Locked while a drag OR resize is live: dnd-kit
+              deltas are cumulative screen px, so a mid-drag scale change
+              (second finger tapping zoom during a touch gesture) would skew
+              the accumulated delta at drop; resize math is stash-protected
+              but the canvas re-scaling under a live gesture is disorienting
+              either way. */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-zinc-950 rounded-lg p-1">
             <button
               onClick={handleZoomOut}
-              disabled={scale <= Math.min(MIN_ZOOM, fitScale) || draggingType !== null}
+              disabled={
+                scale <= Math.min(MIN_ZOOM, fitScale) || draggingType !== null || resizeActive
+              }
               className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
               title="Zoom out"
             >
@@ -1351,7 +1373,7 @@ export function SeatingChartEditor({
             </button>
             <button
               onClick={handleFitToScreen}
-              disabled={draggingType !== null}
+              disabled={draggingType !== null || resizeActive}
               className="px-2 h-7 text-xs text-gray-600 dark:text-zinc-400 hover:bg-white dark:hover:bg-zinc-900 rounded-md transition-colors min-w-[3rem] disabled:opacity-40"
               title="Fit to screen"
             >
@@ -1359,7 +1381,7 @@ export function SeatingChartEditor({
             </button>
             <button
               onClick={handleZoomIn}
-              disabled={scale >= MAX_ZOOM || draggingType !== null}
+              disabled={scale >= MAX_ZOOM || draggingType !== null || resizeActive}
               className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
               title="Zoom in"
             >
@@ -1516,6 +1538,7 @@ export function SeatingChartEditor({
                       onResize={(width, height, x, y) =>
                         onResizeRoomElement(element.id, width, height, x, y)
                       }
+                      onResizeActiveChange={setResizeActive}
                       snapToGrid={snapToGrid}
                       scale={scale}
                       gridSize={chart.gridSize}
