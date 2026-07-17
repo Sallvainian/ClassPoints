@@ -9,7 +9,7 @@ import { AuthGuard } from './components/auth/AuthGuard';
 import { SyncStatus } from './components/common/SyncStatus';
 import { Layout } from './components/layout';
 import { hasLocalStorageData } from './utils/migrateToSupabase';
-import { registerBackButton } from './lib/native';
+import { hideSplash, registerBackButton } from './lib/native';
 
 const MigrationWizard = lazy(() =>
   import('./components/migration/MigrationWizard').then((m) => ({ default: m.MigrationWizard }))
@@ -132,6 +132,15 @@ function AppContent() {
 }
 
 export default function App() {
+  // Native shell: the splash (launchAutoHide: false in capacitor.config.ts)
+  // covers the WebView until the first render COMMITS. An effect — not a call
+  // after createRoot().render(), which returns before the concurrent initial
+  // render commits — is what guarantees that ordering. Idempotent under
+  // StrictMode's double-invoke. No-op on web.
+  useEffect(() => {
+    hideSplash();
+  }, []);
+
   return (
     <AuthProvider>
       <AuthGuard>

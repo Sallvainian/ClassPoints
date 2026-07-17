@@ -1,8 +1,10 @@
 /**
- * hapticAwardSuccess — the award-success haptic (called component-level in the
- * three award modals). The contract: strict no-op on web, a Success
- * notification on native, and bridge rejections swallowed (feedback must never
- * break the award flow). No env stub — haptics.ts doesn't import ../lib/supabase.
+ * hapticAwardSuccess / hapticAwardNegative — the award haptics (called
+ * component-level in the three award modals, inside the same positive/negative
+ * branches as the sound calls). The contract: strict no-op on web, distinct
+ * Success/Warning notifications on native (eyes-free valence), and bridge
+ * rejections swallowed (feedback must never break the award flow). No env
+ * stub — haptics.ts doesn't import ../lib/supabase.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -18,7 +20,7 @@ vi.mock('@capacitor/haptics', () => ({
 }));
 
 import { Haptics } from '@capacitor/haptics';
-import { hapticAwardSuccess } from '../haptics';
+import { hapticAwardNegative, hapticAwardSuccess } from '../haptics';
 
 const mockedHaptics = vi.mocked(Haptics);
 
@@ -27,16 +29,23 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('hapticAwardSuccess', () => {
-  it('is a no-op on web (Haptics never called)', () => {
+describe('award haptics', () => {
+  it('are a no-op on web (Haptics never called)', () => {
     hapticAwardSuccess();
+    hapticAwardNegative();
     expect(mockedHaptics.notification).not.toHaveBeenCalled();
   });
 
-  it('fires a Success notification on native', () => {
+  it('fires a Success notification for a positive award on native', () => {
     isNative.value = true;
     hapticAwardSuccess();
     expect(mockedHaptics.notification).toHaveBeenCalledExactlyOnceWith({ type: 'SUCCESS' });
+  });
+
+  it('fires a Warning notification for a deduction on native', () => {
+    isNative.value = true;
+    hapticAwardNegative();
+    expect(mockedHaptics.notification).toHaveBeenCalledExactlyOnceWith({ type: 'WARNING' });
   });
 
   it('swallows bridge rejections', async () => {

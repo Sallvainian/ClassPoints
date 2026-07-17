@@ -9,8 +9,9 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   plugins: {
     SplashScreen: {
-      // main.tsx hides the splash after the first React render commits, so
-      // the native launch image covers the WebView's white flash.
+      // App.tsx hides the splash from a mount effect (after the first React
+      // render commits), so the native launch image covers the WebView's
+      // white flash.
       launchAutoHide: false,
       // --color-surface-1 (light page bg) from src/index.css.
       backgroundColor: '#f7f5f1',
