@@ -49,6 +49,12 @@ vi.mock('../hooks/useClassrooms', () => ({
   useDeleteClassroom: () => ({ mutate: vi.fn() }),
 }));
 
+// ProfileView renders DeleteAccountModal, whose real useDeleteAccount would
+// need a QueryClientProvider — mocked at the hook-module level like the rest.
+vi.mock('../hooks/useDeleteAccount', () => ({
+  useDeleteAccount: () => ({ mutateAsync: vi.fn() }),
+}));
+
 async function openEmailForm() {
   render(<ProfileView onClose={vi.fn()} />);
   // The Email block's Change button — the Password block has its own; scope by
