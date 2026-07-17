@@ -320,6 +320,28 @@ describe('SeatingChartEditor mouse activation (MouseSensor, activationConstraint
     await settleClickSuppressor();
   });
 
+  it('a cancelled GROUP drag remounts only the cancelled group — an unrelated element survives', async () => {
+    const props = renderEditor(makeProps(makeChart({ roomElements: [DESK_ELEMENT] })));
+    const badge = screen.getByText('A');
+    const deskNode = getDraggableContaining('Teacher');
+
+    fireEvent.mouseDown(badge, { ...mouse, clientX: 130, clientY: 130 });
+    fireEvent.mouseMove(document, { ...mouse, clientX: 175, clientY: 170 });
+    await waitFor(() => expect(getDraggableContaining('A').className).toContain('opacity-70'));
+
+    fireEvent.keyDown(document, { code: 'Escape' });
+
+    // The cancelled group resets via remount…
+    await waitFor(() => expect(getDraggableContaining('A').style.left).toBe('120px'));
+    // …but the element keeps its DOM node: a remount here would silently
+    // abort an in-flight resize on a different element (remount is scoped by
+    // the cancelled draggable's IDENTITY, not by drag type).
+    expect(getDraggableContaining('Teacher')).toBe(deskNode);
+    expect(props.onMoveGroup).not.toHaveBeenCalled();
+
+    await settleClickSuppressor();
+  });
+
   it('a cancelled STUDENT drag does not remount the positioned children (epoch is scoped)', async () => {
     const student = {
       id: 's1',

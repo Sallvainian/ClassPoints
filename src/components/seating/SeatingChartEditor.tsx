@@ -1003,20 +1003,23 @@ export function SeatingChartEditor({
 
   // A cancelled drag (Escape, or a system gesture stealing the touch) fires
   // onDragCancel INSTEAD of onDragEnd: clear the dragging state — a stale
-  // draggingId would misdirect the R/Delete key handlers — and remount the
-  // positioned children via the epoch key: their optimistic localPos was
-  // synced to the aborted drag and their props will never catch up to it.
-  const [dragEpoch, setDragEpoch] = useState(0);
+  // draggingId would misdirect the R/Delete key handlers — and remount THE
+  // CANCELLED draggable via its key: its optimistic localPos was synced to
+  // the aborted drag and its props will never catch up to it. Scoped by
+  // identity, not type: remounting siblings would silently abort an
+  // unrelated element's in-flight resize (multi-touch interleaving).
+  const [cancelledDrag, setCancelledDrag] = useState<{ id: string; epoch: number } | null>(null);
+  const cancelEpochFor = (id: string) => (cancelledDrag?.id === id ? cancelledDrag.epoch : 0);
   const handleDragCancel = (event: DragCancelEvent) => {
-    const type = event.active.data.current?.type;
+    const data = event.active.data.current;
     setDraggingType(null);
     setDraggingId(null);
     setDraggingStudent(null);
     // Only group/room-element drags carry optimistic localPos that a cancel
-    // strands; student drags resolve via over.id and need no remount — and a
-    // global remount would wipe an unrelated in-flight resize's local state.
-    if (type === 'group' || type === 'room-element') {
-      setDragEpoch((epoch) => epoch + 1);
+    // strands; student drags resolve via over.id and need no remount.
+    if (data?.type === 'group' || data?.type === 'room-element') {
+      const id = data.groupId ?? data.elementId;
+      if (id) setCancelledDrag((prev) => ({ id, epoch: (prev?.epoch ?? 0) + 1 }));
     }
   };
 
@@ -1509,7 +1512,7 @@ export function SeatingChartEditor({
                   {/* Table Groups */}
                   {chart.groups.map((group) => (
                     <DraggableGroup
-                      key={`${group.id}-${dragEpoch}`}
+                      key={`${group.id}-${cancelEpochFor(group.id)}`}
                       group={group}
                       students={studentMap}
                       isSelected={selectedGroupId === group.id}
@@ -1528,7 +1531,7 @@ export function SeatingChartEditor({
                   {/* Room Elements */}
                   {chart.roomElements.map((element) => (
                     <DraggableRoomElement
-                      key={`${element.id}-${dragEpoch}`}
+                      key={`${element.id}-${cancelEpochFor(element.id)}`}
                       element={element}
                       isSelected={selectedElementId === element.id}
                       onSelect={() => {
