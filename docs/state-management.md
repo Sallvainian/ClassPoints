@@ -1,12 +1,12 @@
 # State Management
 
-_Generated 2026-06-02 (exhaustive full rescan; HEAD `134a1ef` on `main`)._
+_Generated 2026-07-17 (exhaustive full rescan; HEAD `e34bbf3` on `main`)._
 
 ## Summary
 
 ClassPoints has a two-layer state model:
 
-1. **Server state** lives in TanStack Query for migrated domains (`useClassrooms`, `useStudents`, `useTransactions`, `useBehaviors`) and in hand-rolled `useState + useEffect` for the two legacy hooks (`useLayoutPresets`, `useSeatingChart`). The migrated four are the canonical templates for new code.
+1. **Server state** lives in TanStack Query for ALL six domains — `useClassrooms`, `useStudents`, `useTransactions`, `useBehaviors`, `useLayoutPresets` (migrated 2026-06-09, #11/PR #112), and `useSeatingChart` (migrated Phase 5, PR #111). **No hand-rolled `useState + useEffect` server-state hooks remain.** The core four are the canonical templates for new code; `useSeatingChart` is TanStack but its 25-value return shape is not a template.
 2. **UI / session state** lives in component-local `useState` for transient UI, in `AppContext` for the single cross-cutting selection (active classroom), and in 3 dedicated contexts for orthogonal concerns (auth, theme, sound).
 
 **Phase 4 (commit `d8cde26`) dissolved the AppContext server-data facade.** `AppContext.tsx` dropped from ~710 LOC to **33** — it now holds ONLY `activeClassroomId` + `setActiveClassroom`. The ~20 mutation wrappers, the camelCase adapter bridges, the point/transaction selectors, and the undo-window machinery were relocated to direct TanStack hooks plus four thin transitional modules (`useBatchAward`, `useUndoableAction`, `useAppClassrooms`, `pointSelectors`). A fifth, the in-memory batch-kind map, was deleted by deferred #7 — the batch kind now persists as the `point_transactions.batch_kind` column. See "AppContext" and "Phase 4 transitional modules" below.
@@ -28,18 +28,19 @@ Per-device prefs use `localStorage` directly (`useDisplaySettings`, `ThemeContex
 
 `DevtoolsGate` lives in `src/components/DevtoolsGate.tsx`; its DEV-only gated dynamic-import dead-code-elimination pattern is unchanged — see Component Inventory and ADR-005 / `npm run check:bundle`.
 
-`src/App.tsx` (`:115-128`) wraps `<AppContent />`:
+`src/App.tsx` (157 LOC) wraps `<AppContent />`:
 
 ```
 AuthProvider
-  AuthGuard         (renders <AuthPage /> when no user)
+  AuthGuard         (branch precedence: loading → passwordRecovery → ResetPasswordForm
+    │                → authSuspended → OfflineGate → no user → AuthPage → children)
     ThemeProvider
       SoundProvider
         AppProvider
           AppContent
 ```
 
-`AppContent` (`App.tsx:42`) reads only `setActiveClassroom` from `useApp()` (`:43`) and the roster from `useAppClassrooms()` (`:44`); it lazy-loads 5 top-level views (`MigrationWizard`, `DashboardView`, `ClassSettingsView`, `ProfileView`, `TeacherDashboard`, `App.tsx:13-27`) inside `<Suspense>`.
+`AppContent` lazy-loads 5 top-level views (`MigrationWizard`, `DashboardView`, `ClassSettingsView`, `ProfileView`, `TeacherDashboard`) inside `<Suspense>`; the view union is `type View = 'home' | 'dashboard' | 'settings' | 'migration' | 'profile'` (`App.tsx:38`) persisted via `PERSISTED_VIEWS` (`:41`). Native-shell wiring in `App.tsx`: `hideSplash()` from a mount effect (`:140-142` — the splash covers the WebView until the first render commits) and `registerBackButton({ isHome, goHome })` (`:67-74` — Android back minimizes from home, otherwise goes home); both are no-ops on web.
 
 ## QueryClient defaults (`src/lib/queryClient.ts`)
 
@@ -77,11 +78,11 @@ queryKeys.students.byClassroom(classroomId); // ['students', classroomId]
 queryKeys.transactions.all; // ['transactions']
 queryKeys.transactions.list(classroomId); // ['transactions', 'list', classroomId]
 queryKeys.behaviors.all; // ['behaviors']
-queryKeys.layoutPresets.all; // ['layoutPresets'] — legacy
-queryKeys.seatingChart.all; // ['seatingChart'] — legacy
-queryKeys.seatingChart.metaByClassroom(classroomId);
-queryKeys.seatingChart.groupsByChart(chartId);
-queryKeys.seatingChart.roomElementsByChart(chartId);
+queryKeys.layoutPresets.all; // ['layoutPresets']
+queryKeys.seatingChart.all; // ['seatingChart']
+queryKeys.seatingChart.metaByClassroom(classroomId); // ['seatingChart', 'meta', classroomId]
+queryKeys.seatingChart.groupsByChart(chartId); // ['seatingChart', 'groups', chartId]
+queryKeys.seatingChart.roomElementsByChart(chartId); // ['seatingChart', 'roomElements', chartId]
 ```
 
 Note: `students.byClassroom` deliberately keys ONLY on classroom id (no extra "list" segment) because Phase 3 merges the students-table columns + the batched `get_student_time_totals_all_for_user` RPC results (filtered to the classroom) into a single `byClassroom` cache (`queryKeys.ts:12-17`). The prior `timeTotalsByClassroom` separate key was never used at a call site and is dropped — don't reintroduce it.
@@ -101,38 +102,40 @@ Mutations: `useCreateClassroom`, `useUpdateClassroom`, `useDeleteClassroom` (`:1
 
 ### `useStudents` (`src/hooks/useStudents.ts`)
 
-Returns `UseQueryResult<StudentWithPoints[], Error>`. The SINGLE realtime owner of the `students` table (`:46-52`).
+Returns `UseQueryResult<StudentWithPoints[], Error>` (202 LOC file). The SINGLE realtime owner of the `students` table (`:45-51`).
 
-`queryFn` (`:74-114`):
+`queryFn`:
 
 1. `.select('*')` of `students` filtered by `classroom_id`, ordered by name.
-2. The same batched `get_student_time_totals_all_for_user` RPC, rows filtered to this classroom client-side (non-fatal: a `rpcError` warns and time totals fall back to 0; lifetime columns are unaffected).
+2. The batched `get_student_time_totals_all_for_user` RPC (`:88-94`), rows filtered to this classroom client-side (`:102`). Deliberately NOT `unwrap()`-ed — a non-fatal warn-and-fallback regime: an `rpcError` warns and time totals degrade to 0; lifetime columns are unaffected (`:85`).
 3. Map each student row through `dbToStudent` with the timeTotals payload (defaults to `{ today_total: 0, this_week_total: 0 }` for students with no rows).
 
-**Realtime — invalidate-not-merge (refactored in `ea9f406`).** This is the key change from the prior doc: there is no longer a merge-on-update path and no separate `point_transactions` DELETE subscription in `useStudents`.
+**Realtime — invalidate-not-merge (refactored in `ea9f406`).** There is no merge-on-update path and no separate `point_transactions` DELETE subscription in `useStudents`.
 
-- A single `students`-table subscription with `onChange` AND `onReconnect` both wired to one `refresh` function (`:41-52`).
-- `refresh` (`:41-45`) calls ONLY `qc.invalidateQueries` for `students.byClassroom(classroomId)` and `classrooms.all` — never `setQueryData`. The refetch re-reads the authoritative all-time columns AND re-runs the batched `get_student_time_totals_all_for_user` RPC, so every counter (all-time, today, week, roster) refreshes identically.
+- A single `students`-table subscription with `onChange` AND `onReconnect` both wired to one `refresh` function (`:45-51`).
+- `refresh` (`:40-44`) calls ONLY `qc.invalidateQueries` for `students.byClassroom(classroomId)` and `classrooms.all` — never `setQueryData`. The refetch re-reads the authoritative all-time columns AND re-runs the batched `get_student_time_totals_all_for_user` RPC, so every counter (all-time, today, week, roster) refreshes identically.
 - The DB trigger emits a `students` UPDATE on every `point_transactions` INSERT/DELETE (migration `011:45-47`), so this one channel covers cross-device **awards AND undos** plus roster changes. Per-tap refetch cost is ~1 batched RPC per invalidated queryFn, O(1) in classroom count (ADR-005 §7; deferred #8 pulled 2026-06-11).
 - `onReconnect` runs the same `refresh` so events missed during a realtime drop (CHANNEL_ERROR / TIMED_OUT / CLOSED → SUBSCRIBED) get a catch-up refetch — this channel is the sole cross-device refresh path for student totals.
 
-Visibility-change effect (`:57-69`): on `visibilitychange → visible`, invalidate the byClassroom key — covers cross-midnight and cross-Sunday transitions that produce no realtime event.
+Visibility-change effect (`:56-68`): on `visibilitychange → visible`, invalidate the byClassroom key — covers cross-midnight and cross-Sunday transitions that produce no realtime event (`:54-55`).
 
 Mutations: `useAddStudent`, `useAddStudents`, `useUpdateStudent`, `useRemoveStudent`. All invalidate `students.byClassroom` (or `students.all`) AND `classrooms.all`.
 
 ### `useTransactions` (`src/hooks/useTransactions.ts`)
 
-Returns `UseQueryResult<DbPointTransaction[], Error>` — the only migrated hook that intentionally returns the DB shape. Owns the `point_transactions` realtime subscription (any event, classroom-filtered, `:69-79`); `onChange` invalidates `transactions.list(classroomId)` AND `classrooms.all` (invalidate-not-merge, `:73-78`).
+Returns `UseQueryResult<DbPointTransaction[], Error>` (hook at `:66`; 538 LOC file) — the only migrated hook that intentionally returns the DB shape. Owns the `point_transactions` realtime subscription (any event, classroom-filtered, `:82-88`); `refresh` (`:76-81`) invalidates `transactions.list(classroomId)` AND `classrooms.all` (invalidate-not-merge), wired to both `onChange` and `onReconnect`.
 
 Mutations:
 
-- **`useAwardPoints`** (`:110`) — THE canonical single-student Phase 2 optimistic mutation. ADR-005 §4 (a)–(e) compliance comments inline (`:97-109`). Patches THREE caches in `onMutate` (`:132`): `transactions.list`, `classrooms.all`, AND `students.byClassroom` (the 3rd cache patch, `:202`, absorbs student-level optimism that previously lived in `AppContext`). Deterministic optimistic id `optimistic-${studentId}-${behaviorId}-${timestamp}` (`:145`) + `alreadyPatched` dedup guard (`:151`) for duplicate/StrictMode-double mutation invocations. Null-guarded `onError` rollback (`:226-242`). `onSettled` invalidates all three keys (`:243-247`). Errors surface via the caller's mutation state (`mutation.error` / `isError`) — e.g. in the award modals — not through `AppContext`.
-- **`useAwardPointsBatch`** (`:267`) — the all-or-nothing batch counterpart to `useAwardPoints` (cluster #2 fix, `30da564`). ONE multi-row `insert(rows).select()` (`:289` — bare `.select()`, NOT `.single()`: N rows are expected) so Postgres commits every row or none; the `011` totals trigger fires per row in the SAME transaction. **Throws via `unwrap()`** (#14 — metadata-preserving, so `.code` SQLSTATE survives for `useBatchAward`'s failure classification) — do NOT wrap in `new Error(error.message)`. Optimistic lifecycle as ONE batch-level unit (ADR-005 §4): per-cache snapshot (`:300-302`), one N-row prepend + one aggregate patch (`aggregateDelta = points * studentIds.length`, `:317`), idempotency guard keyed on the FIRST row id (`:306-309`), deterministic ids `optimistic-${batchId}-${studentId}` (`:309`), one null-guarded whole-batch rollback (`:386`). Call ONLY via `useBatchAward`, never directly from modals.
-- `useUndoTransaction` — DELETE by transaction id. `onSettled` invalidates `transactions.all`, `classrooms.all`, `students.all`.
-- `useUndoBatchTransaction` — DELETE by `batch_id` for class-wide / multi-select undo. Throws explicitly if `batchId` is empty (`:445`) — otherwise `.eq('batch_id', '')` would silently no-op or `.eq('batch_id', null)` would mass-delete every single-student transaction.
-- `useClearStudentPoints` — DELETE all transactions for a student (settings flow).
-- `useResetClassroomPoints` — DELETE all transactions in a classroom.
-- `useAdjustStudentPoints` — INSERT a delta transaction to reach a target total. Throws `AdjustNoOpError` (custom class, `:22-27`) when delta = 0 — wrappers discriminate via `instanceof AdjustNoOpError`, NOT a string match. Caller passes `currentPointTotal` from React closure (NOT read from cache, which may be mid-invalidate from an unrelated mutation).
+- **`useAwardPoints`** (`:120`) — THE canonical single-student Phase 2 optimistic mutation. ADR-005 §4 (a)–(e) compliance comments inline (`:108-118`). Patches THREE caches in `onMutate` (`:139`): `transactions.list`, `classrooms.all`, AND `students.byClassroom` (the 3rd cache patch, `:212-227`, absorbs student-level optimism that previously lived in `AppContext`). Deterministic optimistic id `optimistic-${studentId}-${behaviorId}-${timestamp}` (`:152`) + `alreadyPatched` dedup guard (`:158`) for duplicate/StrictMode-double mutation invocations. The optimistic row stamps `batch_kind: null` (`:173` — "singles aren't batches"). Null-guarded `onError` rollback (`:236-252`). `onSettled` invalidates all three keys (`:253-257`). Errors surface via the caller's mutation state (`mutation.error` / `isError`) — e.g. in the award modals — not through `AppContext`.
+- **`useAwardPointsBatch`** (`:272`) — the all-or-nothing batch counterpart to `useAwardPoints` (cluster #2 fix, `30da564`). ONE multi-row `insert(rows).select()` (`:294` — bare `.select()`, NOT `.single()`: N rows are expected) so Postgres commits every row or none; the `011` totals trigger fires per row in the SAME transaction. Every row carries `batch_kind: input.batchKind` (`:285`), and the optimistic rows stamp the same kind (`:336` — they ARE the in-flight label source for `useUndoableAction`, deferred #7). **Throws via `unwrap()`** (#14 — metadata-preserving, so `.code` SQLSTATE survives for `useBatchAward`'s failure classification) — do NOT wrap in `new Error(error.message)`. Optimistic lifecycle as ONE batch-level unit (ADR-005 §4): per-cache snapshot (`:305-307`), one N-row prepend + one aggregate patch (`aggregateDelta = points * studentIds.length`, `:322`), idempotency guard keyed on the FIRST row id (`:315-318`), deterministic ids `optimistic-${batchId}-${studentId}` (`:325`), one null-guarded whole-batch rollback (`:391-407`). Call ONLY via `useBatchAward`, never directly from modals.
+- `useUndoTransaction` (`:416`) — DELETE by transaction id. `onSettled` invalidates `transactions.all`, `classrooms.all`, `students.all`.
+- `useUndoBatchTransaction` (`:448`) — DELETE by `batch_id` for class-wide / multi-select undo. Throws explicitly if `batchId` is empty — otherwise `.eq('batch_id', '')` would silently no-op or `.eq('batch_id', null)` would mass-delete every single-student transaction.
+- `useClearStudentPoints` (`:430`) — DELETE all transactions for a student (settings flow).
+- `useResetClassroomPoints` (`:474`) — DELETE all transactions in a classroom.
+- `useAdjustStudentPoints` (`:506`) — INSERT a delta transaction to reach a target total. Throws `AdjustNoOpError` (custom class, `:23`) when delta = 0 — wrappers discriminate via `instanceof AdjustNoOpError`, NOT a string match. Caller passes `currentPointTotal` from React closure (NOT read from cache, which may be mid-invalidate from an unrelated mutation).
+
+Three **curated-copy error sites** live here deliberately (`useUndoBatchTransaction`/`useResetClassroomPoints`/`useAdjustStudentPoints`) — fixed user-facing messages that REPLACE the PostgREST message, each annotated "Deliberate curated copy … out of unwrap()'s scope" (`:457-459`, `:482-483`, `:528-529`). Do not migrate them to `unwrap()`.
 
 ### `useBehaviors` (`src/hooks/useBehaviors.ts`)
 
@@ -172,15 +175,17 @@ Wraps `supabase.channel(...).on('postgres_changes', ...).subscribe(...)`. Key be
 - **`onChange` is the single change callback** (`:18`) — optional, receiving the full `RealtimePostgresChangesPayload`. The legacy `onInsert`/`onUpdate`/`onDelete` triple and its DEV-only both-supplied warning were removed (deferred #13); status-only subscriptions (just `onStatusChange`/`onReconnect`) remain legitimate.
 - **Status callbacks**: `onStatusChange` fires on every transition (SUBSCRIBED, CHANNEL_ERROR, TIMED_OUT, CLOSED). `onReconnect` (`:27`) fires when SUBSCRIBED returns from a failure state — wire it to a refetch so events that arrived while offline aren't silently missed (as `useStudents` does).
 
-## Legacy hand-rolled hooks
+## Formerly-legacy hooks — now TanStack (migration COMPLETE)
 
-### `useLayoutPresets` (`src/hooks/useLayoutPresets.ts`)
+### `useLayoutPresets` (`src/hooks/useLayoutPresets.ts`, 196 LOC)
 
-155 LOC. Returns `{ presets, loading, error, savePreset, deletePreset, refetch }`. Migrated to TanStack (deferred #11, 2026-06-09): a thin `useQuery` (`queryKeys.layoutPresets.all`) plus two plain mutations behind the unchanged 6-key wrapper. No realtime subscription (non-realtime domain) and no legacy callbacks — the prior `setState`-in-effect fetch is gone. No longer a migration target.
+Migrated to TanStack (deferred #11, PR #112, 2026-06-09): one `useQuery` on `queryKeys.layoutPresets.all` (`:118`) plus two mutations (`useSaveLayoutPreset` `:32`, `useDeleteLayoutPreset` `:106`) behind a wrapper that preserves the legacy null/boolean contract (`savePreset → LayoutPreset | null`, `deletePreset → boolean`, `:22-24`). No realtime subscription (non-realtime domain). Zod guards the `layout_data` JSONB boundary in BOTH directions (#15): pre-insert `layoutPresetDataSchema.safeParse(layoutData)` throws `LayoutPresetValidationError` on bad input and persists the VALIDATED object (`:66-70`, `:87`); the read-side queryFn filters invalid rows per-row with a `console.warn` instead of failing the whole query (`:128-146` — valid presets still render).
 
-### `useSeatingChart` (`src/hooks/useSeatingChart.ts`)
+### `useSeatingChart` (`src/hooks/useSeatingChart.ts`, 1340 LOC)
 
-1122 LOC. Returns a 23-value object. No realtime subscription (already matches the target). **DO NOT clone this shape.** Use the canonical `useStudents` / `useTransactions` templates instead. Reshape is deferred item #12.
+Migrated to TanStack (Phase 5, PR #111). Server state lives in **3 per-table caches** — `seatingChart.metaByClassroom(classroomId)` (`:110`), `seatingChart.groupsByChart(chartId)` (`:133`), `seatingChart.roomElementsByChart(chartId)` (`:164`) — reassembled into the chart blob via `useMemo` (`:187`). **17 `useMutation`s**, all optimistic with `onMutate` snapshot / `onError` rollback / `onSettled` invalidate. The four multi-statement seat operations go through the atomic RPCs (deferred #27) wrapped in `unwrap()`: `seating_assign_student` (`:578`), `seating_swap_students` (`:703` — server reads both occupants under `FOR UPDATE`; the client sends only seat ids), `seating_randomize` (`:775`), `seating_apply_preset` (`:1210`). `unassignStudent` stays a plain single-row update (`:647`). `actionError` is derived from mutation state — `allMutations.find((m) => m.error !== null)?.error ?? null` (`:1267`), never `useState`. NO realtime subscription: "Seating is a non-realtime domain (ADR-005 §6, CAP-4): freshness comes from onSettled invalidation only" (`:104-105`).
+
+**The 25-value return shape (`:1313-1339`) is NOT a template** — new domains should return the plain `UseQueryResult` + separate mutation hooks like `useBehaviors`/`useClassrooms`.
 
 ## React contexts
 
@@ -212,17 +217,19 @@ The `AppContextValue` interface (`useApp.ts:3-11`) is exactly `{ activeClassroom
 
 **New components MUST call the mutation hooks (or `useBatchAward`) directly and MUST NOT re-add server-data fields, wrappers, or selectors to `AppContext`.** The old "server data via `useApp()`" hazard is structurally eliminated — keep it that way.
 
-**Undo derivation** now lives in `DashboardView` (`src/components/dashboard/DashboardView.tsx`): it reads `activeClassroomId` from `useApp()` (`:40`) and `{ getRecentUndoableAction, forget, transactionsQuery }` from `useUndoableAction(activeClassroomId)` (`:51-55`) — the hook's exposed query is the dashboard's ONLY `useTransactions` mount (deferred #22); the activity feed, failed-batches merge, and loading/error gates all read it. `getRecentUndoableAction` is a `useCallback` over the TanStack-cached transactions/roster, so it updates immediately on cache change. `DashboardView` derives `undoableAction` via `useMemo` keyed on `[getRecentUndoableAction, expiryBump]` (`:89-98`). Wall-clock expiry is event-driven (deferred #6, no `setInterval`): a self-rescheduling one-shot `setTimeout` effect (`:119-137`) keyed on BOTH the action identity key (`` `${batchId ?? transactionId ?? ''}:${timestamp}` ``, `:105-107` — deliberately NOT UndoToast's `batchId ?? timestamp` key) AND the `expiryBump` counter fires at `timestamp + UNDO_WINDOW_MS − now + 25ms ε` (NaN-guarded; upper-clamped to one window so extreme future clock skew cannot overflow `setTimeout` into a busy loop) and bumps the counter; a fire that still derives non-null (boundary-exact fire under the strict comparison; optimistic→real `created_at` swap) re-runs the effect and reschedules against the CURRENT remaining window — never a stuck toast. A `dismissedTxnRef` (`:88`, set at `:212`) hides the toast for one render after an undo (the post-undo bump at `:213` replaces the old tick bump). ACCEPTED trade-off: with the 1Hz interval gone, `TodaySummary` relative-time labels no longer refresh while idle — they update on the next data-driven render.
+**Undo derivation** now lives in `DashboardView` (`src/components/dashboard/DashboardView.tsx`): it reads `activeClassroomId` from `useApp()` (`:40`) and `{ getRecentUndoableAction, transactionsQuery }` from `useUndoableAction(activeClassroomId)` (`:51`) — the hook's exposed query is the dashboard's ONLY `useTransactions` mount (deferred #22); the activity feed, failed-batches merge, and loading/error gates all read it. `getRecentUndoableAction` is a `useCallback` over the TanStack-cached transactions/roster, so it updates immediately on cache change. `DashboardView` derives `undoableAction` via `useMemo` keyed on `[getRecentUndoableAction, expiryBump]` (`:102-111`). Wall-clock expiry is event-driven (deferred #6, no `setInterval`): a self-rescheduling one-shot `setTimeout` effect (`:124-150`) keyed on BOTH the action identity key (`` `${batchId ?? transactionId ?? ''}:${timestamp}` ``, `:118-119` — deliberately NOT UndoToast's `batchId ?? timestamp` key, `:113`) AND the `expiryBump` counter (`:100`) fires when the window ends and bumps the counter (`setExpiryBump((n) => (n + 1) % 1_000_000)`, `:146-148`); a fire that still derives non-null (boundary-exact fire under the strict comparison; optimistic→real `created_at` swap) re-runs the effect and reschedules against the CURRENT remaining window — never a stuck toast. A `dismissedTxnRef` (`:101`, read in the memo at `:105-109`) hides the toast for one render after an undo. ACCEPTED trade-off: with the 1Hz interval gone, `TodaySummary` relative-time labels no longer refresh while idle — they update on the next data-driven render (`:94-97`). The batch label kind is read off the cached rows' `batch_kind` column (`useUndoableAction.ts:56-60` — NULL/legacy rows fall back to the class-wide label; `isClassWide: kind !== 'subset'`, `:71`).
 
-### `AuthContext` (`src/contexts/AuthContext.tsx`; type + `useAuth` hook in `src/contexts/useAuth.ts`)
+### `AuthContext` (`src/contexts/AuthContext.tsx`, 497 LOC; type + `useAuth` hook in `src/contexts/useAuth.ts`, 52 LOC)
 
-_Unchanged this range._ Owns the Supabase auth lifecycle. The "stale-JWT graceful degrade" is the load-bearing feature:
+**Heavily reworked by PR #134 (auth resilience) + PR #136 (native Preferences storage).** The governing principle (`:73-74`): _"network-class failure (offline, timeout, 5xx/429) → the session is not proven invalid; keep it"_. Genuine rejection still purges; transient failure never does.
 
-1. On boot, `getSession()` reads from localStorage.
-2. If a cached session exists, validate with `supabase.auth.getUser()` (`:70`).
-3. The validation is wrapped in `Promise.race([userPromise, timeoutPromise])` (`:84`) where `timeoutPromise` rejects after 5s (`:78`). `getUser()` accepts no `AbortSignal` and the underlying fetch has no default timeout, so the race is what bounds a hung `/auth/v1/user` — the timeout genuinely fires (the earlier unwired `AbortController` was replaced). If validation throws or times out: `signOut({ scope: 'local' })`, `purgeAuthStorage()` (`:29`, removes every `sb-*` key from `localStorage`, `:102`/`:118`), route to login.
-4. `onAuthStateChange` tracks user-id transitions via `prevUserIdRef` (`:17`). The first event (`prev === undefined`) is INITIAL_SESSION and is NOT a transition. A genuine user-id transition → `queryClient.clear()` (`:138`) so user A's cache can't flash on user B's first render.
-5. `signOut()` also clears the QueryClient (`:217`) — defense-in-depth that doesn't depend on the listener winning the race.
+1. **Two-stage bounded boot** (`init()`, `:76`): Stage 1 — `getSession()` raced against an **8s** timeout (`:85-91`; 8s vs getUser's 5s "leaves room for one slow refresh round-trip", `:82-84`). Stage 2 — `getUser()` validation raced against a **5s** timeout (`:176`, `:185`). Both timeouts throw the named `AuthValidationTimeoutError` (`src/lib/supabase.ts:136`).
+2. **Network-class discrimination** via `isNetworkClassAuthError` (`src/lib/supabase.ts:157` — WHITELIST semantics: `AuthValidationTimeoutError`, `TypeError`, `AuthRetryableFetchError`, `AuthApiError` status ≥500 or 429, `AuthUnknownError`; anything unclassified = genuine rejection). Genuine rejection → `purgeAndSignOut()` (`:198-203`). Network-class → **keep the cached session** and set `revalidatePending` (`:207-216`); a no-session network failure sets `authSuspended` (`:160`) which `AuthGuard` renders as `OfflineGate`.
+3. **Reconnect kick**: `networkStatus.subscribe` (`:273-290`) fires a one-shot revalidation (`revalidate()`, `:257`) when connectivity returns; GoTrue's auto-refresh ticker plus this kick restore the session without user action.
+4. **Password recovery**: the implicit-flow reset link SIGNS THE USER IN; `passwordRecovery` is seeded at construction from the boot URL hash (`useState(bootRequestedPasswordRecovery)`, `:23`; captured at module-eval by `src/lib/appUrl.ts` before anything can consume the hash) and also set by the `PASSWORD_RECOVERY` auth event (`:303-306`). `AuthGuard` renders `ResetPasswordForm` while the flag is up.
+5. **Storage**: `purgeAuthStorage()` / `storageHasAuthToken()` live in `src/lib/authStorage.ts` — they sweep/probe `sb-*` keys in `localStorage` always, AND Capacitor Preferences on native (`authStorage.ts:86-89`, `:98-102`), because on native the session lives in Preferences (WKWebView localStorage is evictable under storage pressure, `authStorage.ts:9-11`). The Preferences adapter is handed to `createClient` ONLY on native (`supabase.ts:31`).
+6. **queryClient.clear() gating**: only a genuine user-id transition clears (`:300-301` — `prev !== undefined && prev !== null && prev !== nextUserId`); INITIAL_SESSION never does (`:24-28`). Explicit `signOut()` also clears (`:407`) — defense-in-depth.
+7. **New context surface** (`useAuth.ts:4-42`): `authSuspended`, `passwordRecovery` + `clearPasswordRecovery`, `updatePassword`, and `updateEmail` (success means "requested", not "changed" — confirmation links land on the app root; `resetPassword`/`updateEmail` both use `getAuthEmailRedirectUrl()`, which sends native `capacitor://` builds to the production web URL since non-http(s) protocols can't be email-redirect targets, `appUrl.ts:45-55`).
 
 ### `SoundContext` (`src/contexts/SoundContext.tsx`; type + `useSoundContext` hook in `src/contexts/useSoundContext.ts`)
 
@@ -233,16 +240,18 @@ _Unchanged this range._ Owns the Supabase auth lifecycle. The "stale-JWT gracefu
 
 ### `ThemeContext` (`src/contexts/ThemeContext.tsx`; type + `useTheme` hook in `src/contexts/useTheme.ts`)
 
-Trivial. `theme: 'light' | 'dark'`, persisted to `localStorage:theme`. Initial value comes from localStorage, falling back to `prefers-color-scheme: dark`. Adds/removes `.dark` class on `<html>`.
+`theme: 'light' | 'dark'`, persisted to `localStorage:theme`. Initial value comes from localStorage, falling back to `prefers-color-scheme: dark`. Adds/removes `.dark` class on `<html>`. The theme-apply effect also calls `syncStatusBar(theme)` (`ThemeContext.tsx:28`, from `src/lib/native.ts`) — keeps the native status-bar text readable against the theme; no-op on web (`:26-27`).
 
 ## Per-device UI prefs (`useDisplaySettings`)
 
 `localStorage:classpoints-display-settings` JSON: `{ cardSize, showPointTotals, viewMode }`. Defaults `'medium' / false / 'alphabetical'`. Validates types on read; falls back to defaults on bad JSON.
 
-## Adapter contracts (ADR-005 §2)
+## Adapter contracts (ADR-005 §2) — normalized behind `unwrap()` (#14, PR #116)
 
-- **Throw-the-original** (`if (error) throw <original>`) — preserves `error.code` (`PGRST116`, `42501`, `23503`, …), `error.details`, `error.hint`. Required when consumers discriminate by code. Current sites: `useTransactions.ts:282` (`throw error` in `useAwardPointsBatch`, so `useBatchAward`'s `classifyAndRecover` sees the SQLSTATE `.code`), `SoundContext.tsx:141` (`throw fetchError`, after `fetchError.code === 'PGRST116'` at `:138`), and `ClassSettingsView.tsx:393` (`throw err`). Preferred for new query/mutation code.
-- **Throw-message-only** (`if (error) throw new Error(error.message)`) — currently dominant: exactly **17** sites, all in the four server-state hooks (`useBehaviors.ts`, `useClassrooms.ts`, `useStudents.ts`, `useTransactions.ts`). Drops `error.code`. Audit cluster #1 (REAL) — migration debt toward an `unwrap()` helper or `throw error` (the new `useAwardPointsBatch` at `:282` is the first adopter of `throw error`).
+- **`unwrap()` is THE pattern** (`src/lib/supabase.ts:61`): `const data = unwrap(await supabase.from('xs').select('*'))`. It throws on error — Error instances rethrown BY IDENTITY (`:76`); the plain-object literals postgrest-js actually returns are hydrated into a real `new PostgrestError({...})` (`:86-91`) so `code`/`details`/`hint` survive AND `instanceof Error` holds. Missing `code` hydrates to `''` — load-bearing for `useBatchAward`'s network-vs-server classification (`code !== ''`, CAP-6; `supabase.ts:73-75`). **0 hand-rolled `if (error) throw` sites remain in `src/hooks`.** Never flatten to `new Error(error.message)`.
+- **Typed discrimination** uses `isPostgrestError(err)` (`supabase.ts:117` — `instanceof` fast-path + structural fallback), not casts.
+- **Deliberate exceptions**: the 3 curated-copy sites in `useTransactions.ts` (`:457-459`, `:482-483`, `:528-529` — fixed user-facing messages that REPLACE the PostgREST message; annotated inline, do not migrate) and `SoundContext.tsx` (`throw fetchError` after the `PGRST116` no-rows check — code-discriminating, needs the original).
+- **Non-PostgREST surfaces don't use `unwrap()`**: `useDeleteAccount` invokes an Edge Function (`supabase.functions.invoke`) and throws the `FunctionsError` directly; the `useStudents`/`useClassrooms` time-totals RPC deliberately warn-and-degrades to 0 instead of throwing.
 
 ## State migration / persistence helpers
 
@@ -259,4 +268,5 @@ Trivial. `theme: 'light' | 'dark'`, persisted to `localStorage:theme`. Initial v
 - Don't read previous cache state from a component closure inside `onMutate`. Use `qc.getQueryData(key)`.
 - Don't use `Date.now()` for realtime channel names. Use `crypto.randomUUID()`.
 - Don't subscribe `useClassrooms` to `students` realtime — `useStudents` is the single owner. Use cross-hook invalidation instead.
-- Don't clone the legacy hand-rolled hook shapes (`useLayoutPresets`, `useSeatingChart`).
+- Don't clone `useSeatingChart`'s 25-value return shape for new domains — return `UseQueryResult` + separate mutation hooks (`useBehaviors`/`useClassrooms` style).
+- Don't add a 3rd realtime subscription without updating ADR-005 §6 and this doc in the same commit — the "exactly 2" count is load-bearing.

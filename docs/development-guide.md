@@ -1,6 +1,6 @@
 # Development Guide
 
-_Generated 2026-06-02 (exhaustive full rescan; HEAD `134a1ef` on `main`)._
+_Generated 2026-07-17 (exhaustive full rescan; HEAD `e34bbf3` on `main`)._
 
 ## Prerequisites
 
@@ -9,9 +9,10 @@ _Generated 2026-06-02 (exhaustive full rescan; HEAD `134a1ef` on `main`)._
 - **fnox** — age-encrypted secrets loader. Required for hosted dev / build / preview / migrate. NOT required for local dev (default mode reads `.env.test`).
 - **age private key** — needed to decrypt `fnox.toml`. The two recipient public keys are listed in `fnox.toml`.
 - **Docker daemon** — required for local Supabase (`npm run test:e2e`, `npm run dev` when pointed at a local URL). On macOS use OrbStack (preferred — fastest cold-start), Docker Desktop, or Colima. `scripts/dev.mjs` will preflight and auto-start the daemon if it's down (commit `136f493`).
-- **Supabase CLI** — installed as a **brew global** (no longer an npm devDependency; the `supabase` package was dropped). Invoked directly as `supabase ...`. CI installs a pinned `2.95.0` via `supabase/setup-cli@v2` (see `.github/workflows/test.yml`); your local brew version may be newer (e.g. `2.102.0`).
+- **Supabase CLI** — installed as a **brew global** (no longer an npm devDependency; the `supabase` package was dropped). Invoked directly as `supabase ...`. CI installs a pinned `2.95.0` via `supabase/setup-cli@v3` (see `.github/workflows/test.yml`); your local brew version may be newer.
 - **Playwright browsers** — installed by `npx playwright install chromium` the first time you run E2E.
 - **Tailscale** (optional) — `playwright.config.ts` and `scripts/lib/supabase-host.mjs` allow Tailscale CGNAT (`100.64.0.0/10`) hosts so a Linux box can drive a Mac-hosted local Supabase, or vice versa.
+- **Xcode / Android Studio** (optional) — only for native Capacitor builds (`cap:open:ios` / opening `android/` in Android Studio). Web-only development needs neither.
 
 ## One-time setup
 
@@ -38,7 +39,7 @@ cp .env.test.example .env.test
 | `npm run build`                                 | Production build. `tsc -b && fnox exec -- vite build` — typecheck first, then bundle with hosted creds inlined.                                                                                                                                                                                                                                                         |
 | `npm run preview`                               | `fnox exec -- vite preview` — preview the production bundle locally.                                                                                                                                                                                                                                                                                                    |
 | `npm run lint`                                  | ESLint 10, flat config (`eslint.config.js`); `eslint-plugin-react-hooks` v7. Ignores `dist`, `dist-ssr`, `.bmad`, `.claude`, `.agent`, `.cursor`, `.serena`, `node_modules`, `*.config.{js,ts}`, `supabase`, `scripts`, `coverage`. `react-hooks/set-state-in-effect` is `'error'` — see Gotchas.                                                                       |
-| `npm run typecheck`                             | `tsc -b --noEmit`. Strict TS — `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `noUncheckedSideEffectImports`.                                                                                                                                                                                                                                    |
+| `npm run typecheck`                             | `tsc -b --noEmit && tsc -p tests/tsconfig.json --noEmit` — checks the app AND the tests tree. Strict TS — `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `noUncheckedSideEffectImports`.                                                                                                                                                         |
 | `npm run check:bundle`                          | CI-required post-build assertion: zero `react-query-devtools` chunks AND zero textual matches in any emitted `.js` (excluding source maps). Run after `npm run build`.                                                                                                                                                                                                  |
 | `npm test`                                      | Vitest watch mode.                                                                                                                                                                                                                                                                                                                                                      |
 | `npm test -- --run`                             | Vitest single run (no watch). Used in CI deploy step.                                                                                                                                                                                                                                                                                                                   |
@@ -49,7 +50,13 @@ cp .env.test.example .env.test
 | `npm run test:seed`                             | Seed the test user manually (rarely needed — globalSetup does this).                                                                                                                                                                                                                                                                                                    |
 | `npm run supabase:up` / `npm run supabase:down` | Explicit local-stack lifecycle (e.g. switching projects on the same port).                                                                                                                                                                                                                                                                                              |
 | `npm run migrate`                               | Hosted data migration tooling (`fnox exec -- tsx scripts/migrate-data.ts`).                                                                                                                                                                                                                                                                                             |
+| `npm run cap:build`                             | Native bundle: `tsc -b && fnox exec -- vite build --mode capacitor && node scripts/check-bundle.mjs && npx cap sync`. Capacitor mode = relative `base: './'` + viewport lock.                                                                                                                                                                                           |
+| `npm run cap:sync`                              | `npx cap sync` — copy `dist/` + plugin config into `ios/` and `android/`.                                                                                                                                                                                                                                                                                               |
+| `npm run cap:open:ios` / `cap:run:ios`          | Open the Xcode project / build-and-run on an iOS device or simulator.                                                                                                                                                                                                                                                                                                   |
+| `npm run cap:assets`                            | `npx capacitor-assets generate --ios --android` — regenerate icons/splash from `resources/`.                                                                                                                                                                                                                                                                            |
 | `npm run prepare`                               | Installs `simple-git-hooks` (run once after fresh clone).                                                                                                                                                                                                                                                                                                               |
+
+For live reload inside the native shell: `CAP_SERVER_URL=http://<lan-ip>:5173 npx cap sync ios` points the WebView at a LAN Vite dev server (`capacitor.config.ts:3-5`); unset = bundled `dist/`.
 
 ## Pre-commit hook (auto-installed via `prepare`)
 
@@ -94,20 +101,19 @@ cp .env.test.example .env.test
 ### Unit (Vitest)
 
 - Config: `vitest.config.ts`. jsdom environment, globals on, setup file at `src/test/setup.ts`.
-- Tests live next to source under `src/test/`, `src/hooks/__tests__/`, `src/utils/` (+ `__tests__/`), `src/types/`, and `src/contexts/`. 22 unit/component test files today.
-- New Phase-4 unit tests use a real `QueryClientProvider` with a fresh test-local `QueryClient` (retries disabled) and mock Supabase at the module boundary — do NOT mock TanStack Query itself (`useBatchAward.test.ts`, `useUndoableAction.test.ts`, `useAppClassrooms.test.ts`).
+- Tests live next to source under `src/test/`, `src/hooks/__tests__/`, `src/utils/` (+ `__tests__/`), `src/types/`, `src/lib/` (+ `__tests__/`), `src/components/seating/__tests__/`, and `src/contexts/`. **44 unit/component test files / 376 tests** today (all passing at this scan).
+- Unit tests use a real `QueryClientProvider` with a fresh test-local `QueryClient` (retries disabled) and mock Supabase at the module boundary — do NOT mock TanStack Query itself.
 - Vitest **4** API — older v1 patterns may not apply; check existing tests under `src/test/**`.
-- (`tdd-guard-vitest` was removed in `280fa10` to close Dependabot alerts — it is no longer a dependency.)
 
 ### Backend integration (Vitest + Node)
 
-- Config: `vitest.integration.config.ts`. Node environment, includes `tests/integration/**/*.{test,spec}.ts`.
+- Config: `vitest.integration.config.ts`. Node environment, includes `tests/integration/**/*.{test,spec}.ts` — **8 files**, run serially (shared stack).
 - The config uses `readEnvTest()` from `scripts/lib/supabase-host.mjs` to force `.env.test` over shell vars, then applies the same loopback / RFC1918 / Tailscale CGNAT allow-list as Playwright.
-- Tests use service-role helpers under `tests/support/helpers/` and factories under `tests/support/fixtures/`. They cover schema smoke, classroom RLS, student point-total triggers, and `point_transactions` DELETE realtime payloads.
+- Tests use service-role helpers under `tests/support/helpers/` and factories under `tests/support/fixtures/`. Coverage: schema smoke, classroom RLS, student point-total triggers, `point_transactions` DELETE realtime payloads (CI-skipped — cold-stack binding propagation is non-deterministic), batch-award atomicity (SQLSTATE `23503` → 0 rows), the batched time-totals RPC, the four seating RPCs (18 rollback/RLS/grant proofs), and the `delete-account` Edge Function (cascade, JWT-not-body identity, 401).
 
 ### E2E (Playwright)
 
-- Config: `playwright.config.ts`. Chromium only. `tests/e2e/auth.setup.ts` logs in once and saves storage state to `.auth/user.json`; the chromium project depends on `setup` and reuses the storage state.
+- Config: `playwright.config.ts`. **4 projects**: `setup` (login once → `.auth/user.json` storage state), `chromium` (Desktop Chrome; ignores the phone/touch specs), `mobile` (390×844 + `hasTouch` — runs ONLY `mobile-shell.spec.ts`), `ipad` (834×1194 + `hasTouch` — runs ONLY `seating-touch.spec.ts`). 6 specs total.
 - **Fail-closed network guard**: `playwright.config.ts` parses `VITE_SUPABASE_URL` and refuses to run unless the host is loopback, RFC1918 (`10/8`, `192.168/16`, `172.16-31/12`), or Tailscale CGNAT (`100.64-127/10`). A mis-pointed dev server can't accidentally hit hosted Supabase with real credentials.
 - E2E force-overrides shell env: `playwright.config.ts` parses `.env.test` directly with `dotenv` and writes into `process.env`. Vite's `loadEnv(..., '')` would let shell vars shadow the file (defeating the override) — that's deliberately avoided.
 - Run: `npm run test:e2e`. UI mode: `npm run test:e2e:ui`.
@@ -126,15 +132,15 @@ Jobs:
 
 1. **`lint`** — Lint + typecheck. Runs `npm ci --ignore-scripts`, `npm run lint`, `npm run typecheck`.
 2. **`bundle-check`** — Builds prod bundle and runs `npm run check:bundle` to assert no React Query Devtools leaked into prod (NFR4 + ADR-005). Has a fork-PR / dependabot fallback that builds with dummy `VITE_SUPABASE_*` values when `FNOX_AGE_KEY` isn't available — DCE assertion is compile-time, identical outcome.
-3. **`test`** — 4-shard parallel E2E. Installs Supabase CLI 2.95.0, overrides image registry to `public.ecr.aws` (GHCR mirror is incomplete for gotrue), starts local stack with retries (handles Docker Hub anonymous pull rate limits), writes a synthesized `.env.test` (local URL from `supabase status`, test creds via fnox), validates all keys are present, seeds test user, runs the matching shard. Retries on error (max 2 attempts, 15-min timeout). Uploads test results on failure (30-day retention).
-4. **`burn-in`** — Same setup as `test`, but runs the full suite 10 times in a row to flush flaky tests.
-5. **`test-summary`** — Aggregator job for branch protection. Fails if any of lint/bundle-check/test/burn-in failed.
+3. **`unit`** (NEW in this range) — `npm run test -- --run`, needs `lint`. Unit tests mock Supabase at the module boundary — no creds, no stack. This gates PRs; `deploy.yml` only runs them after merge to `main`.
+4. **`integration`** (NEW in this range) — needs `lint`. Installs Supabase CLI 2.95.0 via `supabase/setup-cli@v3`, boots a local stack with retries (`nick-fields/retry`, registry overridden to `public.ecr.aws`), derives `.env.test` from `supabase status`, runs `npm run test:integration`. The realtime DELETE test is `it.skipIf(!!process.env.CI)`-skipped (cold-stack `postgres_changes` binding propagation is non-deterministic in CI).
+5. **`test`** — 4-shard parallel E2E. Same stack bootstrap; writes a synthesized `.env.test` (local URL from `supabase status`, test creds via fnox), validates all keys, seeds the test user, runs the matching shard. Retries on error (max 2 attempts, 15-min timeout). Uploads test results on failure (30-day retention).
+6. **`burn-in`** — Same setup as `test`, but runs the full suite 10 times in a row to flush flaky tests.
+7. **`test-summary`** — Aggregator job for branch protection. Needs ALL of lint / bundle-check / unit / integration / test / burn-in.
 
 ### `deploy.yml` — GitHub Pages deploy
 
-Triggered on push to `main` and `workflow_dispatch`. Runs lint + typecheck + unit tests + build (with `FNOX_AGE_KEY` from secrets), uploads `dist/` as the Pages artifact, deploys.
-
-Unit tests run in `deploy.yml`. Backend integration tests are local-only today and not yet part of the GitHub Actions test matrix.
+Triggered on push to `main` and `workflow_dispatch`. Runs lint + typecheck + unit tests + build (with `FNOX_AGE_KEY` from secrets), uploads `dist/` as the Pages artifact, deploys. Supabase migrations + Edge Functions auto-deploy on merge to `main` via the Supabase GitHub integration (verify with the migration/functions lists, don't re-push).
 
 ### `claude.yml`, `claude-code-review.yml`
 
@@ -149,10 +155,11 @@ Claude Code GitHub actions for review and assistance.
 
 ## Deployment
 
-- Hosted at GitHub Pages — `https://<user>.github.io/ClassPoints/`.
+- Web: GitHub Pages — `https://sallvainian.github.io/ClassPoints/` (privacy policy at `/ClassPoints/privacy.html`).
 - `vite.config.ts` `base: '/ClassPoints/'` matches the path.
 - Build inlines hosted Supabase URL + anon key (NOT secret — anon key is public-readable; RLS protects data).
 - Service-role key is NEVER bundled into the app and lives only in `.env.test` (local) and CI secrets.
+- Native: `npm run cap:build` → `npm run cap:open:ios` (Xcode) or open `android/` in Android Studio. Icons/splash regenerate from `resources/` via `npm run cap:assets`.
 
 ## Common workflows
 
@@ -173,6 +180,8 @@ Claude Code GitHub actions for review and assistance.
 - **Pre-commit typecheck slows commits on large branches**: run `npm run typecheck` periodically while working so the pre-commit pass is incremental.
 - **`scripts/dev.mjs` strips fnox-auto-injected env vars**: if you need hosted creds in dev, use `npm run dev:hosted`. Setting `VITE_SUPABASE_URL` directly in your shell will be silently stripped by `dev.mjs` before spawning Vite.
 - **React 19 is installed (19.2.7) but barely used**: new code MAY use React 19 features — ref-as-prop especially (React 19 passes `ref` as a plain prop; do NOT reintroduce `forwardRef`). Keep server state in TanStack Query rather than `useOptimistic`, and match the prevailing style. The React Compiler is NOT enabled (`vite.config.ts` is `plugins: [react()]`).
-- **`react-hooks/set-state-in-effect` is `'error'`** (`eslint.config.js:52`; `eslint-plugin-react-hooks` v7): because the React Compiler is NOT enabled, the rule also fires on correct idiomatic effects (prop-reset effects, timer-driven toasts, external-system init). Prefer derive-during-render or a key-reset remount; otherwise disable per-site with a one-line justification (PERMANENT where the effect is genuinely correct, TEMP where a refactor is pending). There are 14 such disables across 12 files today (`grep -rn 'react-hooks/set-state-in-effect' src` → 14).
+- **`react-hooks/set-state-in-effect` is `'error'`** (`eslint-plugin-react-hooks` v7): because the React Compiler is NOT enabled, the rule also fires on correct idiomatic effects (prop-reset effects, timer-driven toasts, external-system init). Prefer derive-during-render or a key-reset remount; otherwise disable per-site with a one-line justification (PERMANENT where the effect is genuinely correct, TEMP where a refactor is pending). There are **13** such disables across **11** files today (`grep -rn 'react-hooks/set-state-in-effect' src` excluding tests → 13; incl. 2 PERMANENT in `SeatingChartEditor.tsx` syncing committed positions to transient dnd-kit drag transforms).
+- **Capacitor builds need the right base**: the web bundle uses `base: '/ClassPoints/'`; the native WebView serves `dist/` from its own root, so `cap:build` uses `vite build --mode capacitor` (relative `'./'`). Never `cap sync` a web-mode build into the platforms.
+- **Native session storage**: on iOS/Android the Supabase session lives in Capacitor Preferences, not localStorage (`src/lib/authStorage.ts`). Anything that purges auth state must go through `purgeAuthStorage()` so both stores are swept.
 - **Tailwind v4 syntax only**: `@import "tailwindcss"` + `@tailwindcss/postcss` plugin. No legacy v3 `tailwind.config.js` theme extensions or v3 PostCSS plugin.
 - **Realtime DELETE rule**: any table receiving realtime DELETE events MUST have `ALTER TABLE x REPLICA IDENTITY FULL` in its migration. See `supabase/migrations/005_replica_identity_full.sql`.

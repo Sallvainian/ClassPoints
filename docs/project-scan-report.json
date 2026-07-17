@@ -1,75 +1,81 @@
 {
   "workflow_version": "1.2.0",
   "timestamps": {
-    "started": "2026-06-02T18:47:26Z",
-    "last_updated": "2026-06-02T18:47:26Z",
-    "completed": "2026-06-02T18:47:26Z"
+    "started": "2026-07-17T16:03:01Z",
+    "last_updated": "2026-07-17T17:20:00Z",
+    "completed": "2026-07-17T17:20:00Z"
   },
   "mode": "full_rescan",
   "scan_level": "exhaustive",
   "project_root": "/Users/sallvain/Projects/ClassPoints",
   "project_knowledge": "/Users/sallvain/Projects/ClassPoints/docs",
-  "strategy": "Diff-driven surgical refresh: the diff c9ca66f..134a1ef (the prior scan's documented HEAD c9ca66f → current HEAD 134a1ef, 6 commits) was the staleness map. The major in-range source change is the atomic batch-award fix (30da564, #106): useBatchAward dropped the per-student Promise.all + silent .catch(() => null) filter and now fires ONE atomic multi-row insert via the new useAwardPointsBatch (useTransactions.ts:262), throwing BatchAwardError on any failure; cluster #2 (audit REAL sev 5) is CLOSED. Three new modules landed — failedBatchStore.ts (66), useFailedBatches.ts (18), activityFeed.ts (40) — plus a synthetic failed? marker on the PointTransaction app type (src/types/index.ts:36) and FAILED-entry rendering in TodaySummary. Config drift: TypeScript ~5.9.3 → ~6.0.3 (2ae19ee, #105) and lint-staged 16 → 17 (421d6bd, #104). supabase/migrations was UNCHANGED in c9ca66f..134a1ef, so data-models schema content was preserved and the refresh there collapsed to the failed? marker note. Every doc claim touching a file changed in range was re-verified against current source; every count was re-derived via shell; resolved dependency versions were re-derived from package-lock.json (NOT from project-context.md). The actively-WRONG silent-partial-failure-STILL-OPEN claims (architecture.md, state-management.md, component-inventory.md, source-tree-analysis.md) were replaced with the atomic/FIXED narrative; accurate content was preserved, not regenerated blank-slate.",
+  "strategy": "Diff-driven surgical refresh: git diff 134a1ef..e34bbf3 (32 commits, 253 files) was the staleness map. Three arcs of drift: (1) TanStack migration COMPLETED + data-layer hardening (PRs #111-#120: useSeatingChart Phase 5, useLayoutPresets #11 + legacy realtime sub deleted, realtime callback collapse #13, atomic seating RPCs #27, Zod #15, unwrap #14, batched totals RPC #8, event-driven undo #6/#22, batch_kind #7, dnd-kit click fix); (2) mobile + native (PRs #132-#137: responsive phone shell, Capacitor iOS+Android, auth resilience, seating touch, Preferences auth storage, account deletion + privacy policy + SECURITY DEFINER totals-trigger migration); (3) housekeeping (README/license, Dependabot overrides, CI unit+integration jobs, dep bumps). Five parallel read-only Explore agents produced file:line-cited maps (native shell, auth/account-deletion, mobile shell, seating, data-layer/CI); every count was re-derived by shell and the unit suite was run (44 files / 376 tests green). Accurate doc content was preserved; stale claims (two-legacy-hooks narrative, layout_presets realtime drift, 17 new Error sites, localStorage-only auth, 22/5/3 test counts, 13 migrations) were replaced.",
   "completed_steps": [
     {
       "step": "step_0",
       "status": "completed",
-      "timestamp": "2026-06-02T18:47:26Z",
-      "outputs": ["docs/.archive/project-scan-report-20260602T184726Z.json"],
-      "summary": "Archived the completed 2026-06-02 exhaustive full_rescan state (documented HEAD c9ca66f) before finalizing a fresh exhaustive full_rescan against HEAD 134a1ef."
+      "timestamp": "2026-07-17T16:03:01Z",
+      "outputs": ["docs/.archive/project-scan-report-20260717T000000Z-archived.json"],
+      "summary": "Archived the completed 2026-06-02 exhaustive full_rescan state (>24h old, documented HEAD 134a1ef). User confirmed: full rescan, exhaustive."
     },
     {
       "step": "step_1",
       "status": "completed",
-      "timestamp": "2026-06-02T18:47:26Z",
-      "summary": "Classification unchanged: single-part web monolith, React SPA + Supabase BaaS, TypeScript strict. project_type_id=web."
+      "timestamp": "2026-07-17T16:10:00Z",
+      "summary": "Classification user-confirmed: monolith, single part, project_type_id=web (React 19 SPA + Supabase BaaS, TypeScript strict). NEW: Capacitor native packaging target (ios/ 23 + android/ 77 tracked files + capacitor.config.ts + resources/), documented within the same part with mobile-row requirements applied supplementally."
+    },
+    {
+      "step": "step_2",
+      "status": "completed",
+      "timestamp": "2026-07-17T16:10:00Z",
+      "summary": "Existing docs inventoried: README.md + LICENSE.md (NEW, 01c5ee3), AGENTS.md, CLAUDE.md, ADR-005 (modified in range), docs/legacy/* (8), modernization-plan.md, point-counter-inventory.md, rules-review-category-3.md, _bmad-output artifacts. User guidance: no extra focus areas, diff-driven. Generated docs had received partial in-range updates (PRs #113/#117/#118/#119) but anchors were stale at 134a1ef and nothing from #132-#137 was reflected."
     },
     {
       "step": "step_3",
       "status": "completed",
-      "timestamp": "2026-06-02T18:47:26Z",
-      "summary": "Re-derived installed stack from package-lock.json (lockfileVersion 3): TypeScript 6.0.3 (was 5.9.3), lint-staged 17.0.7 (was 16.4.0). Unchanged: React 19.2.7, react-dom 19.2.7, Vite 8.0.16, Tailwind 4.3.0, supabase-js 2.106.2, TanStack Query 5.100.14 (+devtools), Vitest 4.1.8, jsdom 29.1.1, Playwright 1.60.0, ESLint 10.4.1, eslint-plugin-react-hooks 7.1.1, lucide-react 1.17.0. React Compiler NOT enabled."
+      "timestamp": "2026-07-17T16:15:00Z",
+      "summary": "Resolved stack re-derived from package-lock.json (lockfileVersion 3): React 19.2.7, TypeScript 6.0.3, Vite 8.1.5 (was 8.0.16), Tailwind 4.3.3 (was 4.3.0), supabase-js 2.110.7 (was 2.106.2), TanStack Query 5.101.2 (was 5.100.14), Zod 4.4.3, Vitest 4.1.10, Playwright 1.61.1 (was 1.60.0), ESLint 10.7.0 (was 10.4.1), Prettier 3.9.5, lint-staged 17.0.8, lucide-react 1.24.0 (was 1.17.0). NEW: Capacitor 8.4.2 family (core/cli/ios/android + preferences 8.0.1, status-bar 8.0.3, splash-screen 8.0.2, haptics 8.0.2, app 8.1.1, assets 3.0.5) and @fontsource self-hosted fonts. Overrides grew: uuid ^14, tar ^7.5.20, replace.minimatch ^3.1.3 (4f1ea1f). New scripts: cap:build/cap:sync/cap:open:ios/cap:run:ios/cap:assets; typecheck now also checks tests/tsconfig.json."
     },
     {
       "step": "step_4",
       "status": "completed",
-      "timestamp": "2026-06-02T18:47:26Z",
-      "summary": "Verified the cluster #2 atomic batch-award fix (30da564) against source: useBatchAward.ts now 252 LOC (was 122) — awardClass (:227)/awardSubset (:236) fire ONE atomic insert via useAwardPointsBatch (useTransactions.ts:262, bare .select() :281, throw error :282) and THROW BatchAwardError (:27/:217); classifyAndRecover (:68) bounded by AbortSignal.timeout(2000) (:61). New modules failedBatchStore.ts (66, keyed by classroomId, useSyncExternalStore source), useFailedBatches.ts (18), activityFeed.ts (40, mergeFailedIntoFeed :18, CAP-6 suppresses on dbRows.batch_id). PointTransaction gained synthetic failed? marker (src/types/index.ts:36); TodaySummary renders FAILED entries (:52-75); DashboardView wires useFailedBatches + mergeFailedIntoFeed. Counts re-derived: 134 src .ts/.tsx/.css (111 non-test), 47 components, 17 hook files incl index (was 16), 9 context files, 22 unit/component tests (was 17), 5 integration (was 4), 3 e2e, 13 migrations, exactly 3 realtime subs (students/point_transactions/legacy layout_presets), 66 from('...') literals (was 63), 14 set-state-in-effect disables across 12 files, 17 new Error(error.message) sites (was 16) + 1 throw error (useTransactions.ts:282)."
+      "timestamp": "2026-07-17T16:45:00Z",
+      "summary": "Exhaustive diff-driven analysis. Counts (my shell commands): 164 src ts/tsx/css; 120 non-test; 51 component tsx; 18 src/hooks .ts (17 impl + barrel; useDeleteAccount NEW); 44 unit test files / 376 tests green (vitest run); 8 integration; 6 e2e; 17 migrations; exactly 2 realtime sites (useTransactions.ts:83, useStudents.ts:46); 55 non-test from(' literals; 13 set-state-in-effect disables in 11 files; AppContext 33 LOC; 1 edge function. Playwright: 4 projects (setup/chromium/mobile 390x844/ipad 834x1194). Five Explore agents returned file:line-cited reports: native-surface (capacitor.config appId com.frankcottone.classpoints, native.ts 47 / haptics.ts 22 / authStorage.ts 104 / appUrl.ts 65 LOC, viewport-lock vite plugin + relative base, resources/ 3 assets, privacy.html 181, AndroidManifest allowBackup=false), auth-surface (AuthContext 497 LOC two-stage bounded boot 8s+5s, isNetworkClassAuthError whitelist supabase.ts:157, authSuspended+OfflineGate, AuthGuard-level ResetPasswordForm, updateEmail request-not-change, delete-account edge fn 67 LOC JWT-only + cascade + verify_jwt=true), mobile-shell (Layout h-dvh flex-col md:flex-row, BottomNav 69 LOC, Sidebar hidden md:flex, activity overlay, --app-bottom-nav-h, Modal/Dialog 100dvh clamps, iOS 16px input guard, @fontsource in main.tsx), seating-surface (useSeatingChart TanStack 1340 LOC / 3 caches / 17 optimistic mutations / 4 RPCs via unwrap / 25-value return / no realtime, useLayoutPresets 196 LOC Zod both directions, SeatingChartEditor 1630 LOC touch sensors + 0.44 touch-scale floor, seating-atomic-writes.sql 4 RPCs SECURITY INVOKER), data-layer (supabase.ts 171 LOC unwrap/isPostgrestError + native storage adapter, useTransactions 538 LOC exports re-anchored, database.ts +batch_kind/BatchKind/TimeTotalsRow + RPC swap, migrations 20260611145458/20260611173650/20260717033000 SECURITY DEFINER cascade fix, CI test.yml NEW unit+integration jobs, test-summary needs 6)."
     },
     {
       "step": "step_5_9",
       "status": "completed",
-      "timestamp": "2026-06-02T18:47:26Z",
+      "timestamp": "2026-07-17T17:10:00Z",
       "outputs": [
+        "data-models.md",
         "state-management.md",
         "architecture.md",
-        "data-models.md",
         "component-inventory.md",
         "source-tree-analysis.md",
         "development-guide.md",
         "project-overview.md",
         "index.md"
       ],
-      "summary": "Refreshed all 8 generated docs. state-management: replaced the silent-partial-failure STILL-OPEN section with the cluster #2 FIXED/atomic narrative + failure-surfacing infra table (failedBatchStore/useFailedBatches/activityFeed); useBatchAward row 122->252 LOC; added useAwardPointsBatch to useTransactions mutations; corrected useAwardPoints line cites (:96->:110 etc. after +14 shift); adapter contracts 16->17 new Error + added useTransactions:282 throw-original. architecture: cluster #2 bullet :114 -> atomic/FIXED; exec summary HEAD + useAwardPointsBatch mention; testing counts 17->22 unit, 4->5 integration. component-inventory: ClassAwardModal/MultiAwardModal silent-filter -> atomic throw + named error; TodaySummary FAILED rendering. source-tree: counts 126->134 src/16->17 hooks/17->22 tests; useBatchAward annotation -> atomic; added failedBatchStore.ts/useFailedBatches.ts/activityFeed.ts + 5 new test files incl new src/lib/__tests__/. data-models: range note c9ca66f..134a1ef, failed? marker on PointTransaction. development-guide: 17->22 test files. project-overview + index: TS ~5.9.3 -> ~6.0.3, Current HEAD anchor + changes-since narrative. All 8 headers re-anchored to HEAD 134a1ef."
+      "summary": "Refreshed all 8 generated docs to HEAD e34bbf3. data-models: 17 migrations, batch_kind column + named CHECK, SECURITY DEFINER totals trigger + rationale, atomic seating RPC table, NEW Edge Functions section, realtime subs corrected to exactly 2, database.ts type additions. state-management: migration-COMPLETE summary, AuthGuard branch precedence + App.tsx native glue, useTransactions line cites re-anchored (:120/:272/:294 etc.), useStudents re-anchored, Legacy section replaced with TanStack useLayoutPresets/useSeatingChart sections, AuthContext section fully rewritten (497 LOC resilience flow), ThemeContext syncStatusBar, Adapter contracts rewritten to unwrap() era, DashboardView undo cites re-derived (:100/:102-111/:124-150). architecture: exec summary (migration complete + Capacitor), pattern table rows (topology/state/auth/realtime/routing/styling/build/bundle/testing/deployment), provider stack, RPC+Edge Function section, invalidate-not-merge corrected, NEW Native shell section, responsive phone shell subsection, testing strategy 44/376+8+6 with CI jobs. component-inventory: 51 files, +OfflineGate/ResetPasswordForm/BottomNav/DeleteAccountModal rows, responsive updates across Layout/Sidebar/DashboardView/BottomToolbar/SyncStatus/Modal/Dialog/ErrorToast/UndoToast/seating, haptics note, categorization + phone-shell design tokens. source-tree: top-level tree (+ios/android/capacitor.config/resources/README/LICENSE), src tree (components 51, hooks all-TanStack annotations, lib additions), supabase tree (17 migrations + functions/), tests tree (6 e2e + 8 integration + full 44-file unit listing), CI annotation, entry-points table. development-guide: cap:* scripts + typecheck update, Xcode/Android Studio prereq, unit 44/376 + integration 8 + E2E 4-project sections, CI jobs rewritten (7 jobs), capacitor + native-storage gotchas, set-state-in-effect 13/11. project-overview: full rewrite (snapshot table with resolved versions + native/validation/fonts/license rows, 3-arc HEAD narrative, migration-COMPLETE status, cap quick-reference). index: anchor + table + quick reference + entry points + getting-started refreshed."
     },
     {
       "step": "step_10",
       "status": "completed",
-      "timestamp": "2026-06-02T18:47:26Z",
+      "timestamp": "2026-07-17T17:10:00Z",
       "outputs": ["index.md"],
-      "summary": "Master index last-generated line + HEAD anchor updated to 134a1ef; version table TS -> ~6.0.3. All 8 generated docs present, zero incomplete markers."
+      "summary": "Master index re-anchored to HEAD e34bbf3 with Capacitor/license rows and native entry points. All 8 generated docs present; zero '(To be generated)' markers needed."
     },
     {
       "step": "step_11",
       "status": "completed",
-      "timestamp": "2026-06-02T18:47:26Z",
-      "summary": "Validated: residual-staleness grep sweep clean (no stale c9ca66f-as-HEAD, 5.9.3, STILL OPEN, silent-filter-as-current, lint-staged 16, or 17/4 test-count claims remain; the only c9ca66f/5.9.3/lint-staged-16/silent matches are intentional diff-range bounds and past-tense transition descriptions). prettier --check clean across the 8 docs + JSON (state-management.md + component-inventory.md reflowed via --write). JSON valid (python json.tool). git diff --check whitespace clean. All relative markdown links resolve (47/47). Link resolution initially found 3 dead instances pointing at _bmad-output/planning-artifacts/{prd,architecture}.md — those planning docs had been archived to .archive/ as dated snapshots (prd-2026-06-02.md, architecture-decisions-2026-06-02.md) with no live working copy. The dead links were PRE-EXISTING (present in c9ca66f's committed index.md/project-overview.md) and concerned _bmad-output reorganization OUTSIDE the c9ca66f..134a1ef source-drift scope, so they were surfaced to the user, who chose to REMOVE the stale pointers from the BMAD-artifacts lists in index.md + project-overview.md (the ux-design-spec / anti-pattern-audit / implementation-artifacts links were retained). Zero incomplete-documentation markers."
+      "timestamp": "2026-07-17T17:20:00Z",
+      "summary": "Validated: residual-staleness grep sweep clean across the 8 docs (no 134a1ef-as-HEAD anchors, stale versions 2.106.2/5.100.14/8.0.16/1.17.0/4.1.8/1.60.0/10.4.1/3.8.3, 'two legacy', '13 migrations', '22 unit'/'26 active'/'3 active' counts, '1122 LOC'/'155 LOC'/'23-value', or legacy-subscription-as-current claims remain; surviving 'hand-rolled' matches are deliberate negations or the legacy-inventory link). Incomplete-marker scan (strict + fuzzy) → 0. python3 -m json.tool → valid. prettier --write then --check → all 9 files pass. Relative-link resolution: 48/48 resolve. Two stale source-tree annotations (App.tsx/AuthContext) caught and fixed during validation. Unit suite previously verified green (44 files / 376 tests)."
     },
     {
       "step": "step_12",
       "status": "completed",
-      "timestamp": "2026-06-02T18:47:26Z",
-      "summary": "Workflow complete; surgical exhaustive full_rescan finalized at HEAD 134a1ef."
+      "timestamp": "2026-07-17T17:20:00Z",
+      "summary": "Workflow complete; exhaustive diff-driven full_rescan finalized at HEAD e34bbf3."
     }
   ],
   "current_step": "completed",
@@ -78,53 +84,57 @@
       "repository_type": "monolith",
       "parts_count": 1,
       "primary_language": "TypeScript",
-      "architecture_type": "React SPA plus Supabase BaaS"
+      "architecture_type": "React SPA plus Supabase BaaS, Capacitor-wrapped for iOS/Android"
     },
-    "head_snapshot": "134a1ef on main (prior scan documented c9ca66f on main)",
+    "head_snapshot": "e34bbf3 on main (prior scan documented 134a1ef; diff range = 32 commits, 253 files)",
     "technology_stack": [
       {
         "part_id": "classpoints",
-        "tech_summary": "React 19.2.7, TypeScript 6.0.3 strict, Node >=25, Vite 8.0.16, Tailwind CSS 4.3.0, Supabase JS 2.106.2, TanStack Query 5.100.14, Vitest 4.1.8, Playwright 1.60.0, ESLint 10.4.1 (react-hooks 7), lint-staged 17.0.7."
+        "tech_summary": "React 19.2.7, TypeScript 6.0.3 strict, Node >=25, Vite 8.1.5, Tailwind CSS 4.3.3, Supabase JS 2.110.7, TanStack Query 5.101.2, Zod 4.4.3, Capacitor 8.4.2 (ios+android; preferences/status-bar/splash-screen/haptics/app plugins), @fontsource self-hosted fonts, Vitest 4.1.10, Playwright 1.61.1, ESLint 10.7.0 (react-hooks 7.1.1), Prettier 3.9.5, lint-staged 17.0.8, lucide-react 1.24.0, uuid 14 via override."
       }
     ],
     "current_counts": {
-      "src_ts_tsx_css": 134,
-      "src_non_test_ts_tsx": 111,
-      "component_tsx": 47,
-      "hook_files_incl_index": 17,
+      "src_ts_tsx_css": 164,
+      "src_non_test_ts_tsx_css": 120,
+      "component_tsx": 51,
+      "hook_files_incl_index": 18,
       "context_files": 9,
-      "unit_component_test_files": 22,
-      "integration_test_files": 5,
-      "active_e2e_specs": 3,
-      "migrations": 13,
-      "realtime_subscriptions_src_hooks": 3,
-      "from_literal_sites": 66,
-      "set_state_in_effect_disables": 14,
-      "set_state_in_effect_files": 12,
-      "new_error_message_sites": 17,
-      "throw_original_sites": 1,
+      "unit_component_test_files": 44,
+      "unit_tests_passing": 376,
+      "integration_test_files": 8,
+      "active_e2e_specs": 6,
+      "playwright_projects": 4,
+      "migrations": 17,
+      "edge_functions": 1,
+      "realtime_subscriptions_src_hooks": 2,
+      "from_literal_sites_non_test": 55,
+      "set_state_in_effect_disables": 13,
+      "set_state_in_effect_files": 11,
       "appcontext_loc": 33
     },
     "key_drift_since_prior_scan": [
-      "Atomic batch-award fix (30da564, #106): cluster #2 (audit REAL sev 5) CLOSED. useBatchAward.ts 122 -> 252 LOC; awardClass (:227)/awardSubset (:236) fire ONE atomic multi-row insert via the new useAwardPointsBatch (useTransactions.ts:262, throw error :282) and THROW BatchAwardError (:27/:217). The prior per-student Promise.all + silent .catch(() => null) filter is gone; batch call sites now rely on a clean throw contract.",
-      "Three new failure-surfacing modules: failedBatchStore.ts (66, module-level notices keyed by classroomId, frozen-EMPTY stable ref for useSyncExternalStore), useFailedBatches.ts (18, useSyncExternalStore read, sole consumer DashboardView), activityFeed.ts (40, mergeFailedIntoFeed injects synthetic FAILED rows + CAP-6 late-confirm suppression keyed on dbRows.batch_id).",
-      "PointTransaction app type gained a synthetic, session-ephemeral failed? marker (src/types/index.ts:36), never set on a real DB row; TodaySummary renders a distinct red FAILED badge for failed-flagged rows (:52-75); DashboardView wires useFailedBatches + mergeFailedIntoFeed into its transactions useMemo.",
-      "TypeScript ~5.9.3 -> ~6.0.3 (2ae19ee, #105); lint-staged ^16.4.0 -> ^17.0.7 (421d6bd, #104). All other resolved dependency versions unchanged from the prior scan.",
-      "Counts that moved: unit/component tests 17 -> 22 (added useAwardPointsBatch.test.ts, failedBatchStore.test.ts, activityFeed.test.ts, TodaySummary.test.tsx, batchAwardModals.test.tsx); integration 4 -> 5 (added batch-award-atomicity.test.ts); hook files 16 -> 17 (useFailedBatches.ts); src .ts/.tsx/.css 126 -> 134; from('...') literals 63 -> 66; new Error(error.message) sites 16 -> 17.",
-      "supabase/migrations UNCHANGED in c9ca66f..134a1ef (13 migrations) — data-models schema content preserved verbatim.",
-      "ADR-005 supersedes pointer repointed at the live src/lib/queryClient.ts (134a1ef) — docs/adr/ADR-005-queryclient-defaults.md, not a generated doc."
+      "TanStack migration COMPLETE: useSeatingChart migrated (Phase 5, PR #111 — 1340 LOC, 3 per-table caches, 17 optimistic mutations, atomic RPCs, no realtime) and useLayoutPresets migrated (#11, PR #112 — 196 LOC, Zod both directions, legacy layout_presets realtime subscription DELETED). Production realtime = exactly 2 sites = ADR-005 §6 target met.",
+      "Error handling normalized behind unwrap()/isPostgrestError (#14, PR #116) in src/lib/supabase.ts (171 LOC); 0 hand-rolled throw sites in src/hooks; 3 curated-copy exceptions in useTransactions.ts.",
+      "Batched get_student_time_totals_all_for_user RPC (#8, PR #117, migration 20260611145458 — SECURITY INVOKER, drops legacy per-classroom RPC); point_transactions.batch_kind column (#7, PR #119, named CHECK); event-driven undo expiry + single transactions mount (#6/#22, PR #118).",
+      "Capacitor 8 native shell (PRs #132/#136): ios/ + android/ platforms, capacitor.config.ts, resources/, cap:* scripts, vite --mode capacitor relative base + viewport lock, src/lib bridge modules (native/haptics/authStorage/appUrl), Preferences auth storage on native, AndroidManifest allowBackup=false.",
+      "Responsive phone shell (PR #132): Layout h-dvh flex-col md:flex-row, BottomNav (md:hidden 3-tab), Sidebar hidden md:flex, DashboardView phone activity overlay, --app-bottom-nav-h toast offset token, safe-area insets, Modal/Dialog dvh clamps, iOS 16px input guard.",
+      "Auth resilience (PR #134): AuthContext 497 LOC — two-stage bounded boot (8s getSession + 5s getUser), isNetworkClassAuthError whitelist discrimination, authSuspended → OfflineGate, boot-hash password recovery → AuthGuard-level ResetPasswordForm, updateEmail request-not-change UX, self-hosted fonts.",
+      "In-app account deletion (PR #137): delete-account Edge Function (67 LOC, JWT-only identity, service-role deleteUser, FK cascade, verify_jwt=true), DeleteAccountModal type-to-confirm, privacy.html; surfaced the 20260717033000 SECURITY DEFINER totals-trigger fix (cascade ran as supabase_auth_admin → 42501).",
+      "Seating touch support (PR #135) + click-select fix (PR #120): PrimaryButtonMouseSensor distance:5 + TouchSensor delay:200/tolerance:8, scale-compensated drag/resize math, auto-fit with MIN_TOUCH_SCALE 0.44 floor, SeatingChartEditor 1630 LOC + 36-case test suite + iPad E2E project.",
+      "Testing doubled: unit 22→44 files (376 tests), integration 5→8, e2e 3→6 across 4 Playwright projects (setup/chromium/mobile/ipad). CI test.yml gained unit + integration jobs (test-summary now needs 6); integration realtime DELETE test CI-skipped.",
+      "Housekeeping: README + PolyForm Noncommercial 1.0.0 license, 8 Dependabot alerts resolved via overrides (uuid/tar/minimatch), gitignore hardening, supabase/.temp untracked."
     ]
   },
   "project_types": [
     {
       "part_id": "classpoints",
       "project_type_id": "web",
-      "display_name": "ClassPoints (React SPA)"
+      "display_name": "ClassPoints (React SPA + Capacitor native shell)"
     }
   ],
   "outputs_generated": [
     "project-scan-report.json",
-    "docs/.archive/project-scan-report-20260602T184726Z.json",
+    "docs/.archive/project-scan-report-20260717T000000Z-archived.json",
     "index.md",
     "project-overview.md",
     "architecture.md",
@@ -134,24 +144,25 @@
     "source-tree-analysis.md",
     "development-guide.md"
   ],
-  "resume_instructions": "Workflow completed at HEAD 134a1ef. Start a new full rescan if this state becomes stale (HEAD moves materially past 134a1ef).",
+  "resume_instructions": "Workflow completed at HEAD e34bbf3 (2026-07-17). Start a new full rescan when HEAD moves materially past e34bbf3.",
   "out_of_scope_observations": [
-    "The actively-WRONG silent-partial-failure-STILL-OPEN claims were the primary damage: architecture.md:114, state-management.md (useBatchAward table row + dedicated section), component-inventory.md:90, and source-tree-analysis.md:99 all described the removed per-student Promise.all + silent .catch(() => null) filter as current behavior. All were replaced with the atomic/FIXED narrative before adding new-feature coverage.",
-    "_bmad-output/project-context.md (owned by bmad-generate-project-context, NOT this workflow) was already current at 134a1ef and documented the same #106 changes; it was used only as a where-to-look pointer. Every doc claim was independently re-verified against primary source per the verbatim-grounding requirement (e.g. 17 new Error(error.message) sites re-derived excluding tests; useBatchAward 252 LOC via wc -l; useAwardPoints line cites re-read from useTransactions.ts)."
+    "_bmad-output/project-context.md (owned by bmad-generate-project-context, NOT this workflow) is anchored at HEAD 134a1ef and is now materially stale: it still describes useSeatingChart as a hand-rolled migration target, lists 3 realtime subscriptions, counts 26 test files / 14 migrations, and knows nothing of the Capacitor/auth-resilience/account-deletion work. Its own staleness check (the recent-commits list) correctly fires. Consider re-running bmad-generate-project-context.",
+    "docs/legacy/* inventories still describe the pre-TanStack world; index.md already frames them as historical.",
+    "The five Explore-agent reports were used as maps; every doc-written claim was either re-verified by my own Read/grep/wc or carries the agents' file:line citations, with load-bearing line refs (useTransactions internals, DashboardView undo machinery, queryKeys, vite.config, newest migration, playwright.config) independently re-read in this session."
   ],
   "validation_status": {
-    "last_validated": "2026-06-02T18:47:26Z",
+    "last_validated": "2026-07-17T17:20:00Z",
     "validation_errors": [],
     "validation_commands": [
-      "node package-lock.json resolved-version extractor (typescript 6.0.3, lint-staged 17.0.7, + 8 unchanged)",
-      "git diff --name-status c9ca66f..134a1ef (38 files; supabase/migrations empty = unchanged)",
-      "shell count derivations (find/grep/wc) for all cited counts, with --include globs quoted for zsh",
-      "new Error(error.message) re-derived excluding tests = 17; throw error = 1 (useTransactions.ts:282)",
-      "residual-staleness grep sweep across the 8 generated docs (zsh loop; remaining c9ca66f/5.9.3/lint-staged-16/silent matches confirmed as intentional range bounds + past-tense transitions)",
-      "npx prettier --check on the 8 generated docs + project-scan-report.json",
-      "python3 -m json.tool docs/project-scan-report.json",
-      "relative-link resolution across the 8 generated docs (47/47 resolve after the user opted to remove 3 pre-existing dead links to archived _bmad-output planning artifacts)",
-      "incomplete-documentation marker scan (none)"
+      "node package-lock.json resolved-version extractor (36 packages)",
+      "git diff --name-status / --stat 134a1ef..e34bbf3 (253 files; per-directory breakdown)",
+      "shell count derivations (find/grep/wc/ls) for every cited count",
+      "npx vitest run → 44 files / 376 tests passed",
+      "residual-staleness grep sweep (2 rounds, ~30 patterns) across the 8 generated docs",
+      "incomplete-documentation marker scan (strict '(To be generated)' + fuzzy TBD/TODO/Coming soon/Pending) → 0",
+      "python3 -m json.tool docs/project-scan-report.json → valid",
+      "npx prettier --write + --check on the 8 docs + state JSON → clean",
+      "relative-link resolution across the 8 generated docs → 48/48 resolve"
     ]
   }
 }
