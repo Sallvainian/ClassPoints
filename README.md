@@ -34,7 +34,7 @@ ClassPoints lets a teacher run their whole classroom economy from one screen: aw
 | Server state | TanStack Query v5 (single QueryClient, centralized query keys — see [ADR-005](docs/adr/ADR-005-queryclient-defaults.md)) |
 | Drag & drop  | @dnd-kit                                                                                                                 |
 | Backend      | Supabase (Postgres 17, Realtime, Auth, one Edge Function) via supabase-js v2                                             |
-| Validation   | Zod v4 at the JSONB read boundary (layout presets)                                                                       |
+| Validation   | Zod v4 at the JSONB boundary (layout presets — validated on read, parsed again before every write)                       |
 | Native shell | Capacitor 8 (iOS + Android)                                                                                              |
 | Build / test | Vite, Vitest, Playwright, ESLint, Prettier                                                                               |
 | Fonts        | Self-hosted via @fontsource (Instrument Serif, Geist, JetBrains Mono) — no CDN, offline first paint                      |
@@ -96,9 +96,9 @@ npm run supabase:down
 
 Three layers, each with its own runner config:
 
-- **Unit / component** — Vitest + Testing Library in jsdom (`src/test/` plus colocated `__tests__/` and `*.test.*` files throughout `src/`). These mock Supabase at the module boundary and need no stack or credentials.
-- **Integration** — a separate Vitest config (`tests/integration/`) runs against a real local Supabase stack, organized by concern (RLS, realtime, schema, transactions, seating, functions). Files run serially because they share one stack.
-- **E2E** — Playwright (`tests/e2e/`) with four projects: auth setup, desktop Chromium, a mobile viewport, and an iPad viewport for seating touch flows. Global setup boots and seeds the local stack; teardown stops it only if setup started it.
+- **Unit / component** — Vitest + Testing Library in jsdom, 44 test files (`src/test/` plus colocated `__tests__/` and `*.test.*` files throughout `src/`). These mock Supabase at the module boundary and need no stack or credentials.
+- **Integration** — a separate Vitest config (`tests/integration/`, 8 test files) runs against a real local Supabase stack, organized by concern (RLS, realtime, schema, transactions, seating, functions). Files run serially because they share one stack.
+- **E2E** — Playwright (`tests/e2e/`, 6 specs) with four projects: auth setup, desktop Chromium, a mobile viewport, and an iPad viewport for seating touch flows. Global setup boots and seeds the local stack; teardown stops it only if setup started it.
 
 The test configs **fail closed**: both Playwright and the integration runner parse the Supabase URL and refuse to run unless the host is loopback, RFC1918, or Tailscale CGNAT — and they force-override shell env from `.env.test` so a leaked hosted session can never point tests at production.
 
