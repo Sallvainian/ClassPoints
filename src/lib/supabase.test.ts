@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PostgrestError } from '@supabase/supabase-js';
+import {
+  AuthApiError,
+  AuthRetryableFetchError,
+  AuthSessionMissingError,
+  AuthUnknownError,
+  PostgrestError,
+} from '@supabase/supabase-js';
 import type { PostgrestSingleResponse } from '@supabase/supabase-js';
 
 // src/lib/supabase.ts validates env at module eval and THROWS without creds —
@@ -7,7 +13,8 @@ import type { PostgrestSingleResponse } from '@supabase/supabase-js';
 // env BEFORE importing the SUT so the module loads credless.
 vi.stubEnv('VITE_SUPABASE_URL', 'http://127.0.0.1:54321');
 vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'local-test-anon-key');
-const { unwrap, isPostgrestError } = await import('./supabase');
+const { unwrap, isPostgrestError, isNetworkClassAuthError, AuthValidationTimeoutError } =
+  await import('./supabase');
 
 function ok<T>(data: T): PostgrestSingleResponse<T> {
   return { success: true, data, error: null, count: null, status: 200, statusText: 'OK' };
@@ -148,5 +155,32 @@ describe('isPostgrestError', () => {
     } else {
       expect.unreachable('guard must accept a real instance');
     }
+  });
+});
+
+describe('isNetworkClassAuthError', () => {
+  // Network-class = the session was NOT proven invalid: keep it and let the
+  // auto-refresh ticker recover. Genuine rejection = purge. Whitelist
+  // semantics — anything unclassified must land on the purge side.
+  it('classifies transient failures as network-class', () => {
+    expect(isNetworkClassAuthError(new AuthValidationTimeoutError())).toBe(true);
+    expect(isNetworkClassAuthError(new TypeError('Failed to fetch'))).toBe(true);
+    expect(isNetworkClassAuthError(new AuthRetryableFetchError('fetch failed', 0))).toBe(true);
+    expect(isNetworkClassAuthError(new AuthApiError('bad gateway', 502, undefined))).toBe(true);
+    expect(isNetworkClassAuthError(new AuthApiError('slow down', 429, undefined))).toBe(true);
+    // Non-JSON response body (HTML block/challenge page from a school content
+    // filter or CDN WAF): infrastructure in FRONT of Supabase, not GoTrue's
+    // verdict — GoTrue's own rejections are always JSON → AuthApiError.
+    expect(isNetworkClassAuthError(new AuthUnknownError('unparseable body', new Error()))).toBe(
+      true
+    );
+  });
+
+  it('classifies server verdicts and unknowns as genuine rejections', () => {
+    expect(isNetworkClassAuthError(new AuthApiError('invalid JWT', 401, 'bad_jwt'))).toBe(false);
+    expect(isNetworkClassAuthError(new AuthApiError('forbidden', 403, 'bad_jwt'))).toBe(false);
+    expect(isNetworkClassAuthError(new AuthSessionMissingError())).toBe(false);
+    expect(isNetworkClassAuthError(new Error('boom'))).toBe(false);
+    expect(isNetworkClassAuthError(undefined)).toBe(false);
   });
 });

@@ -70,16 +70,21 @@ export function useTransactions(
 
   // §6: point_transactions IS a realtime domain (PRD FR5). Subscription stays.
   // onChange → invalidate per the Phase 1 transitional signature (Decision 3).
+  // onReconnect runs the same refresh so events missed during a realtime drop
+  // (CHANNEL_ERROR / TIMED_OUT / CLOSED → SUBSCRIBED) get a catch-up refetch —
+  // same contract as useStudents' students channel.
+  const refresh = () => {
+    if (classroomId) {
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.list(classroomId) });
+    }
+    qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
+  };
   useRealtimeSubscription<DbPointTransaction>({
     table: 'point_transactions',
     filter: classroomId ? `classroom_id=eq.${classroomId}` : undefined,
     enabled: !!classroomId,
-    onChange: () => {
-      if (classroomId) {
-        qc.invalidateQueries({ queryKey: queryKeys.transactions.list(classroomId) });
-      }
-      qc.invalidateQueries({ queryKey: queryKeys.classrooms.all });
-    },
+    onChange: refresh,
+    onReconnect: refresh,
   });
 
   return useQuery<DbPointTransaction[], Error>({
