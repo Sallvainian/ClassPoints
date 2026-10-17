@@ -85,7 +85,7 @@
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.64.0",
     "vite": "^8.1.5",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.5"
   },
   "overrides": {
     "uuid": "^14.0.0",
